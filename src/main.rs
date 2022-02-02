@@ -28,33 +28,42 @@ fn main() {
         vec![0; 3],
     );
     add_tag!(&protected, SecretTaint);
-    verify!(does_not_have_tag!(&protected.data, SecretTaint));
 
     let protected = pre_function(protected);
-    verify!(does_not_have_tag!(&protected, SecretTaint));
+
+    verify!(has_tag!(&protected, SecretTaint));
+
     let protected = exec_function(protected);
+    verify!(has_tag!(&protected, SecretTaint));
+
 
     let _protected = post_function(protected);
+
+    println!("terminated");
 }
 
 fn pre_function(x: ProtectedAssets<Encrypted, Input>) -> ProtectedAssets<Decrypted, Input> {
     precondition!(has_tag!(&x, SecretTaint));
     let y = x.decrypt();
-    let y2 = ProtectedAssets::new(
-        vec![0; 3],
-        vec![0; 3],
-        vec![0; 3],
-    );
-    let y3 = y2.decrypt();
-    y3
+    // let y = ProtectedAssets::new(
+    //     vec![0; 3],
+    //     vec![0; 3],
+    //     vec![0; 3],
+    // );
+    // let y = y.decrypt();
+    y
 }
 
 fn exec_function(x: ProtectedAssets<Decrypted, Input>) -> ProtectedAssets<Decrypted, Output> {
+    assume!(has_tag!(&x, SecretTaint));
+
     let y = x.invoke(&foo);
     y
 }
 
 fn post_function(x: ProtectedAssets<Decrypted, Output>) -> ProtectedAssets<Encrypted, Output> {
+    // precondition!(has_tag!(&x, SecretTaint));
+
     x.encrypt()
 }
 
