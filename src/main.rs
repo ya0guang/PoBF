@@ -34,7 +34,7 @@ fn main() {
     verify!(has_tag!(&protected, SecretTaint));
 
     let protected = exec_function(protected);
-    verify!(has_tag!(&protected, SecretTaint));
+    // verify!(has_tag!(&protected, SecretTaint));
 
 
     let _protected = post_function(protected);
@@ -55,8 +55,8 @@ fn pre_function(x: ProtectedAssets<Encrypted, Input>) -> ProtectedAssets<Decrypt
 }
 
 fn exec_function(x: ProtectedAssets<Decrypted, Input>) -> ProtectedAssets<Decrypted, Output> {
-    assume!(has_tag!(&x, SecretTaint));
-
+    precondition!(has_tag!(&x, SecretTaint));
+    
     let y = x.invoke(&foo);
     y
 }

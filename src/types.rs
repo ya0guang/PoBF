@@ -1,5 +1,3 @@
-use std::borrow::Borrow;
-
 pub struct Input;
 pub struct Output;
 
@@ -144,16 +142,16 @@ where
     pub output_key: Key<<Data<S, T> as OutputKeyState>::KeyState>,
 }
 
-impl<T> Borrow<T> for ProtectedAssets<Encrypted, T>
-where
-    Data<Encrypted, T>: InputKeyState,
-    Data<Encrypted, T>: OutputKeyState,
-    T: IOState,
-{
-    fn borrow(&self) -> &T {
-       panic!()
-    }
-}
+// impl<T> Borrow<T> for ProtectedAssets<Encrypted, T>
+// where
+//     Data<Encrypted, T>: InputKeyState,
+//     Data<Encrypted, T>: OutputKeyState,
+//     T: IOState,
+// {
+//     fn borrow(&self) -> &T {
+//        panic!()
+//     }
+// }
 
 impl ProtectedAssets<Encrypted, Input> {
     pub fn decrypt(self) -> ProtectedAssets<Decrypted, Input> {
