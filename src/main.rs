@@ -29,13 +29,27 @@ fn main() {
     );
     add_tag!(&protected, SecretTaint);
 
-    let protected = pre_function(protected);
+    // warn by mirai
+    safe_log(&protected.output_key.raw);
+    // not warn
+    safe_log(&"computation start.".as_bytes().to_vec());
+    // not warn ???? why???
 
-    verify!(has_tag!(&protected, SecretTaint));
+    // safe_log(&protected.output_key.raw);
+
+
+    let protected = pre_function(protected);
+    
+    // safe_log(&String::from("data decrypted.").as_bytes().to_vec());
+
+    // verify!(has_tag!(&protected, SecretTaint));
 
     let protected = exec_function(protected);
     // verify!(has_tag!(&protected, SecretTaint));
 
+    // safe_log(&String::from("computation done.").as_bytes().to_vec());
+
+    // safe_log(&protected.output_key.raw);
 
     let _protected = post_function(protected);
 
@@ -55,8 +69,7 @@ fn pre_function(x: ProtectedAssets<Encrypted, Input>) -> ProtectedAssets<Decrypt
 }
 
 fn exec_function(x: ProtectedAssets<Decrypted, Input>) -> ProtectedAssets<Decrypted, Output> {
-    precondition!(has_tag!(&x, SecretTaint));
-    
+    // precondition!(has_tag!(&x, SecretTaint));
     let y = x.invoke(&foo);
     y
 }
@@ -69,4 +82,10 @@ fn post_function(x: ProtectedAssets<Decrypted, Output>) -> ProtectedAssets<Encry
 
 fn foo(_input: Vec<u8>) -> Vec<u8> {
     return vec![1; 3];
+}
+
+
+fn safe_log(input: &Vec::<u8>) {
+    precondition!(does_not_have_tag!(input, SecretTaint));
+    println!("{}", String::from_utf8_lossy(input));
 }

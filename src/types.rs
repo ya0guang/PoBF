@@ -108,7 +108,7 @@ impl Data<Decrypted, Output> {
 }
 
 pub struct Key<S> {
-    raw: Vec<u8>,
+    pub raw: Vec<u8>,
     // Sealed / Invalid
     _key_state: S,
 }
