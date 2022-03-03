@@ -9,19 +9,19 @@ static ENCLAVE_FILE: &'static str = "enclave.signed.so";
 const SEALED_LOG_SIZE: u32 = 1024;
 
 extern "C" {
-    fn say_something(
-        eid: sgx_enclave_id_t,
-        retval: *mut sgx_status_t,
-        some_string: *const u8,
-        len: usize,
-    ) -> sgx_status_t;
-}
-
-extern "C" {
     fn create_sealeddata_for_fixed(
         eid: sgx_enclave_id_t,
         retval: *mut sgx_status_t,
         sealed_log: * mut u8,
+        sealed_log_size: u32,
+    ) -> sgx_status_t;
+}
+
+extern "C" {
+    fn verify_sealeddata_for_fixed(
+        eid: sgx_enclave_id_t,
+        retval: *mut sgx_status_t,
+        sealed_log: * const u8,
         sealed_log_size: u32,
     ) -> sgx_status_t;
 }
@@ -63,24 +63,6 @@ fn main() {
         Commands::Cal => calculate_hash(),
     }
 
-    let input_string = String::from("This is a normal world string passed into Enclave!\n");
-    let mut retval = sgx_status_t::SGX_SUCCESS;
-
-    let result = unsafe {
-        say_something(
-            enclave.geteid(),
-            &mut retval,
-            input_string.as_ptr() as *const u8,
-            input_string.len(),
-        )
-    };
-    match result {
-        sgx_status_t::SGX_SUCCESS => {}
-        _ => {
-            println!("[-] ECALL Enclave Failed {}!", result.as_str());
-            return;
-        }
-    }
     println!("[+] say_something success...");
     enclave.destroy();
 }
@@ -108,7 +90,27 @@ fn generate_sealed_input(enclave: &SgxEnclave) {
         }
     }
 
-    println!("Sealed log: {:?}", sealed_log);
+    println!("Sealed log after sealing: {:?}", sealed_log);
+
+    let rv = unsafe {
+        verify_sealeddata_for_fixed(
+            enclave.geteid(),
+            &mut retval,
+            sealed_log.as_ptr() as *const u8,
+            SEALED_LOG_SIZE
+        )
+    };
+
+    match rv {
+        sgx_status_t::SGX_SUCCESS => {}
+        _ => {
+            println!("[-] ECALL Enclave Failed {}!", rv.as_str());
+            return;
+        }
+    }
+
+    println!("Sealed log after verifying: {:?}", sealed_log);
+
 }
 
 fn calculate_hash() {

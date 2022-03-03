@@ -5,10 +5,11 @@ enclave {
     from "sgx_tstdc.edl" import *;
     trusted {
         /* define ECALLs here. */
-
-        public sgx_status_t say_something([in, size=len] const uint8_t* some_string, size_t len);
-
+        
         public sgx_status_t create_sealeddata_for_fixed([out, size=sealed_log_size]
             uint8_t* sealed_log, uint32_t sealed_log_size );
+
+        public sgx_status_t verify_sealeddata_for_fixed([in, size=sealed_log_size]
+            uint8_t* sealed_log, uint32_t sealed_log_size);
     };
 };

@@ -1,17 +1,17 @@
 #include "Enclave_u.h"
 #include <errno.h>
 
-typedef struct ms_say_something_t {
-	sgx_status_t ms_retval;
-	const uint8_t* ms_some_string;
-	size_t ms_len;
-} ms_say_something_t;
-
 typedef struct ms_create_sealeddata_for_fixed_t {
 	sgx_status_t ms_retval;
 	uint8_t* ms_sealed_log;
 	uint32_t ms_sealed_log_size;
 } ms_create_sealeddata_for_fixed_t;
+
+typedef struct ms_verify_sealeddata_for_fixed_t {
+	sgx_status_t ms_retval;
+	uint8_t* ms_sealed_log;
+	uint32_t ms_sealed_log_size;
+} ms_verify_sealeddata_for_fixed_t;
 
 typedef struct ms_t_global_init_ecall_t {
 	uint64_t ms_id;
@@ -1012,21 +1012,21 @@ static const struct {
 		(void*)Enclave_sgx_thread_set_multiple_untrusted_events_ocall,
 	}
 };
-sgx_status_t say_something(sgx_enclave_id_t eid, sgx_status_t* retval, const uint8_t* some_string, size_t len)
+sgx_status_t create_sealeddata_for_fixed(sgx_enclave_id_t eid, sgx_status_t* retval, uint8_t* sealed_log, uint32_t sealed_log_size)
 {
 	sgx_status_t status;
-	ms_say_something_t ms;
-	ms.ms_some_string = some_string;
-	ms.ms_len = len;
+	ms_create_sealeddata_for_fixed_t ms;
+	ms.ms_sealed_log = sealed_log;
+	ms.ms_sealed_log_size = sealed_log_size;
 	status = sgx_ecall(eid, 0, &ocall_table_Enclave, &ms);
 	if (status == SGX_SUCCESS && retval) *retval = ms.ms_retval;
 	return status;
 }
 
-sgx_status_t create_sealeddata_for_fixed(sgx_enclave_id_t eid, sgx_status_t* retval, uint8_t* sealed_log, uint32_t sealed_log_size)
+sgx_status_t verify_sealeddata_for_fixed(sgx_enclave_id_t eid, sgx_status_t* retval, uint8_t* sealed_log, uint32_t sealed_log_size)
 {
 	sgx_status_t status;
-	ms_create_sealeddata_for_fixed_t ms;
+	ms_verify_sealeddata_for_fixed_t ms;
 	ms.ms_sealed_log = sealed_log;
 	ms.ms_sealed_log_size = sealed_log_size;
 	status = sgx_ecall(eid, 1, &ocall_table_Enclave, &ms);

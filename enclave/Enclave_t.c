@@ -27,17 +27,17 @@
 )
 
 
-typedef struct ms_say_something_t {
-	sgx_status_t ms_retval;
-	const uint8_t* ms_some_string;
-	size_t ms_len;
-} ms_say_something_t;
-
 typedef struct ms_create_sealeddata_for_fixed_t {
 	sgx_status_t ms_retval;
 	uint8_t* ms_sealed_log;
 	uint32_t ms_sealed_log_size;
 } ms_create_sealeddata_for_fixed_t;
+
+typedef struct ms_verify_sealeddata_for_fixed_t {
+	sgx_status_t ms_retval;
+	uint8_t* ms_sealed_log;
+	uint32_t ms_sealed_log_size;
+} ms_verify_sealeddata_for_fixed_t;
 
 typedef struct ms_t_global_init_ecall_t {
 	uint64_t ms_id;
@@ -481,53 +481,6 @@ typedef struct ms_sgx_thread_set_multiple_untrusted_events_ocall_t {
 	size_t ms_total;
 } ms_sgx_thread_set_multiple_untrusted_events_ocall_t;
 
-static sgx_status_t SGX_CDECL sgx_say_something(void* pms)
-{
-	CHECK_REF_POINTER(pms, sizeof(ms_say_something_t));
-	//
-	// fence after pointer checks
-	//
-	sgx_lfence();
-	ms_say_something_t* ms = SGX_CAST(ms_say_something_t*, pms);
-	sgx_status_t status = SGX_SUCCESS;
-	const uint8_t* _tmp_some_string = ms->ms_some_string;
-	size_t _tmp_len = ms->ms_len;
-	size_t _len_some_string = _tmp_len;
-	uint8_t* _in_some_string = NULL;
-
-	CHECK_UNIQUE_POINTER(_tmp_some_string, _len_some_string);
-
-	//
-	// fence after pointer checks
-	//
-	sgx_lfence();
-
-	if (_tmp_some_string != NULL && _len_some_string != 0) {
-		if ( _len_some_string % sizeof(*_tmp_some_string) != 0)
-		{
-			status = SGX_ERROR_INVALID_PARAMETER;
-			goto err;
-		}
-		_in_some_string = (uint8_t*)malloc(_len_some_string);
-		if (_in_some_string == NULL) {
-			status = SGX_ERROR_OUT_OF_MEMORY;
-			goto err;
-		}
-
-		if (memcpy_s(_in_some_string, _len_some_string, _tmp_some_string, _len_some_string)) {
-			status = SGX_ERROR_UNEXPECTED;
-			goto err;
-		}
-
-	}
-
-	ms->ms_retval = say_something((const uint8_t*)_in_some_string, _tmp_len);
-
-err:
-	if (_in_some_string) free(_in_some_string);
-	return status;
-}
-
 static sgx_status_t SGX_CDECL sgx_create_sealeddata_for_fixed(void* pms)
 {
 	CHECK_REF_POINTER(pms, sizeof(ms_create_sealeddata_for_fixed_t));
@@ -570,6 +523,53 @@ static sgx_status_t SGX_CDECL sgx_create_sealeddata_for_fixed(void* pms)
 			goto err;
 		}
 	}
+
+err:
+	if (_in_sealed_log) free(_in_sealed_log);
+	return status;
+}
+
+static sgx_status_t SGX_CDECL sgx_verify_sealeddata_for_fixed(void* pms)
+{
+	CHECK_REF_POINTER(pms, sizeof(ms_verify_sealeddata_for_fixed_t));
+	//
+	// fence after pointer checks
+	//
+	sgx_lfence();
+	ms_verify_sealeddata_for_fixed_t* ms = SGX_CAST(ms_verify_sealeddata_for_fixed_t*, pms);
+	sgx_status_t status = SGX_SUCCESS;
+	uint8_t* _tmp_sealed_log = ms->ms_sealed_log;
+	uint32_t _tmp_sealed_log_size = ms->ms_sealed_log_size;
+	size_t _len_sealed_log = _tmp_sealed_log_size;
+	uint8_t* _in_sealed_log = NULL;
+
+	CHECK_UNIQUE_POINTER(_tmp_sealed_log, _len_sealed_log);
+
+	//
+	// fence after pointer checks
+	//
+	sgx_lfence();
+
+	if (_tmp_sealed_log != NULL && _len_sealed_log != 0) {
+		if ( _len_sealed_log % sizeof(*_tmp_sealed_log) != 0)
+		{
+			status = SGX_ERROR_INVALID_PARAMETER;
+			goto err;
+		}
+		_in_sealed_log = (uint8_t*)malloc(_len_sealed_log);
+		if (_in_sealed_log == NULL) {
+			status = SGX_ERROR_OUT_OF_MEMORY;
+			goto err;
+		}
+
+		if (memcpy_s(_in_sealed_log, _len_sealed_log, _tmp_sealed_log, _len_sealed_log)) {
+			status = SGX_ERROR_UNEXPECTED;
+			goto err;
+		}
+
+	}
+
+	ms->ms_retval = verify_sealeddata_for_fixed(_in_sealed_log, _tmp_sealed_log_size);
 
 err:
 	if (_in_sealed_log) free(_in_sealed_log);
@@ -637,8 +637,8 @@ SGX_EXTERNC const struct {
 } g_ecall_table = {
 	4,
 	{
-		{(void*)(uintptr_t)sgx_say_something, 0, 0},
 		{(void*)(uintptr_t)sgx_create_sealeddata_for_fixed, 0, 0},
+		{(void*)(uintptr_t)sgx_verify_sealeddata_for_fixed, 0, 0},
 		{(void*)(uintptr_t)sgx_t_global_init_ecall, 0, 0},
 		{(void*)(uintptr_t)sgx_t_global_exit_ecall, 0, 0},
 	}
