@@ -1,3 +1,6 @@
+use sgx_types::marker::ContiguousMemory;
+use std::vec::Vec;
+
 pub struct Input;
 pub struct Output;
 
@@ -19,19 +22,31 @@ pub trait InputKeyState {
     type KeyState;
 }
 
-impl InputKeyState for Data<Encrypted, Input> {
+impl<D> InputKeyState for Data<Encrypted, Input, D>
+where
+    D: ContiguousMemory,
+{
     type KeyState = Sealed;
 }
 
-impl InputKeyState for Data<Decrypted, Input> {
+impl<D> InputKeyState for Data<Decrypted, Input, D>
+where
+    D: ContiguousMemory,
+{
     type KeyState = Invalid;
 }
 
-impl InputKeyState for Data<Decrypted, Output> {
+impl<D> InputKeyState for Data<Decrypted, Output, D>
+where
+    D: ContiguousMemory,
+{
     type KeyState = Invalid;
 }
 
-impl InputKeyState for Data<Encrypted, Output> {
+impl<D> InputKeyState for Data<Encrypted, Output, D>
+where
+    D: ContiguousMemory,
+{
     type KeyState = Invalid;
 }
 
@@ -39,36 +54,59 @@ pub trait OutputKeyState {
     type KeyState;
 }
 
-impl OutputKeyState for Data<Encrypted, Input> {
+impl<D> OutputKeyState for Data<Encrypted, Input, D>
+where
+    D: ContiguousMemory,
+{
     type KeyState = Sealed;
 }
 
-impl OutputKeyState for Data<Decrypted, Input> {
+impl<D> OutputKeyState for Data<Decrypted, Input, D>
+where
+    D: ContiguousMemory,
+{
     type KeyState = Sealed;
 }
 
-impl OutputKeyState for Data<Decrypted, Output> {
+impl<D> OutputKeyState for Data<Decrypted, Output, D>
+where
+    D: ContiguousMemory,
+{
     type KeyState = Sealed;
 }
 
-impl OutputKeyState for Data<Encrypted, Output> {
+impl<D> OutputKeyState for Data<Encrypted, Output, D>
+where
+    D: ContiguousMemory,
+{
     type KeyState = Invalid;
 }
 
-pub struct Data<S, T>
+#[derive(Copy, Clone, Default, Debug)]
+pub struct DataFixed {
+    inner: [u8; 16],
+}
+
+unsafe impl ContiguousMemory for DataFixed {}
+
+pub struct Data<S, T, D: ContiguousMemory>
 where
     S: EncryptionState,
     T: IOState,
 {
-    raw: Vec<u8>,
+    // inner data
+    raw: D,
     // Ecrypted / Decrypted
     _encryption_state: S,
     // Input / Output
     _io_state: T,
 }
 
-impl Data<Encrypted, Input> {
-    pub fn new(raw: Vec<u8>) -> Self {
+impl<D> Data<Encrypted, Input, D>
+where
+    D: ContiguousMemory,
+{
+    pub fn new(raw: D) -> Self {
         Self {
             raw,
             _encryption_state: Encrypted,
@@ -77,8 +115,11 @@ impl Data<Encrypted, Input> {
     }
 }
 
-impl Data<Encrypted, Input> {
-    pub fn decrypt(self, _key: &Key<Sealed>) -> Data<Decrypted, Input> {
+impl<D> Data<Encrypted, Input, D>
+where
+    D: ContiguousMemory,
+{
+    pub fn decrypt(self, _key: &Key<Sealed>) -> Data<Decrypted, Input, D> {
         Data {
             raw: self.raw,
             _encryption_state: Decrypted,
@@ -87,8 +128,11 @@ impl Data<Encrypted, Input> {
     }
 }
 
-impl Data<Decrypted, Input> {
-    pub fn invoke(self, fun: &dyn Fn(Vec<u8>) -> Vec<u8>) -> Data<Decrypted, Output> {
+impl<D> Data<Decrypted, Input, D>
+where
+    D: ContiguousMemory,
+{
+    pub fn invoke(self, fun: &dyn Fn(D) -> D) -> Data<Decrypted, Output, D> {
         Data {
             raw: fun(self.raw),
             _encryption_state: Decrypted,
@@ -97,8 +141,11 @@ impl Data<Decrypted, Input> {
     }
 }
 
-impl Data<Decrypted, Output> {
-    pub fn encrypt(self, _key: &Key<Sealed>) -> Data<Encrypted, Output> {
+impl<D> Data<Decrypted, Output, D>
+where
+    D: ContiguousMemory,
+{
+    pub fn encrypt(self, _key: &Key<Sealed>) -> Data<Encrypted, Output, D> {
         Data {
             raw: self.raw,
             _encryption_state: Encrypted,
@@ -130,16 +177,17 @@ impl Key<Sealed> {
     }
 }
 
-pub struct ProtectedAssets<S, T>
+pub struct ProtectedAssets<S, T, D>
 where
-    Data<S, T>: InputKeyState,
-    Data<S, T>: OutputKeyState,
+    Data<S, T, D>: InputKeyState,
+    Data<S, T, D>: OutputKeyState,
     S: EncryptionState,
     T: IOState,
+    D: ContiguousMemory,
 {
-    pub data: Data<S, T>,
-    pub input_key: Key<<Data<S, T> as InputKeyState>::KeyState>,
-    pub output_key: Key<<Data<S, T> as OutputKeyState>::KeyState>,
+    pub data: Data<S, T, D>,
+    pub input_key: Key<<Data<S, T, D> as InputKeyState>::KeyState>,
+    pub output_key: Key<<Data<S, T, D> as OutputKeyState>::KeyState>,
 }
 
 // impl<T> Borrow<T> for ProtectedAssets<Encrypted, T>
@@ -153,8 +201,11 @@ where
 //     }
 // }
 
-impl ProtectedAssets<Encrypted, Input> {
-    pub fn decrypt(self) -> ProtectedAssets<Decrypted, Input> {
+impl<D> ProtectedAssets<Encrypted, Input, D>
+where
+    D: ContiguousMemory,
+{
+    pub fn decrypt(self) -> ProtectedAssets<Decrypted, Input, D> {
         ProtectedAssets {
             data: self.data.decrypt(&self.input_key),
             input_key: self.input_key.zeroize(),
@@ -162,7 +213,7 @@ impl ProtectedAssets<Encrypted, Input> {
         }
     }
 
-    pub fn new(raw: Vec<u8>, input_key: Vec<u8>, output_key: Vec<u8>) -> Self {
+    pub fn new(raw: D, input_key: Vec<u8>, output_key: Vec<u8>) -> Self {
         ProtectedAssets {
             data: Data::new(raw),
             input_key: Key::new(input_key),
@@ -171,8 +222,11 @@ impl ProtectedAssets<Encrypted, Input> {
     }
 }
 
-impl ProtectedAssets<Decrypted, Input> {
-    pub fn invoke(self, fun: &dyn Fn(Vec<u8>) -> Vec<u8>) -> ProtectedAssets<Decrypted, Output> {
+impl<D> ProtectedAssets<Decrypted, Input, D>
+where
+    D: ContiguousMemory,
+{
+    pub fn invoke(self, fun: &dyn Fn(D) -> D) -> ProtectedAssets<Decrypted, Output, D> {
         ProtectedAssets {
             data: self.data.invoke(fun),
             input_key: self.input_key,
@@ -181,8 +235,11 @@ impl ProtectedAssets<Decrypted, Input> {
     }
 }
 
-impl ProtectedAssets<Decrypted, Output> {
-    pub fn encrypt(self) -> ProtectedAssets<Encrypted, Output> {
+impl<D> ProtectedAssets<Decrypted, Output, D>
+where
+    D: ContiguousMemory,
+{
+    pub fn encrypt(self) -> ProtectedAssets<Encrypted, Output, D> {
         ProtectedAssets {
             data: self.data.encrypt(&self.output_key),
             input_key: self.input_key,
