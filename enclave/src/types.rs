@@ -4,7 +4,7 @@ use sgx_types::marker::ContiguousMemory;
 use std::vec::Vec;
 
 pub const LOG_BUFFER_SIZE: usize = 1024;
-const SEALED_DATA_SIZE: usize = 16;
+pub const SEALED_DATA_SIZE: usize = 16;
 
 pub struct Input;
 pub struct Output;
@@ -87,26 +87,34 @@ where
     type KeyState = Invalid;
 }
 
-trait EncDec {
+pub trait EncDec {
     fn encrypt(self, key: &Vec<u8>) -> Self;
     fn decrypt(self, key: &Vec<u8>) -> Self;
 }
 
 #[derive(Copy, Clone, Debug)]
 pub struct SealedData {
-    inner: [u8; LOG_BUFFER_SIZE],
+    pub inner: [u8; LOG_BUFFER_SIZE],
 }
 
 impl SealedData {
     pub fn new(raw: [u8; LOG_BUFFER_SIZE]) -> Self {
         SealedData { inner: raw }
     }
+
+    pub fn from_ref(r: &[u8]) -> Self {
+        let mut raw = [0_u8; LOG_BUFFER_SIZE];
+        raw.copy_from_slice(r);
+        SealedData { inner: raw }
+    }
 }
 
 impl EncDec for SealedData {
     fn decrypt(self, _key: &Vec<u8>) -> Self {
-        let opt =
-            from_sealed_log_for_fixed::<[u8; SEALED_DATA_SIZE]>(self.inner.as_ptr() as *mut u8, 16);
+        let opt = from_sealed_log_for_fixed::<[u8; SEALED_DATA_SIZE]>(
+            self.inner.as_ptr() as *mut u8,
+            LOG_BUFFER_SIZE as u32,
+        );
         let sealed_data = match opt {
             Some(x) => x,
             _ => panic!("Failed to create sealed data"),
@@ -248,9 +256,9 @@ where
     T: IOState,
     D: ContiguousMemory,
 {
-    pub data: Data<S, T, D>,
-    pub input_key: Key<<Data<S, T, D> as InputKeyState>::KeyState>,
-    pub output_key: Key<<Data<S, T, D> as OutputKeyState>::KeyState>,
+    data: Data<S, T, D>,
+    input_key: Key<<Data<S, T, D> as InputKeyState>::KeyState>,
+    output_key: Key<<Data<S, T, D> as OutputKeyState>::KeyState>,
 }
 
 // impl<T> Borrow<T> for ProtectedAssets<Encrypted, T>
@@ -308,5 +316,14 @@ where
             input_key: self.input_key,
             output_key: self.output_key.zeroize(),
         }
+    }
+}
+
+impl<D> ProtectedAssets<Encrypted, Output, D>
+where
+    D: ContiguousMemory + EncDec,
+{
+    pub fn take(self) -> D {
+        self.data.raw
     }
 }

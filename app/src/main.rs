@@ -98,7 +98,7 @@ fn generate_sealed_input(enclave: &SgxEnclave) -> [u8; SEALED_LOG_SIZE] {
         _ => panic!("Failed ECALL to create sealed data"),
     }
 
-    println!("Sealed log after sealing: {:?}", sealed_log);
+    // println!("Sealed log after sealing: {:?}", sealed_log);
 
     let rv = unsafe {
         verify_sealeddata_for_fixed(
@@ -138,7 +138,7 @@ fn exec_sample_task(enclave: &SgxEnclave, sealed_log: [u8; SEALED_LOG_SIZE]) -> 
         }
     }
 
-    println!("Sealed log after sealing: {:?}", sealed_log);
+    // println!("Sealed log after sealing: {:?}", sealed_log);
 
     let rv = unsafe {
         verify_sealeddata_for_fixed(
