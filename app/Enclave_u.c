@@ -13,6 +13,12 @@ typedef struct ms_verify_sealeddata_for_fixed_t {
 	uint32_t ms_sealed_log_size;
 } ms_verify_sealeddata_for_fixed_t;
 
+typedef struct ms_sample_task_t {
+	sgx_status_t ms_retval;
+	uint8_t* ms_sealed_log;
+	uint32_t ms_sealed_log_size;
+} ms_sample_task_t;
+
 typedef struct ms_t_global_init_ecall_t {
 	uint64_t ms_id;
 	const uint8_t* ms_path;
@@ -1034,6 +1040,17 @@ sgx_status_t verify_sealeddata_for_fixed(sgx_enclave_id_t eid, sgx_status_t* ret
 	return status;
 }
 
+sgx_status_t sample_task(sgx_enclave_id_t eid, sgx_status_t* retval, uint8_t* sealed_log, uint32_t sealed_log_size)
+{
+	sgx_status_t status;
+	ms_sample_task_t ms;
+	ms.ms_sealed_log = sealed_log;
+	ms.ms_sealed_log_size = sealed_log_size;
+	status = sgx_ecall(eid, 2, &ocall_table_Enclave, &ms);
+	if (status == SGX_SUCCESS && retval) *retval = ms.ms_retval;
+	return status;
+}
+
 sgx_status_t t_global_init_ecall(sgx_enclave_id_t eid, uint64_t id, const uint8_t* path, size_t len)
 {
 	sgx_status_t status;
@@ -1041,14 +1058,14 @@ sgx_status_t t_global_init_ecall(sgx_enclave_id_t eid, uint64_t id, const uint8_
 	ms.ms_id = id;
 	ms.ms_path = path;
 	ms.ms_len = len;
-	status = sgx_ecall(eid, 2, &ocall_table_Enclave, &ms);
+	status = sgx_ecall(eid, 3, &ocall_table_Enclave, &ms);
 	return status;
 }
 
 sgx_status_t t_global_exit_ecall(sgx_enclave_id_t eid)
 {
 	sgx_status_t status;
-	status = sgx_ecall(eid, 3, &ocall_table_Enclave, NULL);
+	status = sgx_ecall(eid, 4, &ocall_table_Enclave, NULL);
 	return status;
 }
 

@@ -1,5 +1,10 @@
+use crate::utils::*;
+use sgx_tseal::SgxSealedData;
 use sgx_types::marker::ContiguousMemory;
 use std::vec::Vec;
+
+pub const LOG_BUFFER_SIZE: usize = 1024;
+const SEALED_DATA_SIZE: usize = 16;
 
 pub struct Input;
 pub struct Output;
@@ -82,12 +87,70 @@ where
     type KeyState = Invalid;
 }
 
-#[derive(Copy, Clone, Default, Debug)]
-pub struct DataFixed {
-    inner: [u8; 16],
+trait EncDec {
+    fn encrypt(self, key: &Vec<u8>) -> Self;
+    fn decrypt(self, key: &Vec<u8>) -> Self;
 }
 
-unsafe impl ContiguousMemory for DataFixed {}
+#[derive(Copy, Clone, Debug)]
+pub struct SealedData {
+    inner: [u8; LOG_BUFFER_SIZE],
+}
+
+impl SealedData {
+    pub fn new(raw: [u8; LOG_BUFFER_SIZE]) -> Self {
+        SealedData { inner: raw }
+    }
+}
+
+impl EncDec for SealedData {
+    fn decrypt(self, _key: &Vec<u8>) -> Self {
+        let opt =
+            from_sealed_log_for_fixed::<[u8; SEALED_DATA_SIZE]>(self.inner.as_ptr() as *mut u8, 16);
+        let sealed_data = match opt {
+            Some(x) => x,
+            _ => panic!("Failed to create sealed data"),
+        };
+
+        let result = sealed_data.unseal_data();
+        let unsealed_data = match result {
+            Ok(x) => x,
+            Err(ret) => panic!("Failed to unseal data: {:?}", ret),
+        };
+        let data = unsealed_data.get_decrypt_txt();
+        let mut rv = SealedData {
+            inner: [0u8; LOG_BUFFER_SIZE],
+        };
+        rv.inner[..data.len()].copy_from_slice(data);
+        rv
+    }
+
+    fn encrypt(self, _key: &Vec<u8>) -> Self {
+        let mut buffer = [0u8; SEALED_DATA_SIZE];
+        buffer.copy_from_slice(&self.inner[..SEALED_DATA_SIZE]);
+        let aad: [u8; 0] = [0_u8; 0];
+        let result = SgxSealedData::<[u8; SEALED_DATA_SIZE]>::seal_data(&aad, &buffer);
+
+        let sealed_data = match result {
+            Ok(x) => x,
+            Err(ret) => panic!("Failed to seal data: {:?}", ret),
+        };
+        let rv = SealedData {
+            inner: [0u8; LOG_BUFFER_SIZE],
+        };
+        let opt = to_sealed_log_for_fixed(
+            &sealed_data,
+            rv.inner.as_ptr() as *mut u8,
+            LOG_BUFFER_SIZE as u32,
+        );
+        if opt.is_none() {
+            panic!("Failed to convert sealed data to raw data");
+        }
+        rv
+    }
+}
+
+unsafe impl ContiguousMemory for SealedData {}
 
 pub struct Data<S, T, D: ContiguousMemory>
 where
@@ -117,11 +180,11 @@ where
 
 impl<D> Data<Encrypted, Input, D>
 where
-    D: ContiguousMemory,
+    D: ContiguousMemory + EncDec,
 {
-    pub fn decrypt(self, _key: &Key<Sealed>) -> Data<Decrypted, Input, D> {
+    pub fn decrypt(self, key: &Key<Sealed>) -> Data<Decrypted, Input, D> {
         Data {
-            raw: self.raw,
+            raw: self.raw.decrypt(&key.raw),
             _encryption_state: Decrypted,
             _io_state: Input,
         }
@@ -143,11 +206,11 @@ where
 
 impl<D> Data<Decrypted, Output, D>
 where
-    D: ContiguousMemory,
+    D: ContiguousMemory + EncDec,
 {
-    pub fn encrypt(self, _key: &Key<Sealed>) -> Data<Encrypted, Output, D> {
+    pub fn encrypt(self, key: &Key<Sealed>) -> Data<Encrypted, Output, D> {
         Data {
-            raw: self.raw,
+            raw: self.raw.encrypt(&key.raw),
             _encryption_state: Encrypted,
             _io_state: Output,
         }
@@ -203,7 +266,7 @@ where
 
 impl<D> ProtectedAssets<Encrypted, Input, D>
 where
-    D: ContiguousMemory,
+    D: ContiguousMemory + EncDec,
 {
     pub fn decrypt(self) -> ProtectedAssets<Decrypted, Input, D> {
         ProtectedAssets {
@@ -237,7 +300,7 @@ where
 
 impl<D> ProtectedAssets<Decrypted, Output, D>
 where
-    D: ContiguousMemory,
+    D: ContiguousMemory + EncDec,
 {
     pub fn encrypt(self) -> ProtectedAssets<Encrypted, Output, D> {
         ProtectedAssets {
