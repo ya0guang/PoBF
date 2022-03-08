@@ -4,7 +4,7 @@
 
 We need a (static) code analysis tool for Rust.
 
-"Checked" means that [MIRAI]() has implemented this functionality, and so for tested correct.
+"Checked box" means that [MIRAI]() has implemented this functionality, and so far tested correct.
 
 ### Taint Analysis
 
@@ -17,7 +17,8 @@ We need a (static) code analysis tool for Rust.
 - [ ] Verification of precondition
 - [ ] Termination check
 
-MIRAI cannot produce correct results. Not sure if it's because that tag propagation is incorrect.
+MIRAI has these functionalities but cannot produce correct results for our code. 
+Not sure if it's because that tag propagation is incorrect.
 
 ### Others
 
@@ -35,13 +36,13 @@ MIRAI cannot produce correct results. Not sure if it's because that tag propagat
 
 When copying input, or constructing datatypes in the ECALL, we need to use unsafe code. Also this cannot be avoided when constructing the output buffer.
 
-Maybe we also need to seperate OCALLs?
+Maybe we also need to seperate OCALLs from the context and wrap them with precondition verifications? e.g., the input arguments should not be tainted by secrets.
 
 #### Potential Solutions
 
 - Provide a library to wrap unsafe code
 - Transfer types directly across enclave boundry
-- Admit this problem as a deficit
+- **Admit** this problem as a deficit
 
 ## TODOs
 
@@ -49,12 +50,12 @@ Maybe we also need to seperate OCALLs?
 - Verify this implementation (with a verifier)
 - Formal proof of PoBF constraints
 
-### Goals in the Long Run
+## Goals in the Long Run
 
-- *Being Forgotten* report
-- Trusted & verifiable build
+- Runtime *Being Forgotten* report
+- Trusted & verifiable 3rd-party build
 - Meaningful attestation
-- Key management
+- Trusted key exchange
 - Apply PoBF on Teaclave
 - Side-channel mitigations
 
