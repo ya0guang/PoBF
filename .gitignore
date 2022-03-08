@@ -1,4 +1,9 @@
-*/target
+/target
 /md_output
 /bin
 /lib
+
+# intermediate results
+Encalve_u.*
+Enclave_t.*
+*.so
