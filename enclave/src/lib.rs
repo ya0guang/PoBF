@@ -9,51 +9,30 @@ extern crate sgx_types;
 extern crate sgx_tstd as std;
 mod types;
 mod utils;
+mod pobf;
 
-use sgx_rand::{Rng, StdRng};
+// use sgx_rand::{Rng, StdRng};
 use sgx_tseal::SgxSealedData;
 use sgx_types::*;
-use std::io::{self, Write};
 use std::slice;
-use std::string::String;
-use std::vec::Vec;
 use types::*;
 use utils::*;
+use pobf::*;
 
 #[no_mangle]
 pub extern "C" fn sample_task(sealed_log: *mut u8, sealed_log_size: u32) -> sgx_status_t {
     assert!(sealed_log_size == LOG_BUFFER_SIZE as u32);
-    let selaed_buffer = unsafe {
+    let sealed_buffer = unsafe {
         slice::from_raw_parts_mut(sealed_log, LOG_BUFFER_SIZE)
     };
 
-    let sealed_data = SealedData::from_ref(selaed_buffer);
-    let protected_enc_in = ProtectedAssets::new(sealed_data, vec![1], vec![1]);
+    let sealed_data = SealedData::from_ref(sealed_buffer);
+    let sealed_output = pobf_ref_implementation(sealed_data);
 
-    let protected_dec_in = protected_enc_in.decrypt();
-
-    let protected_dec_out = protected_dec_in.invoke(&computation);
-
-    let protected_enc_out = protected_dec_out.encrypt();
-
-    let output = protected_enc_out.take();
-
-    unsafe {std::ptr::copy(output.inner.as_ptr(), selaed_buffer.as_mut_ptr(), LOG_BUFFER_SIZE)}
-
-    // let sealed_data =  SealedData::new(sealed_log as [u8; LOG_BUFFER_SIZE]);
+    sealed_buffer.copy_from_slice(sealed_output.inner.as_ref());
 
     sgx_status_t::SGX_SUCCESS
 }
-
-fn computation(data: SealedData) -> SealedData {
-    let mut new_data = SealedData::new([0u8; LOG_BUFFER_SIZE]);
-
-    for i in 0..SEALED_DATA_SIZE {
-        new_data.inner[i] = data.inner[i] + 1;
-    }
-    new_data
-}
-
 
 #[no_mangle]
 pub extern "C" fn create_sealeddata_for_fixed(
