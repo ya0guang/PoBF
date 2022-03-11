@@ -28,10 +28,6 @@
 
 Allowed operations
 
-i := memory location
-exp := var | mem(i) | stack(i) | imm(n) | fun(...) | rv(i)
-statement := while *exp* do s end | s1; s2 | if *exp* then s1 else s2 end | eexit | eenter | read(i) | return exp | call proc. | var x := exp | 
-
 - Enclave instr. (eenter/eexit)
 - Memory Access (write/read/copy)
 - Computation (unary & binary)
@@ -44,6 +40,7 @@ statement := while *exp* do s end | s1; s2 | if *exp* then s1 else s2 end | eexi
 ### Execution
 
 - Input: (secret) tagged values on stack
+- Error list.
 - State: *stack*, *program(task(functions))*, memory, mode
 - Execution as relation between states
 - How to pass argument to a function?
@@ -51,3 +48,8 @@ statement := while *exp* do s end | s1; s2 | if *exp* then s1 else s2 end | eexi
   - Raw mem: PID instr?
 - How to use a function as PID code?
 
+### AST
+
+loc := stack(n) | var(str) | RV
+exp := Loc(loc) | Val(v) | Unary(exp, op) | Binary(exp1, exp2, op)
+com := Nop | Eenter | Eexit | Asgn (loc, exp) | Seq(com1, com2) | If(exp, comt, come) | While(exp, com) | *call* | *declassification* 
