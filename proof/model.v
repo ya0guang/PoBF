@@ -393,6 +393,22 @@ Proof.
       * destruct v. destruct s eqn: eqs; intros; try discriminate H; apply IHvars with tv l in H; unfold update in *; destruct (eq_location a l) eqn: eqal; try rewrite eqa; try assumption; try assumption.
 Qed.
 
+Lemma leaked_update_l: forall (me: memory) (vars: accessible) (l: location) (tv: tagged_value),
+  leaked me vars = false -> leaked (update l (EncMem ZoneMem tv) me) (l::vars) = false.
+Proof.
+  intros. generalize dependent l. generalize dependent tv. generalize dependent H. induction vars.
+  - simpl. intros. unfold update. rewrite eq_location_refl. reflexivity.
+  - intros H. simpl in H. destruct (me a) eqn:eqa; try destruct v; try destruct s eqn:eqs; try discriminate H;
+    intros tv l; try destruct z eqn: eqz; try apply IHvars with tv l in H; simpl in H; unfold update in H; try rewrite eq_location_refl in H;
+    repeat try (unfold update; simpl; rewrite eq_location_refl; destruct (eq_location a l) eqn: eqal;
+      unfold update; try rewrite eqa; try assumption). 
+    discriminate H.
+Qed.
+
+Inductive is_criticalP (me: memory) (vars: accessible) : Prop :=
+  | is_criticalP_true : is_criticalP me vars
+  | is_criticalP_false : ~(leaked me vars) -> is_criticalP me vars.
+
 (* We regard all the arguments to a procedure are passed through stack *)
 (* should they also lie on the zoen? *)
 Fixpoint is_critical (me: memory) (vars: accessible) : bool :=
@@ -407,8 +423,36 @@ Fixpoint is_critical (me: memory) (vars: accessible) : bool :=
               end
   end.
 
-(* for critical procedures, secrects need to lay in the Zone *)
+Lemma cirtical_on_stack: forall (me: memory) (vars: accessible) (l: location) (tv: tagged_value),
+  is_critical me vars = true <-> exists l, In l vars -> me l = .
+Proof.
+  
+Qed.
 
+
+Lemma cirtical_propagate: forall (me: memory) (vars: accessible) (l: location) (tv: tagged_value),
+(* should not update a location on stack *)
+  is_critical me vars = true -> 
+  is_critical (update l (EncMem ZoneMem tv) me) (l::vars) = true.
+Proof.
+    
+  intros. generalize dependent l. generalize dependent tv. generalize dependent H. induction vars.
+  - simpl. intros. discriminate H.
+  - intros. simpl in H.
+    destruct a eqn: eqa; destruct (me a) eqn: eqma; subst; try rewrite eqma in *; try apply IHvars with tv l in H.
+    + destruct l; unfold update; simpl; try rewrite Nat.eqb_refl; destruct tv eqn:eqtv; destruct s eqn: eqs; try reflexivity;
+    try destruct (n =? n0) eqn: eqnn0; try simpl in H; unfold update in H; try rewrite eq_location_refl in H; try rewrite eqma; try assumption.
+    + destruct l; unfold update; simpl; try rewrite Nat.eqb_refl; destruct tv eqn:eqtv; destruct s eqn: eqs; try reflexivity;
+    try destruct (n =? n0) eqn: eqnn0; try simpl in H; unfold update in H; try rewrite eq_location_refl in H; try rewrite eqma; try assumption.
+    + simpl. destruct l. unfold update. rewrite eq_location_refl. destruct tv. destruct s eqn: eqs. reflexivity.
+      destruct (eq_location (Stack n) (Stack n0)) eqn: eqloc. apply eq_location_eq in eqloc. 
+     apply Nat.eqb_eq in eqnn0. unfold update in IHvars. subst.  destruct z eqn: eqz; destruct v; destruct s0.
+    try
+    rewrite eqma.
+  simpl. destruct l eqn: eql; destruct tv; destruct s eqn: eqs; unfold update; try rewrite eq_location_refl.
+    reflexivity. 
+
+(* for critical procedures, secrects need to lay in the Zone *)
 
 Definition state: Type := memory * mode * accessible * errors.
 
@@ -418,11 +462,11 @@ Check (length).
 
 (* interpreter for cirtcal procedures *)
 Inductive com_eval_critical : com -> state -> state -> Prop :=
-  | E_Err_ignore (me me': memory) (mo mo': mode) (vars vars': accessible) (ers ers': errors) 
-    (Her: (length ers) >= 1) (c: com):
-    com_eval_critical c (me, mo, vars, ers) (me', mo', vars', ers')
-  | E_Nop (st: state) (ers: errors): 
-    com_eval_critical CNop st st
+  (* | E_Err_ignore (me: memory) (mo: mode) (vars: accessible) (ers: errors) 
+    (Herr: (length ers) >= 1) (c: com):
+    com_eval_critical c (me, mo, vars, ers) (me, mo, vars, ers) *)
+  | E_Nop (me: memory) (mo: mode) (vars: accessible) (ers: errors) (ers: errors): 
+    com_eval_critical CNop (me, mo, vars, ers) (me, mo, vars, ers)
   | E_Eenter (me: memory) (mo: mode) (vars: accessible) (ers: errors) (Her: ers = []):
     com_eval_critical CEenter (me, mo, vars, ers) (me, EnclaveMode, vars, ers)
   | E_Eexit (me: memory) (mo: mode) (vars: accessible) (ers: errors) (Her: ers = []):
@@ -466,20 +510,39 @@ Inductive com_eval_critical : com -> state -> state -> Prop :=
     com_eval_critical (CWhile b c) (me, mo, vars, ers) (me, mo, vars, er ++ ers)
 .
 
-Lemma error_ignore : forall (me: memory) (mo: mode) (vars: accessible) (ers: errors) (c: com),
+(* Lemma error_ignore : forall (me: memory) (mo: mode) (vars: accessible) (ers: errors) (c: com),
   ((length ers) >= 1) -> com_eval_critical c (me, mo, vars, ers) (me, mo, vars, ers).
 Proof.
   intros. constructor. assumption.
+Qed. *)
+
+Theorem CNop_refl: forall (me me': memory) (mo mo': mode) (vars vars': accessible) (ers ers': errors),
+  com_eval_critical CNop (me, mo, vars, ers) (me', mo', vars', ers') -> me = me' /\ mo = mo' /\ vars = vars' /\ ers = ers'.
+Proof.
+  intros. repeat split. 
 Qed.
 
-Theorem restricted_no_leakage_proc: forall (me me': memory) (mo mo': mode) (vars vars': accessible) (ers ers': errors) (c: com),
+
+Theorem restricted_no_leakage_proc: forall (c: com) (me me': memory) (mo mo': mode) (vars vars': accessible) (ers ers': errors),
   leaked me vars = false -> is_critical me vars = true ->
   com_eval_critical c (me, mo, vars, ers) (me', mo', vars', ers') ->
   leaked me' vars' = false.
 Proof.
-  intros. induction H1.
-   inversion H1; subst; try assumption.
-  - apply leaked_update. simpl. 
+  intros c. induction c; intros; try (inversion H1; rewrite <- H7; rewrite <- H9; assumption).
+  - inversion H1. apply leaked_update_l. assumption. rewrite <- H9. rewrite <- H11. assumption.
+  - inversion H1. destruct st' as [[[me'' mo''] vars''] ers'']. 
+    assert (H' := H). apply IHc2 with me'' mo'' mo' vars'' ers'' ers';
+    try apply IHc1 with me mo mo'' vars ers ers''; try assumption. 
+    inversion Hc1; inversion Hc2; subst; try apply leaked_update_l; try assumption. unfold update
+
+  me', mo, mo', vars', ers, ers'.
+  (* inversion cannot get far enough *)
+  inversion H1; subst; try assumption. 
+  - 
+  - apply leaked_update_l. assumption.
+  (* inversion stucked at the Seq case *)
+  - assert (Hr: com_eval_critical c (me, mo, vars, ers) (me', mo', vars', ers')). constructor.
+  apply leaked_update. simpl. 
     + destruct (me l) eqn: eql. destruct v0. destruct s eqn: eqs. subst.
 Qed.
 
