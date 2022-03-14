@@ -50,6 +50,12 @@ Allowed operations
 
 ### AST
 
-loc := stack(n) | var(str) | RV
+security_tag := Secret | Declassified | Nonsense
+enc_mem_tag  := ZoneMem | NonzoneMem
+v   := nat | bool | Cleared | Any
+tv  := v * security_tag
+cell:= AppMem(tv) | UnusedMem | Encmem(enc_mem_tag, tv)
+loc := Stack(n) | Var(str) | RV
 exp := Loc(loc) | Val(v) | Unary(exp, op) | Binary(exp1, exp2, op)
-com := Nop | Eenter | Eexit | Asgn (loc, exp) | Seq(com1, com2) | If(exp, comt, come) | While(exp, com) | *call* | *declassification* 
+com := Nop | Eenter | Eexit | Asgn (loc, exp) | Seq(com1, com2) 
+      | If(exp, comt, come) | While(exp, com) | *call* | *declassification* 

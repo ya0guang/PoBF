@@ -42,6 +42,7 @@ Inductive value : Type :=
   | ConcreteN (v: nat) (* This may not be a nat here? *)
   | ConcreteB (v: bool)
   | Any
+  | Cleared
 .
 
 Inductive location : Type :=
@@ -250,7 +251,8 @@ Definition value_as_bool (v: value) : bool :=
                   | S _ => false
                   end
   | ConcreteB b => b
-  | Any => false
+  | Any => true
+  | Cleared => false
   end.
 
 Definition exp_as_bool (me: memory) (mo: mode) (e: exp) : @result bool := 
@@ -429,12 +431,28 @@ Fixpoint is_critical (me: memory) (vars: accessible) : bool :=
               end
   end.
 
-Lemma cirtical_propagate: forall (me: memory) (vars: accessible) (l: location) (tv: tagged_value),
+Lemma cirtical_propagate_sec_zone: forall (me: memory) (vars: accessible) (l: location) (tv: tagged_value),
 (* should not update a location on stack *)
-  is_critical me vars = true -> 
+  is_critical me vars = true -> snd(tv) = Secret ->
   is_critical (update l (EncMem ZoneMem tv) me) (l::vars) = true.
 Proof.
   intros. generalize dependent l. generalize dependent tv. generalize dependent H. induction vars.
+  - simpl. intros. discriminate H.
+  - intros. destruct tv eqn: eqtv. simpl in *. unfold update in *. rewrite eq_location_refl in *.
+    destruct (me a) eqn: eqa.
+    + apply IHvars with tv l in H. rewrite eq_location_refl in H. subst. reflexivity. rewrite eqtv. subst. reflexivity.
+    + apply IHvars with tv l in H. rewrite eq_location_refl in H. subst. reflexivity. rewrite eqtv. subst. reflexivity.
+    + rewrite H0. reflexivity.
+Qed.  
+
+(* updating the state may result in declassification of a secret variable in the Zone, which may lead to declassification!!!! *)
+
+(* Lemma cirtical_propagate: forall (me: memory) (vars: accessible) (l: location) (tv: tagged_value),
+(* should not update a location on stack *)
+  is_critical me vars = true -> 
+  is_critical (update l (EncMem ZoneMem tv) me) (l::vars) = true. *)
+(* Proof. *)
+  (* intros. generalize dependent l. generalize dependent tv. generalize dependent H. induction vars.
   - simpl. intros. discriminate H.
   - intros. destruct tv eqn: eqtv; destruct s eqn: eqs; simpl in IHvars; simpl in H; destruct (me a) eqn: eqa; 
     unfold update; simpl; rewrite eq_location_refl; try reflexivity.
@@ -445,7 +463,7 @@ Proof.
     + assert (H' := H). destruct v0 eqn: eqv0. destruct z eqn: eqz. destruct s0 eqn: eqs0.
       simpl. unfold update. destruct (eq_location a l) eqn: eqal.
       apply IHvars with tv l in H'. unfold update in *. simpl. rewrite eq_location_refl in *.
-    rewrite eqtv in H'. destruct (eq_location a l) eqn: eqal. assumption. rewrite eqa. assumption.
+    rewrite eqtv in H'. destruct (eq_location a l) eqn: eqal. assumption. rewrite eqa. assumption. *)
 
 (* for critical procedures, secrects need to lay in the Zone *)
 
@@ -457,9 +475,6 @@ Check (length).
 
 (* interpreter for cirtcal procedures *)
 Inductive com_eval_critical : com -> state -> state -> Prop :=
-  (* | E_Err_ignore (me: memory) (mo: mode) (vars: accessible) (ers: errors) 
-    (Herr: (length ers) >= 1) (c: com):
-    com_eval_critical c (me, mo, vars, ers) (me, mo, vars, ers) *)
   | E_Nop (me: memory) (mo: mode) (vars: accessible) (ers: errors) (ers: errors): 
     com_eval_critical CNop (me, mo, vars, ers) (me, mo, vars, ers)
   | E_Eenter (me: memory) (mo: mode) (vars: accessible) (ers: errors) (Her: ers = []):
@@ -503,6 +518,9 @@ Inductive com_eval_critical : com -> state -> state -> Prop :=
     (b: exp) (c: com) (st': state) (er: errors):
     exp_as_bool me mo b = Err er -> 
     com_eval_critical (CWhile b c) (me, mo, vars, ers) (me, mo, vars, er ++ ers)
+  | E_Err_ignore (me: memory) (mo: mode) (vars: accessible) (ers: errors) 
+    (Herr: (length ers) >= 1) (c: com):
+    com_eval_critical c (me, mo, vars, ers) (me, mo, vars, ers)
 .
 
 (* Lemma error_ignore : forall (me: memory) (mo: mode) (vars: accessible) (ers: errors) (c: com),
@@ -517,36 +535,41 @@ Proof.
   intros. repeat split; inversion H; subst; reflexivity.
 Qed.
 
+(* Assume that executing a critical procedure doesn't change its criticalness *)
+(* This should ONLY be used in single-threaded scenerios! *)
+Axiom criticanlness_not_change: forall (c: com) (me me': memory) (mo mo': mode) (vars vars': accessible) (ers ers': errors),
+  is_critical me vars = true -> com_eval_critical c (me, mo, vars, ers) (me', mo', vars', ers') -> 
+  is_critical me' vars' = true.
 
+
+(* Restricted *)
+(* for a critical procedure, executing in the critical mode never leads to leakage *)
 Theorem restricted_no_leakage_proc: forall (c: com) (me me': memory) (mo mo': mode) (vars vars': accessible) (ers ers': errors),
-  leaked me vars = false -> is_critical me vars = true ->
   com_eval_critical c (me, mo, vars, ers) (me', mo', vars', ers') ->
+  (* no leakage at the beginning, criticalness doesn't change *)
+  leaked me vars = false -> is_critical me vars = true ->
   leaked me' vars' = false.
 Proof.
-  intros c. induction c; intros; try (inversion H1; rewrite <- H7; rewrite <- H9; assumption).
+  intros c. induction c; intros; try (inversion H1; rewrite <- H7; rewrite <- H9; assumption);
+  inversion H; subst; try assumption.
   - (* CAsgn *)
-    inversion H1. apply leaked_update_l. assumption. rewrite <- H9. rewrite <- H11. assumption.
+    apply leaked_update_l. assumption.
   - (* CSeq *)
-    inversion H1. destruct st' as [[[me'' mo''] vars''] ers'']. 
-    assert (H' := H). apply IHc2 with me'' mo'' mo' vars'' ers'' ers';
-    try apply IHc1 with me mo mo'' vars ers ers''; try assumption. 
-    inversion Hc1; inversion Hc2; subst; try apply leaked_update_l; try assumption. unfold update
-
-  me', mo, mo', vars', ers, ers'.
-  (* inversion cannot get far enough *)
-  inversion H1; subst; try assumption. 
-  - 
-  - apply leaked_update_l. assumption.
-  (* inversion stucked at the Seq case *)
-  - assert (Hr: com_eval_critical c (me, mo, vars, ers) (me', mo', vars', ers')). constructor.
-  apply leaked_update. simpl. 
-    + destruct (me l) eqn: eql. destruct v0. destruct s eqn: eqs. subst.
+    destruct st' as [[[me'' mo''] vars''] ers''].
+    apply IHc2 with me'' mo'' mo' vars'' ers'' ers';
+    try apply IHc1 with me mo mo'' vars ers ers''; try assumption; 
+    apply criticanlness_not_change with c1 me mo mo'' vars ers ers''; assumption. 
+  - (* CIf_then *)
+    apply IHc1 with me mo mo' vars [] ers'; assumption.
+  - (* CIf_else *)
+    apply IHc2 with me mo mo' vars [] ers'; assumption.
+  - (* CIf_err *)
+    apply IHc with me mo mo' vars [] ers'; assumption.
 Qed.
-
 
 (* Procedure(functionn) and task *)
 
-Definition procedure := list com.
+Definition task := list com.
 
 
 (* Fixpoint deref (m: mem_layout) (l: location) : tag_value :=
