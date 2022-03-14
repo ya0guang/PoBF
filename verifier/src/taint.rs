@@ -16,6 +16,9 @@ fn main_tag_not() {
 
     // some operations ...
 
+    // such removal may not necessarily be implemented in a function, this is just an example
+    tag_remove(&a);
+
     // verify that the variable `a` doesn't have the taint tag
 }
 
@@ -31,4 +34,8 @@ fn tag_prop() {
     // verify that the variable `b` has the taint tag
     // this may require that the struct propagates all the tags to it's sub-components,
     // and each sub-component propagates all the tags back to it's super-component
+}
+
+fn tag_remove(arg: &types::A) {
+    // remove taint tag for variable `arg`
 }
