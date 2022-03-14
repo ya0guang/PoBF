@@ -401,56 +401,51 @@ Proof.
   - intros H. simpl in H. destruct (me a) eqn:eqa; try destruct v; try destruct s eqn:eqs; try discriminate H;
     intros tv l; try destruct z eqn: eqz; try apply IHvars with tv l in H; simpl in H; unfold update in H; try rewrite eq_location_refl in H;
     repeat try (unfold update; simpl; rewrite eq_location_refl; destruct (eq_location a l) eqn: eqal;
-      unfold update; try rewrite eqa; try assumption). 
+      unfold update; try rewrite eqa; try assumption).
     discriminate H.
 Qed.
 
-Inductive is_criticalP (me: memory) (vars: accessible) : Prop :=
-  | is_criticalP_true : is_criticalP me vars
-  | is_criticalP_false : ~(leaked me vars) -> is_criticalP me vars.
-
 (* We regard all the arguments to a procedure are passed through stack *)
 (* should they also lie on the zoen? *)
-Fixpoint is_critical (me: memory) (vars: accessible) : bool :=
+Fixpoint is_critical' (me: memory) (vars: accessible) : bool :=
   match vars with
   | [] => false
   | h :: t => match h with
               | Stack n => match me h with
                           | EncMem ZoneMem (_, Secret) => true
-                          | _ => is_critical me t
+                          | _ => is_critical' me t
                             end
-              | _ => is_critical me t
+              | _ => is_critical' me t
               end
   end.
 
-Lemma cirtical_on_stack: forall (me: memory) (vars: accessible) (l: location) (tv: tagged_value),
-  is_critical me vars = true <-> exists l, In l vars -> me l = .
-Proof.
-  
-Qed.
-
+Fixpoint is_critical (me: memory) (vars: accessible) : bool :=
+  match vars with
+  | [] => false
+  | h :: t => match me h with
+              (* cirtical only when secret is in the zone *)
+              | EncMem ZoneMem (_, Secret) => true
+              | _ => is_critical me t
+              end
+  end.
 
 Lemma cirtical_propagate: forall (me: memory) (vars: accessible) (l: location) (tv: tagged_value),
 (* should not update a location on stack *)
   is_critical me vars = true -> 
   is_critical (update l (EncMem ZoneMem tv) me) (l::vars) = true.
 Proof.
-    
   intros. generalize dependent l. generalize dependent tv. generalize dependent H. induction vars.
   - simpl. intros. discriminate H.
-  - intros. simpl in H.
-    destruct a eqn: eqa; destruct (me a) eqn: eqma; subst; try rewrite eqma in *; try apply IHvars with tv l in H.
-    + destruct l; unfold update; simpl; try rewrite Nat.eqb_refl; destruct tv eqn:eqtv; destruct s eqn: eqs; try reflexivity;
-    try destruct (n =? n0) eqn: eqnn0; try simpl in H; unfold update in H; try rewrite eq_location_refl in H; try rewrite eqma; try assumption.
-    + destruct l; unfold update; simpl; try rewrite Nat.eqb_refl; destruct tv eqn:eqtv; destruct s eqn: eqs; try reflexivity;
-    try destruct (n =? n0) eqn: eqnn0; try simpl in H; unfold update in H; try rewrite eq_location_refl in H; try rewrite eqma; try assumption.
-    + simpl. destruct l. unfold update. rewrite eq_location_refl. destruct tv. destruct s eqn: eqs. reflexivity.
-      destruct (eq_location (Stack n) (Stack n0)) eqn: eqloc. apply eq_location_eq in eqloc. 
-     apply Nat.eqb_eq in eqnn0. unfold update in IHvars. subst.  destruct z eqn: eqz; destruct v; destruct s0.
-    try
-    rewrite eqma.
-  simpl. destruct l eqn: eql; destruct tv; destruct s eqn: eqs; unfold update; try rewrite eq_location_refl.
-    reflexivity. 
+  - intros. destruct tv eqn: eqtv; destruct s eqn: eqs; simpl in IHvars; simpl in H; destruct (me a) eqn: eqa; 
+    unfold update; simpl; rewrite eq_location_refl; try reflexivity.
+    +  assert (H' := H). apply IHvars with tv l in H'. unfold update in *. simpl. rewrite eq_location_refl in *.
+      rewrite eqtv in H'. destruct (eq_location a l) eqn: eqal. assumption. rewrite eqa. assumption.
+    + assert (H' := H). apply IHvars with tv l in H'. unfold update in *. simpl. rewrite eq_location_refl in *.
+      rewrite eqtv in H'. destruct (eq_location a l) eqn: eqal. assumption. rewrite eqa. assumption.
+    + assert (H' := H). destruct v0 eqn: eqv0. destruct z eqn: eqz. destruct s0 eqn: eqs0.
+      simpl. unfold update. destruct (eq_location a l) eqn: eqal.
+      apply IHvars with tv l in H'. unfold update in *. simpl. rewrite eq_location_refl in *.
+    rewrite eqtv in H'. destruct (eq_location a l) eqn: eqal. assumption. rewrite eqa. assumption.
 
 (* for critical procedures, secrects need to lay in the Zone *)
 
@@ -519,7 +514,7 @@ Qed. *)
 Theorem CNop_refl: forall (me me': memory) (mo mo': mode) (vars vars': accessible) (ers ers': errors),
   com_eval_critical CNop (me, mo, vars, ers) (me', mo', vars', ers') -> me = me' /\ mo = mo' /\ vars = vars' /\ ers = ers'.
 Proof.
-  intros. repeat split. 
+  intros. repeat split; inversion H; subst; reflexivity.
 Qed.
 
 
@@ -529,8 +524,10 @@ Theorem restricted_no_leakage_proc: forall (c: com) (me me': memory) (mo mo': mo
   leaked me' vars' = false.
 Proof.
   intros c. induction c; intros; try (inversion H1; rewrite <- H7; rewrite <- H9; assumption).
-  - inversion H1. apply leaked_update_l. assumption. rewrite <- H9. rewrite <- H11. assumption.
-  - inversion H1. destruct st' as [[[me'' mo''] vars''] ers'']. 
+  - (* CAsgn *)
+    inversion H1. apply leaked_update_l. assumption. rewrite <- H9. rewrite <- H11. assumption.
+  - (* CSeq *)
+    inversion H1. destruct st' as [[[me'' mo''] vars''] ers'']. 
     assert (H' := H). apply IHc2 with me'' mo'' mo' vars'' ers'' ers';
     try apply IHc1 with me mo mo'' vars ers ers''; try assumption. 
     inversion Hc1; inversion Hc2; subst; try apply leaked_update_l; try assumption. unfold update
