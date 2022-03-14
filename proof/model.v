@@ -318,22 +318,22 @@ Inductive com : Type :=
   (* Declasification *)
 .
 
+Definition accessible: Type := list location.
+
 (* State Machine
 Record State := {
   mo: mode;
   me: memory;
-  vars: list location;
+  vars: accessible;
   er: errors;
 }.
 
 About State. *)
 
-Definition accessible: Type := list location.
-
-
 Definition procedure: Type := com.
 
 
+(* secrets find on places other than the zone *)
 Fixpoint leaked (me: memory) (vars: accessible) : bool := 
   match vars with
   | [] => false
@@ -369,8 +369,8 @@ Proof.
     + assumption.
     + assumption.
 Qed.
-  
-Lemma leaked_update: forall (me: memory) (vars: accessible) (l: location) (tv: tagged_value),
+
+Lemma leaked_update': forall (me: memory) (vars: accessible) (l: location) (tv: tagged_value),
   leaked me vars = false -> leaked (update l (EncMem ZoneMem tv) me) vars = false.
 Proof.
   intros. generalize dependent l. generalize dependent tv. generalize dependent H. induction vars.
@@ -395,6 +395,7 @@ Proof.
       * destruct v. destruct s eqn: eqs; intros; try discriminate H; apply IHvars with tv l in H; unfold update in *; destruct (eq_location a l) eqn: eqal; try rewrite eqa; try assumption; try assumption.
 Qed.
 
+(* writing new var in the Zone doesn't leak secret *)
 Lemma leaked_update_l: forall (me: memory) (vars: accessible) (l: location) (tv: tagged_value),
   leaked me vars = false -> leaked (update l (EncMem ZoneMem tv) me) (l::vars) = false.
 Proof.
@@ -421,6 +422,7 @@ Fixpoint is_critical' (me: memory) (vars: accessible) : bool :=
               end
   end.
 
+(* accessible vars contain secrets in the zone *)
 Fixpoint is_critical (me: memory) (vars: accessible) : bool :=
   match vars with
   | [] => false
@@ -537,10 +539,11 @@ Qed.
 
 (* Assume that executing a critical procedure doesn't change its criticalness *)
 (* This should ONLY be used in single-threaded scenerios! *)
-Axiom criticanlness_not_change: forall (c: com) (me me': memory) (mo mo': mode) (vars vars': accessible) (ers ers': errors),
+Lemma criticanlness_not_change: forall (c: com) (me me': memory) (mo mo': mode) (vars vars': accessible) (ers ers': errors),
   is_critical me vars = true -> com_eval_critical c (me, mo, vars, ers) (me', mo', vars', ers') -> 
   is_critical me' vars' = true.
-
+Proof.
+Admitted.
 
 (* Restricted *)
 (* for a critical procedure, executing in the critical mode never leads to leakage *)
@@ -569,55 +572,31 @@ Qed.
 
 (* Procedure(functionn) and task *)
 
-Definition task := list com.
+Definition task := list procedure.
 
-
-(* Fixpoint deref (m: mem_layout) (l: location) : tag_value :=
-  match m with
-  | nil => (UnusedMem, Any)
-  | (h :: t) => if l =? fst h then snd h else deref t l
+(* And leftover will be considered residue *)
+Fixpoint residue_secret (me: memory) (vars: accessible): bool := 
+  match vars with
+  | [] => false
+  | h :: t => match h with
+              | RV => residue_secret me t
+              | _ => match me h with
+                      | EncMem _ (_, Secret) => true
+                      | AppMem (_, Secret) => true
+                      | _ => residue_secret me t
+                      end
+              end
   end.
 
-Definition deref_val (m: mem_layout) (l: location) : value := 
-  snd (deref m l).
-
-Check pair.
-
-Definition mode_deref (mo: mode) (ml: mem_layout) (l: location) : value := 
-  let tv := deref ml l in
-    match (fst tv), mo with
-    | EncMem(_), NormalMode => Error
-    | _, _ => snd tv
-    end.
-
-Notation "m ':' x '!->' v" := (m, (x, v))
-                              (at level 100, v at next level, right associativity).
-
-Definition test_memory_layout = []. *)
-
-(* Modeling Instructions *)
-
-(* We model the instructions in a more abstract way *)
-
-(* TODO: jumps, branches, ref, [loops] *)
-
-
-(* How to say a procedure is critical? *)
-
-(* Virtual Stack? *)
-
-(* How to make a function PID? *)
-
-(* Need a secret tag for propagation, i.e., mimicing taint analysis *)
-
-Definition function := list instr.
-
-Definition task := list function.
-
-Inductive function' : Type -> Prop :=
-  | ConstantF  : function' y
-  | UnaryF (f: X -> Y) : function' X Y
-  | HigherOrderF (Z: Type) (H) (f:  -> Y ) : function' X Y
-.
+Fixpoint zeroize (me: memory) (vars: accessible): memory := 
+  match vars with
+  | [] => me
+  | h :: t => match me h with
+              | EncMem ZoneMem (_, Secret) => 
+                (* zero rize this location *)
+                zeroize (update h (EncMem ZoneMem (Cleared, Declassified)) me) t
+              | _ => zeroize me t
+              end
+  end.
 
 

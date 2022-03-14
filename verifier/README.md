@@ -6,21 +6,28 @@ A series of functionality requirements are listed in each subsection,
 and corresponding minimal examples can be found in `./src/[topic].rs`.
 After the requirements subsections, there will be a more complex example.
 
-
 ## Taint Analysis
 
-- [ ] Adding tags manually, or treat any arguments as secret
-- [ ] Tag propagation: incomplete (e.g., sub/super-component)
+- [ ] Adding tag(s) manually, or treat all arguments of a function as secret
+  - [ ] in the future, more than one different tags might be needed
+- [ ] Tag propagation
 - [ ] Tag removal
-- [ ] Tag checks at specific positions
+- [ ] Tag check(verification) at specific positions
+
+Currently, sub/super-component propagation is at first priority. 
+(propagate tag(s) from struct to all elements of the struct/from element to the struct).
+We will need more propagation operations (e.g., arithmetic operations).
 
 Check `src/taint.rs` for detailed examples.
 
 ## Formal Verification
 
-- [ ] Verification of precondition
-- [ ] Termination check
-- [ ] Verification of Rust crate
+- [ ] Verification of pre/post-conditions of a function
+- [ ] Verification at specific positions
+- [ ] Reachability verification
+
+Currently, the verification condition only contains tag checking.
+We may need more verifiable conditions in the future (e.g., integer relationship).
 
 Check `src/verify.rs` for detailed examples.
 
@@ -31,6 +38,7 @@ Check `src/verify.rs` for detailed examples.
 
 Since we cannot use Rust-SGX-SDK with arbitrary toolchains, 
 the verifier should at least be compatible with the toolchian of the SDK.
+Currently, the SDK is using [`nightly-2021-11-01`](https://github.com/apache/incubator-teaclave-sgx-sdk/blob/master/rust-toolchain).
 
 ## Complex Example
 

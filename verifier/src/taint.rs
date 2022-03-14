@@ -1,6 +1,6 @@
 use crate::types;
 
-fn main_tag() {
+fn has_tag() {
     let a = types::A::new(1);
 
     // add taint tag for variable `a`
@@ -11,7 +11,7 @@ fn main_tag() {
     // verify that the variable `a` still has the taint tag
 }
 
-fn main_tag_not() {
+fn does_not_have_tag() {
     let a = types::A::new(1);
 
     // some operations ...
