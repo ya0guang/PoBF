@@ -7,3 +7,7 @@ edition = "2021"
 
 [dependencies]
 mirai-annotations = { path = "../../Artifact/MIRAI/annotations" }
+sgx_types = { git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+
+[patch.'https://github.com/apache/teaclave-sgx-sdk.git']
+sgx_types = { path = "../teaclave-sgx-sdk/sgx_types" }
