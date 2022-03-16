@@ -19,7 +19,7 @@ Inductive enc_mem_tag : Type :=
 
 Inductive security_tag : Type :=
   | Secret
-  | Declassified
+  | Notsecret
   | Nonsense
 .
 
@@ -31,10 +31,10 @@ Definition sum_two_tags (t1 t2: security_tag) : security_tag :=
               | _ => Secret
               end
   
-  | Declassified => match t2 with
+  | Notsecret => match t2 with
               | Nonsense => Nonsense
               | Secret => Secret
-              | Declassified => Declassified
+              | Notsecret => Notsecret
               end
   end.
 
@@ -122,7 +122,19 @@ Inductive result {X: Type} : Type :=
 
 Definition memory: Type := location -> cell.
 
-Definition empty_mem (l: location) : memory := 
+Definition loc_in_enclave (me: memory) (l: location) : Prop := 
+  exists (z: enc_mem_tag) (v: tagged_value), me l = EncMem z v.
+
+Definition loc_unused (me: memory) (l: location) : Prop :=
+  me l = UnusedMem.
+
+Definition loc_in_app (me: memory) (l: location) : Prop :=
+  exists (v: tagged_value), me l = AppMem v.
+
+(* Definition empty_mem' (l: location) : memory := 
+  (fun _ => UnusedMem). *)
+
+Definition empty_mem : memory := 
   (fun _ => UnusedMem).
 
 Definition eqb_string (x y : location) : bool :=
@@ -183,7 +195,7 @@ Fixpoint exp_prop_tag (me: memory) (mo: mode) (e: exp) : security_tag :=
                 | Ok v => (snd v)
                 | Err e => Nonsense
                 end
-  | ExpVal v => Declassified
+  | ExpVal v => Notsecret
   | ExpUnary e _ => exp_prop_tag me mo e
   | ExpBinary e1 e2 _ =>  let t1 := exp_prop_tag me mo e1 in
                           let t2 := exp_prop_tag me mo e2 in
@@ -423,6 +435,7 @@ Fixpoint is_critical' (me: memory) (vars: accessible) : bool :=
   end.
 
 (* accessible vars contain secrets in the zone *)
+(* Critical Should ONLY describe procedure(s) *)
 Fixpoint is_critical (me: memory) (vars: accessible) : bool :=
   match vars with
   | [] => false
@@ -469,6 +482,18 @@ Qed.
 
 (* for critical procedures, secrects need to lay in the Zone *)
 
+Inductive valid_asgn: mode -> memory -> accessible -> Prop :=
+  | VA_Normal_Empty (l: location) (tv: tagged_value):
+    valid_asgn NormalMode (update l (AppMem tv) empty_mem) [l]
+  | VA_Normal_Claim (me: memory) (vars: accessible) (l: location) (tv: tagged_value)
+    (Hm: loc_unused me l) (HI: valid_asgn NormalMode me vars):
+    valid_asgn NormalMode (update l (AppMem tv) me) (l::vars)
+  | VA_Normal_Update (me: memory) (vars: accessible) (l: location) (tv: tagged_value)
+    (Hm: loc_in_app me l) (HI: valid_asgn NormalMode me vars):
+    valid_asgn NormalMode (update l (AppMem tv) me) (l::vars)
+  
+.
+
 Definition state: Type := memory * mode * accessible * errors.
 
 (* Semantics *)
@@ -483,11 +508,13 @@ Inductive com_eval_critical : com -> state -> state -> Prop :=
     com_eval_critical CEenter (me, mo, vars, ers) (me, EnclaveMode, vars, ers)
   | E_Eexit (me: memory) (mo: mode) (vars: accessible) (ers: errors) (Her: ers = []):
     com_eval_critical CEexit (me, mo, vars, ers) (me, NormalMode, vars, ers)
-  | E_Asgn_Ok (me: memory) (mo: mode) (vars: accessible) (ers: errors) (Her: ers = [])
-    (l: location) (v: exp) (r: tagged_value) (Hexp: exp_tagged_val me mo v = (Ok r)):
+  | E_Asgn_Ok_enc (me: memory) (mo: mode) (vars: accessible) (ers: errors) (Her: ers = [])
+    (l: location) (v: exp) (r: tagged_value) (Hexp: exp_tagged_val me mo v = (Ok r))
+    (Henc: mo = EnclaveMode):
+    (* What if not in the enclave mode? *)
     (* Write restricted in the Zone! *)
     com_eval_critical (CAsgn l v) (me, mo, vars, ers) ((update l (EncMem ZoneMem r) me), mo, (l :: vars), ers)
-  | E_Asgn_Err (me: memory) (mo: mode) (vars: accessible) (ers: errors) (Her: ers = [])
+  | E_Asgn_Err_access (me: memory) (mo: mode) (vars: accessible) (ers: errors) (Her: ers = [])
     (l: location) (v: exp) (er: errors) (Hexp: exp_tagged_val me mo v = (Err er)):
     com_eval_critical (CAsgn l v) (me, mo, vars, ers) (me, mo, vars, (er ++ ers))
   | E_Seq (st st' st'': state) (c1 c2: com)
@@ -594,7 +621,7 @@ Fixpoint zeroize (me: memory) (vars: accessible): memory :=
   | h :: t => match me h with
               | EncMem ZoneMem (_, Secret) => 
                 (* zero rize this location *)
-                zeroize (update h (EncMem ZoneMem (Cleared, Declassified)) me) t
+                zeroize (update h (EncMem ZoneMem (Cleared, Notsecret)) me) t
               | _ => zeroize me t
               end
   end.
