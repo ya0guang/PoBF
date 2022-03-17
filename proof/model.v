@@ -1,4 +1,5 @@
-Require Import Bool Arith List Lia List String.
+Require Import Bool Arith List Lia List String Logic.
+Require Import Logic.FunctionalExtensionality.
 Require Import Lists.List.
 Import ListNotations.
 
@@ -142,6 +143,22 @@ Definition eqb_string (x y : location) : bool :=
 
 Definition update (s: location) (v: cell) (m: memory) : memory := 
   fun s' => if (eq_location s' s) then v else m s'.
+
+(* update a location different from X desn't affect X's value *)
+Lemma update_invariant: forall (l1 l2: location) (v: cell) (m: memory),
+  eq_location l1 l2 = false -> update l2 v m l1 = m l1.
+Proof.
+  intros. unfold update. rewrite H. reflexivity.
+Qed.
+
+Lemma update_shadow: forall (me: memory) (l: location) (c1 c2: cell),
+  update l c1 (update l c2 me) = update l c1 me.
+Proof.
+  intros. unfold update. extensionality s.
+  destruct (eq_location s l) eqn: eqsl.
+  reflexivity. reflexivity.
+Qed.
+
 
 (* raw_* is designed for security monitor, and should not be used in *)
 Definition raw_access (me: memory) (s: location) : option tagged_value := 
@@ -422,7 +439,7 @@ Qed.
 
 (* We regard all the arguments to a procedure are passed through stack *)
 (* should they also lie on the zoen? *)
-Fixpoint is_critical' (me: memory) (vars: accessible) : bool :=
+(* Fixpoint is_critical' (me: memory) (vars: accessible) : bool :=
   match vars with
   | [] => false
   | h :: t => match h with
@@ -432,7 +449,7 @@ Fixpoint is_critical' (me: memory) (vars: accessible) : bool :=
                             end
               | _ => is_critical' me t
               end
-  end.
+  end. *)
 
 (* accessible vars contain secrets in the zone *)
 (* Critical Should ONLY describe procedure(s) *)
@@ -445,6 +462,44 @@ Fixpoint is_critical (me: memory) (vars: accessible) : bool :=
               | _ => is_critical me t
               end
   end.
+
+Definition is_critical_loc (me: memory) (l: location) : bool :=
+  match me l with
+  | UnusedMem => false
+  | AppMem tv
+  | EncMem _ tv => match tv with
+                  | (_, Secret) => true
+                  | _ => false
+                  end
+  end.
+
+(* critical expression? *)
+Fixpoint is_critical_exp (me: memory) (e: exp) : bool :=
+  match e with
+  | ExpLoc l => is_critical_loc me l
+  | ExpVal _ => false
+  | ExpUnary e _ => is_critical_exp me e
+  | ExpBinary e1 e2 _ => is_critical_exp me e1 || is_critical_exp me e2
+  end.
+
+(* critical procedure? *)
+Fixpoint is_critical_com (me: memory) (c: com) : bool :=
+  match c with
+  | CNop
+  | CEenter
+  | CEexit => false
+  (* what if assigning to a critical location? *)
+  | CAsgn _ exp => is_critical_exp me exp
+  | CSeq c1 c2 => is_critical_com me c1 || is_critical_com me c2
+  | CIf b c1 c2 => is_critical_exp me b || is_critical_com me c1 || is_critical_com me c2
+  | CWhile b c => is_critical_exp me b || is_critical_com me c
+  end.
+
+Lemma critical_CSeq: forall (me: memory) (c1 c2: com),
+  is_critical_com me (CSeq c1 c2) = true -> is_critical_com me c1 = true \/ is_critical_com me c2 = true.
+Proof.
+  intros. inversion H. assert (H1' := H1). apply orb_true_iff in H1. rewrite H1'. assumption.
+Qed.
 
 Lemma cirtical_propagate_sec_zone: forall (me: memory) (vars: accessible) (l: location) (tv: tagged_value),
 (* should not update a location on stack *)
@@ -597,11 +652,47 @@ Proof.
     apply IHc with me mo mo' vars [] ers'; assumption.
 Qed.
 
+Theorem restricted_no_leakage_proc': forall (c: com) (me me': memory) (mo mo': mode) (vars vars': accessible) (ers ers': errors),
+  com_eval_critical c (me, mo, vars, ers) (me', mo', vars', ers') ->
+  (* no leakage at the beginning *)
+  leaked me vars = false -> 
+  leaked me' vars' = false.
+Proof.
+  intros c. induction c; intros; try (inversion H1; rewrite <- H7; rewrite <- H9; assumption);
+  inversion H; subst; try assumption.
+  - (* CAsgn *)
+    apply leaked_update_l. assumption.
+  - (* CSeq *)
+    destruct st' as [[[me'' mo''] vars''] ers''].
+    apply IHc2 with me'' mo'' mo' vars'' ers'' ers';
+    try apply IHc1 with me mo mo'' vars ers ers''; try assumption. 
+  - (* CIf_then *)
+    apply IHc1 with me mo mo' vars [] ers'; assumption.
+  - (* CIf_else *)
+    apply IHc2 with me mo mo' vars [] ers'; assumption.
+  - (* CIf_err *)
+    apply IHc with me mo mo' vars [] ers'; assumption.
+Qed.
+
 (* Procedure(functionn) and task *)
 
 Definition task := list procedure.
 
 (* And leftover will be considered residue *)
+
+(* Residue handling *)
+
+(* Fixpoints with prime(') denote that the whole memory is considered, including RV *)
+Fixpoint residue_secret' (me: memory) (vars: accessible): bool := 
+  match vars with
+  | [] => false
+  | h :: t => match me h with
+              | EncMem _ (_, Secret) => true
+              | AppMem (_, Secret) => true
+              | _ => residue_secret' me t
+              end
+  end.
+
 Fixpoint residue_secret (me: memory) (vars: accessible): bool := 
   match vars with
   | [] => false
@@ -615,15 +706,176 @@ Fixpoint residue_secret (me: memory) (vars: accessible): bool :=
               end
   end.
 
-Fixpoint zeroize (me: memory) (vars: accessible): memory := 
+Fixpoint zeroize' (me: memory) (vars: accessible): memory := 
   match vars with
   | [] => me
   | h :: t => match me h with
-              | EncMem ZoneMem (_, Secret) => 
-                (* zero rize this location *)
-                zeroize (update h (EncMem ZoneMem (Cleared, Notsecret)) me) t
-              | _ => zeroize me t
+              | EncMem ZoneMem _ => 
+                (* zerorize the zone *)
+                zeroize' (update h (EncMem ZoneMem (Cleared, Notsecret)) me) t
+              | _ => zeroize' me t
               end
   end.
 
+(* zerorize all memory locations other than the return value *)
+Fixpoint zeroize (me: memory) (vars: accessible): memory := 
+  match vars with
+  | [] => me
+  | h :: t => match h with
+              (* exclude return value *)
+              | RV => zeroize me t
+              | _ => match me h with
+                    (* zerorize the zone *)
+                    | EncMem ZoneMem _ => 
+                      zeroize (update h (EncMem ZoneMem (Cleared, Notsecret)) me) t
+                    | _ => zeroize me t
+                    end
+              end
+  end.
 
+Lemma zeroize_not_effect_nonezone: forall (vars: accessible) (me: memory) (l: location),
+  (forall (tv: tagged_value), ~(me l = EncMem ZoneMem tv)) -> zeroize me vars l = me l.
+Proof.
+  intros vars. induction vars.
+  - intros. simpl. reflexivity.
+  - intros me l Htv. simpl. assert (H' := Htv). 
+    destruct a eqn: eqa; destruct (me a) eqn: eqma; try destruct z eqn: eqz; rewrite eqa in eqma; try rewrite eqma; try apply IHvars; try apply H'.
+
+    (* the following proof can be more consise *)
+    destruct (eq_location l (Stack n)) eqn: eqln. apply eq_location_eq in eqln.
+    rewrite <- eqln in eqma. apply H' in eqma. destruct eqma.
+    assert (Ha: (update (Stack n) (EncMem ZoneMem (Cleared, Notsecret)) me) l = me l).
+    apply update_invariant. assumption. rewrite <- Ha. apply IHvars. intros. rewrite Ha. apply H'.
+
+    destruct (eq_location l (Ident s)) eqn: eqln. apply eq_location_eq in eqln.
+    rewrite <- eqln in eqma. apply H' in eqma. destruct eqma.
+    assert (Ha: (update (Ident s) (EncMem ZoneMem (Cleared, Notsecret)) me) l = me l).
+    apply update_invariant. assumption. rewrite <- Ha. apply IHvars. intros. rewrite Ha. apply H'.
+Qed.
+
+Lemma zeroize_zeroize_zone_minus_RV: forall (vars: accessible) (me: memory) (l: location),
+  In l vars -> l <> RV -> (exists tv, me l = EncMem ZoneMem tv) -> zeroize me vars l = EncMem ZoneMem (Cleared, Notsecret).
+Proof.
+  intros vars. induction vars.
+  - intros. destruct H.
+  - intros. simpl. destruct H.
+    + subst. destruct l eqn: eql. destruct H1. rewrite H. 
+
+Admitted.
+
+Lemma zeroize_update_invariant: forall (vars: accessible) (me: memory) (l1 l2: location) (c: cell),
+  l1 <> l2 -> zeroize (update l2 c me) vars l1 = zeroize me vars l1.
+Proof.
+  intros vars. induction vars.
+  - intros. simpl. unfold update. apply eq_location_ne in H. rewrite H. reflexivity.
+  - intros. simpl. destruct a eqn: eqa.
+    + destruct (eq_location a l2) eqn: eql2a.
+      * unfold update in *. rewrite eqa in eql2a. rewrite eql2a.
+        destruct (me (Stack n)) eqn: eqma;
+        destruct c eqn: eqc; try destruct z eqn: eqz; try (apply IHvars; assumption);
+        apply eq_location_eq in eql2a; subst.
+        -- assert (Hup:  update (Stack n) (EncMem ZoneMem (Cleared, Notsecret)) (update (Stack n) (EncMem ZoneMem v0) me) = update (Stack n) (EncMem ZoneMem (Cleared, Notsecret)) me).
+        apply update_shadow. unfold update in Hup. rewrite Hup. apply IHvars. assumption.
+        -- assert (Hup:  update (Stack n) (EncMem ZoneMem (Cleared, Notsecret)) (update (Stack n) (EncMem ZoneMem v) me) = update (Stack n) (EncMem ZoneMem (Cleared, Notsecret)) me).
+        apply update_shadow. unfold update in Hup. rewrite Hup. apply IHvars. assumption.
+        -- assert (H' := H). apply IHvars with (me:= me) (c:= AppMem v0) in H. rewrite H. symmetry. 
+        apply IHvars. assumption.
+        -- assert (H' := H). apply IHvars with (me:= me) (c:= UnusedMem) in H. rewrite H. symmetry. 
+        apply IHvars. assumption.
+        -- destruct z0 eqn: eqz. 
+          assert (Hup:  update (Stack n) (EncMem ZoneMem (Cleared, Notsecret)) (update (Stack n) (EncMem ZoneMem v0) me) = update (Stack n) (EncMem ZoneMem (Cleared, Notsecret)) me). apply update_shadow. unfold update in Hup. rewrite Hup. reflexivity.
+          assert (H' := H). apply IHvars with (me:= me) (c:= EncMem NonzoneMem v0) in H. rewrite H. 
+          symmetry. apply IHvars. assumption.
+        -- destruct z0 eqn: eqz. 
+          assert (Hup:  update (Stack n) (EncMem ZoneMem (Cleared, Notsecret)) (update (Stack n) (EncMem ZoneMem v0) me) = update (Stack n) (EncMem ZoneMem (Cleared, Notsecret)) me). apply update_shadow. unfold update in Hup. rewrite Hup.  apply IHvars. assumption.
+          apply IHvars. assumption.
+      * unfold update in *. rewrite eqa in eql2a. rewrite eql2a.
+        destruct (me (Stack n)) eqn: eqma; try apply IHvars; try assumption.
+        destruct z eqn: eqz. apply eq_location_ne in eql2a.  
+        destruct (eq_location l1 (Stack n)) eqn: eql1n. apply eq_location_eq in eql1n. subst.
+        (* subst. apply IHvars with (me:= update l2 c me). 
+
+        (* assert (H' : l2 <> l1). auto.
+        assert (eql2a': l2 <> Stack n). auto. *)
+        apply IHvars with (me:= update l2 c me) (c:=EncMem ZoneMem (Cleared, Notsecret)) in eql2a. 
+        unfold update in eql2a.
+        assert (Hup:  update (Stack n) (EncMem ZoneMem (Cleared, Notsecret)) (update (Stack n) c me) = update (Stack n) (EncMem ZoneMem (Cleared, Notsecret)) me). apply update_shadow. unfold update in Hup. 
+        apply eq_location_eq in eql2a; subst. *)
+
+Admitted.
+
+
+Lemma zeroize_zeroize_zone: forall (vars: accessible) (me: memory) (l: location),
+  l <> RV ->  zeroize (update l (EncMem ZoneMem (Cleared, Notsecret)) me) vars l = EncMem ZoneMem (Cleared, Notsecret).
+Proof.
+  intros vars. induction vars.
+  - intros. simpl. unfold update. rewrite eq_location_refl. reflexivity.
+  - intros me l H. destruct a eqn: eqa; simpl.
+    + destruct (eq_location a l) eqn: eqal. 
+      (* eq_location a l = true *)
+      apply eq_location_eq in eqal. subst.
+      unfold update. rewrite eq_location_refl. 
+      assert (Hup:  update (Stack n) (EncMem ZoneMem (Cleared, Notsecret)) (update (Stack n) (EncMem ZoneMem (Cleared, Notsecret)) me) = update (Stack n) (EncMem ZoneMem (Cleared, Notsecret)) me).
+      apply update_shadow. unfold update in *. rewrite Hup. 
+      apply IHvars. auto. unfold update. rewrite eqa in eqal. rewrite eqal. destruct (me (Stack n)) eqn: eqma; unfold update in IHvars; try apply IHvars; try assumption.
+      (* eq_location a l = false *)
+      destruct z eqn: eqz. apply eq_location_ne in eqal. assert (Hn: Stack n <> RV). unfold not. intros. inversion H0.
+      apply IHvars with (update l (EncMem ZoneMem (Cleared, Notsecret)) me) (Stack n) in Hn. unfold update in Hn. 
+      (* assert (Hup:  update (Stack n) (EncMem ZoneMem (Cleared, Notsecret)) (update (Stack n) (EncMem ZoneMem (Cleared, Notsecret)) me) = update (Stack n) (EncMem ZoneMem (Cleared, Notsecret)) me).
+      apply update_shadow. unfold update in *. rewrite Hup. *)
+
+Admitted.
+
+Theorem zeroize_sound: forall (vars: accessible) (me: memory),
+  leaked me vars = false -> residue_secret (zeroize me vars) vars = false.
+Proof.
+  intros vars. induction vars.
+  - intros. simpl. reflexivity.
+  - intros. destruct (me a) eqn: eqma.
+    + destruct a eqn: eqa; simpl; try rewrite eqma;
+      simpl in H; rewrite eqma in H.
+      * assert (Ha: forall tv, me a <> EncMem ZoneMem tv). unfold not; intros tv Ha'. subst.
+        rewrite eqma in Ha'. inversion Ha'. apply zeroize_not_effect_nonezone with vars me a in Ha.
+        subst. rewrite Ha. rewrite eqma. destruct v. destruct s eqn: eqs. discriminate H.
+        apply IHvars. assumption. apply IHvars. assumption.
+      * assert (Ha: forall tv, me a <> EncMem ZoneMem tv). unfold not; intros tv Ha'. subst.
+        rewrite eqma in Ha'. inversion Ha'. apply zeroize_not_effect_nonezone with vars me a in Ha.
+        subst. rewrite Ha. rewrite eqma. destruct v. destruct s0 eqn: eqs0. discriminate H.
+        apply IHvars. assumption. apply IHvars. assumption.
+      * apply IHvars. destruct v. destruct s eqn: eqs. discriminate H.
+        assumption. assumption.
+    + destruct a eqn: eqa; simpl; try rewrite eqma;
+      simpl in H; rewrite eqma in H.
+      * assert (Ha: forall tv, me a <> EncMem ZoneMem tv). unfold not; intros tv Ha'. subst.
+        rewrite eqma in Ha'. inversion Ha'. apply zeroize_not_effect_nonezone with vars me a in Ha.
+        subst. rewrite Ha. rewrite eqma. apply IHvars. assumption.
+      * assert (Ha: forall tv, me a <> EncMem ZoneMem tv). unfold not; intros tv Ha'. subst.
+        rewrite eqma in Ha'. inversion Ha'. apply zeroize_not_effect_nonezone with vars me a in Ha.
+        subst. rewrite Ha. rewrite eqma. apply IHvars. assumption.
+      * apply IHvars. assumption.
+    + destruct a eqn: eqa; simpl; try rewrite eqma.
+      * destruct z eqn: eqz; simpl in H; rewrite eqma in H.
+        assert (Ha: zeroize (update (Stack n) (EncMem ZoneMem (Cleared, Notsecret)) me) vars
+        (Stack n) =(EncMem ZoneMem (Cleared, Notsecret))).
+        (* using unproven Lemma here! *)
+        apply zeroize_zeroize_zone. unfold not. intros. inversion H0.
+        rewrite Ha. apply IHvars. apply leaked_update'. simpl in H. assumption.
+        (* nonzone *)
+        assert (Ha: forall tv, me a <> EncMem ZoneMem tv). unfold not; intros tv Ha'. subst.
+        rewrite eqma in Ha'. inversion Ha'. apply zeroize_not_effect_nonezone with vars me a in Ha.
+        subst. rewrite Ha. rewrite eqma. destruct v. destruct s eqn: eqs. discriminate H.
+        apply IHvars. assumption. apply IHvars. assumption.
+      * destruct z eqn: eqz; simpl in H; rewrite eqma in H.
+        assert (Ha: zeroize (update (Ident s) (EncMem ZoneMem (Cleared, Notsecret)) me) vars
+        (Ident s) =(EncMem ZoneMem (Cleared, Notsecret))).
+        (* using unproven Lemma here! *)
+        apply zeroize_zeroize_zone. unfold not. intros. inversion H0.
+        rewrite Ha. apply IHvars. apply leaked_update'. simpl in H. assumption.
+        (* nonzone *)
+        assert (Ha: forall tv, me a <> EncMem ZoneMem tv). unfold not; intros tv Ha'. subst.
+        rewrite eqma in Ha'. inversion Ha'. apply zeroize_not_effect_nonezone with vars me a in Ha.
+        subst. rewrite Ha. rewrite eqma. destruct v. destruct s0 eqn: eqs0. discriminate H.
+        apply IHvars. assumption. apply IHvars. assumption.
+      * apply IHvars. simpl in H. rewrite eqma in H. destruct z eqn: eqz. assumption.
+        destruct v. destruct s eqn: eqs. discriminate H. assumption. assumption.
+Qed.
