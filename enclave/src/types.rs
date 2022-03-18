@@ -3,9 +3,10 @@ extern crate sgx_tcrypto;
 use crate::utils::*;
 use sgx_tseal::SgxSealedData;
 use sgx_types::marker::ContiguousMemory;
+use std::marker::PhantomData;
 use std::vec::Vec;
 
-pub const LOG_BUFFER_SIZE: usize = 1024;
+pub const BUFFER_SIZE: usize = 1024;
 pub const SEALED_DATA_SIZE: usize = 16;
 
 pub struct Input;
@@ -22,6 +23,8 @@ pub trait EncryptionState {}
 impl EncryptionState for Encrypted {}
 impl EncryptionState for Decrypted {}
 
+// Key States and it's enforcements
+
 pub struct Sealed;
 pub struct Invalid;
 
@@ -29,30 +32,30 @@ pub trait InputKeyState {
     type KeyState;
 }
 
-impl<D> InputKeyState for Data<Encrypted, Input, D>
+impl<D, K> InputKeyState for Data<Encrypted, Input, D,K>
 where
-    D: ContiguousMemory,
+    D: ContiguousMemory + EncDec<K>,
 {
     type KeyState = Sealed;
 }
 
-impl<D> InputKeyState for Data<Decrypted, Input, D>
+impl<D, K> InputKeyState for Data<Decrypted, Input, D, K>
 where
-    D: ContiguousMemory,
+    D: ContiguousMemory + EncDec<K>,
 {
     type KeyState = Invalid;
 }
 
-impl<D> InputKeyState for Data<Decrypted, Output, D>
+impl<D, K> InputKeyState for Data<Decrypted, Output, D, K>
 where
-    D: ContiguousMemory,
+    D: ContiguousMemory + EncDec<K>,
 {
     type KeyState = Invalid;
 }
 
-impl<D> InputKeyState for Data<Encrypted, Output, D>
+impl<D, K> InputKeyState for Data<Encrypted, Output, D, K>
 where
-    D: ContiguousMemory,
+    D: ContiguousMemory + EncDec<K>,
 {
     type KeyState = Invalid;
 }
@@ -61,61 +64,61 @@ pub trait OutputKeyState {
     type KeyState;
 }
 
-impl<D> OutputKeyState for Data<Encrypted, Input, D>
+impl<D, K> OutputKeyState for Data<Encrypted, Input, D, K>
 where
-    D: ContiguousMemory,
+    D: ContiguousMemory + EncDec<K>,
 {
     type KeyState = Sealed;
 }
 
-impl<D> OutputKeyState for Data<Decrypted, Input, D>
+impl<D, K> OutputKeyState for Data<Decrypted, Input, D, K>
 where
-    D: ContiguousMemory,
+    D: ContiguousMemory + EncDec<K>,
 {
     type KeyState = Sealed;
 }
 
-impl<D> OutputKeyState for Data<Decrypted, Output, D>
+impl<D, K> OutputKeyState for Data<Decrypted, Output, D, K>
 where
-    D: ContiguousMemory,
+    D: ContiguousMemory + EncDec<K>,
 {
     type KeyState = Sealed;
 }
 
-impl<D> OutputKeyState for Data<Encrypted, Output, D>
+impl<D, K> OutputKeyState for Data<Encrypted, Output, D, K>
 where
-    D: ContiguousMemory,
+    D: ContiguousMemory + EncDec<K>,
 {
     type KeyState = Invalid;
 }
 
-pub trait EncDec {
-    fn encrypt(self, key: &Vec<u8>) -> Self;
-    fn decrypt(self, key: &Vec<u8>) -> Self;
+pub trait EncDec<K> {
+    fn encrypt(self, key: &K) -> Self;
+    fn decrypt(self, key: &K) -> Self;
 }
 
 #[derive(Copy, Clone, Debug)]
 pub struct SealedData {
-    pub inner: [u8; LOG_BUFFER_SIZE],
+    pub inner: [u8; BUFFER_SIZE],
 }
 
 impl SealedData {
-    pub fn new(raw: [u8; LOG_BUFFER_SIZE]) -> Self {
+    pub fn new(raw: [u8; BUFFER_SIZE]) -> Self {
         SealedData { inner: raw }
     }
 
     pub fn from_ref(r: &[u8]) -> Self {
-        let mut raw = [0_u8; LOG_BUFFER_SIZE];
+        let mut raw = [0_u8; BUFFER_SIZE];
         raw.copy_from_slice(r);
         SealedData { inner: raw }
     }
 }
 
-impl EncDec for SealedData {
+impl EncDec<Vec<u8>> for SealedData {
     fn decrypt(self, _key: &Vec<u8>) -> Self {
         let opt = from_sealed_log_for_fixed::<[u8; SEALED_DATA_SIZE]>(
             self.inner.as_ptr() as *mut u8,
-            LOG_BUFFER_SIZE as u32,
+            BUFFER_SIZE as u32,
         );
         let sealed_data = match opt {
             Some(x) => x,
@@ -129,7 +132,7 @@ impl EncDec for SealedData {
         };
         let data = unsealed_data.get_decrypt_txt();
         let mut rv = SealedData {
-            inner: [0u8; LOG_BUFFER_SIZE],
+            inner: [0u8; BUFFER_SIZE],
         };
         rv.inner[..data.len()].copy_from_slice(data);
         rv
@@ -146,12 +149,12 @@ impl EncDec for SealedData {
             Err(ret) => panic!("Failed to seal data: {:?}", ret),
         };
         let rv = SealedData {
-            inner: [0u8; LOG_BUFFER_SIZE],
+            inner: [0u8; BUFFER_SIZE],
         };
         let opt = to_sealed_log_for_fixed(
             &sealed_data,
             rv.inner.as_ptr() as *mut u8,
-            LOG_BUFFER_SIZE as u32,
+            BUFFER_SIZE as u32,
         );
         if opt.is_none() {
             panic!("Failed to convert sealed data to raw data");
@@ -162,10 +165,42 @@ impl EncDec for SealedData {
 
 unsafe impl ContiguousMemory for SealedData {}
 
-pub struct Data<S, T, D: ContiguousMemory>
+#[derive(Copy, Clone, Debug)]
+pub struct EncData {
+    pub inner: [u8; BUFFER_SIZE],
+    pub length: usize,
+}
+
+impl EncData {
+    pub fn new(raw: [u8; BUFFER_SIZE], length: usize) -> Self {
+        EncData { inner: raw, length }
+    }
+
+    pub fn from_ref(r: &[u8], length: usize) -> Self {
+        let mut raw = [0_u8; BUFFER_SIZE];
+        raw.copy_from_slice(r);
+        EncData { inner: raw , length }
+    }
+}
+
+impl EncDec<AES128Key> for EncData {
+    fn decrypt(self, key: &AES128Key) -> Self {
+        self
+    }
+
+
+    fn encrypt(self, key: &AES128Key) -> Self {
+        self
+    }
+}
+
+unsafe impl ContiguousMemory for EncData {}
+
+pub struct Data<S, T, D, K>
 where
     S: EncryptionState,
     T: IOState,
+    D: ContiguousMemory + EncDec<K>,
 {
     // inner data
     raw: D,
@@ -173,96 +208,110 @@ where
     _encryption_state: S,
     // Input / Output
     _io_state: T,
+    _key_type: PhantomData<K>,
 }
 
-impl<D> Data<Encrypted, Input, D>
+impl<D, K> Data<Encrypted, Input, D, K>
 where
-    D: ContiguousMemory,
+    D: ContiguousMemory + EncDec<K>,
 {
     pub fn new(raw: D) -> Self {
         Self {
             raw,
             _encryption_state: Encrypted,
             _io_state: Input,
+            _key_type: PhantomData,
         }
     }
 }
 
-impl<D> Data<Encrypted, Input, D>
+impl<D, K> Data<Encrypted, Input, D, K>
 where
-    D: ContiguousMemory + EncDec,
+    D: ContiguousMemory + EncDec<K>,
+    K: Default,
 {
-    pub fn decrypt(self, key: &Key<Sealed>) -> Data<Decrypted, Input, D> {
+    pub fn decrypt(self, key: &Key<K, Sealed>) -> Data<Decrypted, Input, D, K> {
         Data {
-            raw: self.raw.decrypt(&key.raw),
+            raw: self.raw.decrypt(key.raw_ref()),
             _encryption_state: Decrypted,
             _io_state: Input,
+            _key_type: PhantomData,
         }
     }
 }
 
-impl<D> Data<Decrypted, Input, D>
+impl<D, K> Data<Decrypted, Input, D, K>
 where
-    D: ContiguousMemory,
+    D: ContiguousMemory + EncDec<K>,
 {
-    pub fn invoke(self, fun: &dyn Fn(D) -> D) -> Data<Decrypted, Output, D> {
+    pub fn invoke(self, fun: &dyn Fn(D) -> D) -> Data<Decrypted, Output, D, K> {
         Data {
             raw: fun(self.raw),
             _encryption_state: Decrypted,
             _io_state: Output,
+            _key_type: PhantomData,
         }
     }
 }
 
-impl<D> Data<Decrypted, Output, D>
+impl<D, K> Data<Decrypted, Output, D, K>
 where
-    D: ContiguousMemory + EncDec,
+    D: ContiguousMemory + EncDec<K>,
+    K: Default,
 {
-    pub fn encrypt(self, key: &Key<Sealed>) -> Data<Encrypted, Output, D> {
+    pub fn encrypt(self, key: &Key<K, Sealed>) -> Data<Encrypted, Output, D, K> {
         Data {
-            raw: self.raw.encrypt(&key.raw),
+            raw: self.raw.encrypt(&key.raw_ref()),
             _encryption_state: Encrypted,
             _io_state: Output,
+            _key_type: PhantomData,
         }
     }
 }
 
-type AES128Key = [u8; 16];
-
-pub struct Key<S> {
-    pub raw: Vec<u8>,
+pub struct Key<K, S> {
+    pub raw: K,
     // Sealed / Invalid
     _key_state: S,
 }
 
-impl Key<Sealed> {
-    pub fn new(raw: Vec<u8>) -> Key<Sealed> {
+pub type AES128Key = [u8; 16];
+
+impl<K> Key<K, Sealed>
+where
+    K: Default,
+{
+    pub fn new(raw: K) -> Key<K, Sealed> {
         Key {
             raw: raw,
             _key_state: Sealed,
         }
     }
 
-    pub fn zeroize(mut self) -> Key<Invalid> {
-        self.raw.fill(0);
+    pub fn raw_ref(&self) -> &K {
+        &self.raw
+    }
+
+    // zone allocator will zerorize self!
+    pub fn zeroize(self) -> Key<K, Invalid> {
         Key {
-            raw: self.raw,
+            raw: K::default(),
             _key_state: Invalid,
         }
     }
 }
 
-pub struct ProtectedAssets<S, T, D>
+pub struct ProtectedAssets<S, T, D, K>
 where
-    Data<S, T, D>: InputKeyState,
-    Data<S, T, D>: OutputKeyState,
+    Data<S, T, D, K>: InputKeyState,
+    Data<S, T, D, K>: OutputKeyState,
     S: EncryptionState,
     T: IOState,
-    D: ContiguousMemory,
+    D: ContiguousMemory + EncDec<K>,
 {
-    data: Data<S, T, D>,
-    input_key: Key<<Data<S, T, D> as InputKeyState>::KeyState>,
-    output_key: Key<<Data<S, T, D> as OutputKeyState>::KeyState>,
+    data: Data<S, T, D, K>,
+    input_key: Key<K, <Data<S, T, D, K> as InputKeyState>::KeyState>,
+    output_key: Key<K, <Data<S, T, D, K> as OutputKeyState>::KeyState>,
 }
 
 // impl<T> Borrow<T> for ProtectedAssets<Encrypted, T>
@@ -276,11 +325,12 @@ where
 //     }
 // }
 
-impl<D> ProtectedAssets<Encrypted, Input, D>
+impl<D, K> ProtectedAssets<Encrypted, Input, D, K>
 where
-    D: ContiguousMemory + EncDec,
+    D: ContiguousMemory + EncDec<K>,
+    K: Default,
 {
-    pub fn decrypt(self) -> ProtectedAssets<Decrypted, Input, D> {
+    pub fn decrypt(self) -> ProtectedAssets<Decrypted, Input, D, K> {
         ProtectedAssets {
             data: self.data.decrypt(&self.input_key),
             input_key: self.input_key.zeroize(),
@@ -288,7 +338,7 @@ where
         }
     }
 
-    pub fn new(raw: D, input_key: Vec<u8>, output_key: Vec<u8>) -> Self {
+    pub fn new(raw: D, input_key: K, output_key: K) -> Self {
         ProtectedAssets {
             data: Data::new(raw),
             input_key: Key::new(input_key),
@@ -297,11 +347,11 @@ where
     }
 }
 
-impl<D> ProtectedAssets<Decrypted, Input, D>
+impl<D, K> ProtectedAssets<Decrypted, Input, D, K>
 where
-    D: ContiguousMemory,
+    D: ContiguousMemory + EncDec<K>,
 {
-    pub fn invoke(self, fun: &dyn Fn(D) -> D) -> ProtectedAssets<Decrypted, Output, D> {
+    pub fn invoke(self, fun: &dyn Fn(D) -> D) -> ProtectedAssets<Decrypted, Output, D, K> {
         ProtectedAssets {
             data: self.data.invoke(fun),
             input_key: self.input_key,
@@ -310,11 +360,12 @@ where
     }
 }
 
-impl<D> ProtectedAssets<Decrypted, Output, D>
+impl<D, K> ProtectedAssets<Decrypted, Output, D, K>
 where
-    D: ContiguousMemory + EncDec,
+    D: ContiguousMemory + EncDec<K>,
+    K: Default,
 {
-    pub fn encrypt(self) -> ProtectedAssets<Encrypted, Output, D> {
+    pub fn encrypt(self) -> ProtectedAssets<Encrypted, Output, D, K> {
         ProtectedAssets {
             data: self.data.encrypt(&self.output_key),
             input_key: self.input_key,
@@ -323,9 +374,9 @@ where
     }
 }
 
-impl<D> ProtectedAssets<Encrypted, Output, D>
+impl<D, K> ProtectedAssets<Encrypted, Output, D, K>
 where
-    D: ContiguousMemory + EncDec,
+    D: ContiguousMemory + EncDec<K>,
 {
     pub fn take(self) -> D {
         self.data.raw

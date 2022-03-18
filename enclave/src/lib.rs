@@ -7,24 +7,22 @@ extern crate sgx_types;
 #[cfg(not(target_env = "sgx"))]
 #[macro_use]
 extern crate sgx_tstd as std;
+mod pobf;
 mod types;
 mod utils;
-mod pobf;
 
 // use sgx_rand::{Rng, StdRng};
+use pobf::*;
 use sgx_tseal::SgxSealedData;
 use sgx_types::*;
 use std::slice;
 use types::*;
 use utils::*;
-use pobf::*;
 
 #[no_mangle]
 pub extern "C" fn sample_task(sealed_log: *mut u8, sealed_log_size: u32) -> sgx_status_t {
-    assert!(sealed_log_size == LOG_BUFFER_SIZE as u32);
-    let sealed_buffer = unsafe {
-        slice::from_raw_parts_mut(sealed_log, LOG_BUFFER_SIZE)
-    };
+    assert!(sealed_log_size == BUFFER_SIZE as u32);
+    let sealed_buffer = unsafe { slice::from_raw_parts_mut(sealed_log, BUFFER_SIZE) };
 
     let sealed_data = SealedData::from_ref(sealed_buffer);
     let sealed_output = pobf_ref_implementation(sealed_data);
@@ -35,16 +33,33 @@ pub extern "C" fn sample_task(sealed_log: *mut u8, sealed_log_size: u32) -> sgx_
 }
 
 #[no_mangle]
-pub extern "C" fn sample_task_aes(sealed_key_log: *mut u8, sealed_key_log_size: u32, encrypted_data: *mut u8, encrypted_data_size: u32) -> sgx_status_t {
-    assert!(sealed_key_log_size == LOG_BUFFER_SIZE as u32);
-    let sealed_buffer = unsafe {
-        slice::from_raw_parts_mut(sealed_log, LOG_BUFFER_SIZE)
-    };
+pub extern "C" fn sample_task_aes(
+    sealed_key_log: *mut u8,
+    sealed_key_log_size: u32,
+    encrypted_data: *mut u8,
+    encrypted_data_size: u32,
+) -> sgx_status_t {
+    assert!(sealed_key_log_size == BUFFER_SIZE as u32);
+    assert!(encrypted_data_size <= BUFFER_SIZE as u32);
+    let sealed_key_buffer = unsafe { slice::from_raw_parts_mut(sealed_key_log, BUFFER_SIZE) };
 
-    let sealed_data = SealedData::from_ref(sealed_buffer);
-    let sealed_output = pobf_ref_implementation(sealed_data);
+    let data_buffer = unsafe { slice::from_raw_parts_mut(encrypted_data, BUFFER_SIZE)};
+    let data = EncData::from_ref(data_buffer, encrypted_data_size as usize);
 
-    sealed_buffer.copy_from_slice(sealed_output.inner.as_ref());
+    let input_key : AES128Key = key_from_sealed_buffer(sealed_key_buffer);
+    let output_key : AES128Key = input_key.clone();
+
+    let protected_enc_in = ProtectedAssets::new(data, input_key, output_key);
+
+    let protected_dec_in = protected_enc_in.decrypt();
+
+    let protected_dec_out = protected_dec_in.invoke(&computation_enc);
+
+    let protected_enc_out = protected_dec_out.encrypt();
+
+    let result = protected_enc_out.take();
+
+    data_buffer.copy_from_slice(result.inner.as_ref());
 
     sgx_status_t::SGX_SUCCESS
 }
@@ -56,7 +71,7 @@ pub extern "C" fn create_sealeddata_for_fixed(
 ) -> sgx_status_t {
     let data = [42u8; 16];
 
-    // commented to make the result deterministic
+    // uncomment to get random result
     // let mut rand = match StdRng::new() {
     //     Ok(rng) => rng,
     //     Err(_) => {

@@ -13,6 +13,7 @@ name = "enclave"
 version = "0.1.0"
 dependencies = [
  "sgx_rand",
+ "sgx_tcrypto",
  "sgx_trts",
  "sgx_tseal",
  "sgx_tstd",

@@ -16,6 +16,7 @@ sgx_tstd = { git = "https://github.com/apache/teaclave-sgx-sdk.git", features = 
 sgx_trts = { git = "https://github.com/apache/teaclave-sgx-sdk.git" }
 sgx_rand = { git = "https://github.com/apache/teaclave-sgx-sdk.git" }
 sgx_tseal = { git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+sgx_tcrypto = { git = "https://github.com/apache/teaclave-sgx-sdk.git" }
 
 [patch.'https://github.com/apache/teaclave-sgx-sdk.git']
 sgx_alloc = { path = "../incubator-teaclave-sgx-sdk/sgx_alloc" }
