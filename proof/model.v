@@ -765,16 +765,6 @@ Proof.
     apply update_invariant. assumption. rewrite <- Ha. apply IHvars. intros. rewrite Ha. apply H'.
 Qed.
 
-Lemma zeroize_zeroize_zone_minus_RV: forall (vars: accessible) (me: memory) (l: location),
-  In l vars -> l <> RV -> (exists tv, me l = EncMem ZoneMem tv) -> zeroize me vars l = EncMem ZoneMem (Cleared, Notsecret).
-Proof.
-  intros vars. induction vars.
-  - intros. destruct H.
-  - intros. simpl. destruct H.
-    + subst. destruct l eqn: eql. destruct H1. rewrite H. 
-
-Admitted.
-
 Lemma zeroize_update_invariant: forall (vars: accessible) (me: memory) (l1 l2: location) (c: cell),
   l1 <> l2 -> zeroize (update l2 c me) vars l1 = zeroize me vars l1.
 Proof.
@@ -926,5 +916,4 @@ Proof.
       * apply IHvars. simpl in H. rewrite eqma in H. destruct z eqn: eqz. assumption.
         destruct v. destruct s eqn: eqs. discriminate H. assumption. assumption.
 Qed.
-
 
