@@ -1,3 +1,5 @@
+extern crate sgx_tcrypto;
+
 use crate::utils::*;
 use sgx_tseal::SgxSealedData;
 use sgx_types::marker::ContiguousMemory;
@@ -224,6 +226,8 @@ where
         }
     }
 }
+
+type AES128Key = [u8; 16];
 
 pub struct Key<S> {
     pub raw: Vec<u8>,

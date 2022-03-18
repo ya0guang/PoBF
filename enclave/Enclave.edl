@@ -14,5 +14,9 @@ enclave {
 
         public sgx_status_t sample_task([in, out, size=sealed_log_size]
             uint8_t* sealed_log, uint32_t sealed_log_size);
+
+        public sample_task_aes([in, size=sealed_key_log_size]
+            uint8_t* sealed_key_log, uint32_t sealed_key_log_size, 
+            [in, out, size=encrypted_data_size] uint8_t* encrypted_data, uint32_t encrypted_data_size);
     };
 };
