@@ -74,7 +74,7 @@ fn main() {
         }
     };
 
-    let sealed_output = match args.command {
+    let _sealed_output = match args.command {
         Commands::Gen => generate_sealed_input(&enclave),
         Commands::Cal => {
             let sealed_log = generate_sealed_input(&enclave);

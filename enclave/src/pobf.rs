@@ -1,13 +1,19 @@
 #![forbid(unsafe_code)]
 
 use crate::types::*;
+use sgx_types::marker::ContiguousMemory;
 
-pub fn pobf_ref_implementation(input_sealed: SealedData) -> SealedData {
-    let protected_enc_in = ProtectedAssets::new(input_sealed, vec![1], vec![1]);
+pub fn pobf_ref_implementation<T: ContiguousMemory + EncDec<K>, K: Default>(
+    input_sealed: T,
+    input_key: K,
+    output_key: K,
+    f: &dyn Fn(T) -> T,
+) -> T {
+    let protected_enc_in = ProtectedAssets::new(input_sealed, input_key, output_key);
 
     let protected_dec_in = protected_enc_in.decrypt();
 
-    let protected_dec_out = protected_dec_in.invoke(&computation_sealed);
+    let protected_dec_out = protected_dec_in.invoke(f);
 
     let protected_enc_out = protected_dec_out.encrypt();
 

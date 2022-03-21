@@ -25,7 +25,8 @@ pub extern "C" fn sample_task(sealed_log: *mut u8, sealed_log_size: u32) -> sgx_
     let sealed_buffer = unsafe { slice::from_raw_parts_mut(sealed_log, BUFFER_SIZE) };
 
     let sealed_data = SealedData::from_ref(sealed_buffer);
-    let sealed_output = pobf_ref_implementation(sealed_data);
+
+    let sealed_output = pobf_ref_implementation(sealed_data, vec![0], vec![0], &computation_sealed);
 
     sealed_buffer.copy_from_slice(sealed_output.inner.as_ref());
 
@@ -52,18 +53,15 @@ pub extern "C" fn sample_task_aes(
     let input_key: AES128Key = key_from_sealed_buffer(sealed_key_buffer);
     let output_key: AES128Key = input_key.clone();
 
-    let protected_enc_in = ProtectedAssets::new(data, input_key, output_key);
-    
-    let protected_dec_in = protected_enc_in.decrypt();
+    let encrypted_output = pobf_ref_implementation(
+        data,
+        input_key,
+        output_key,
+        &computation_enc,
+    );
 
-    let protected_dec_out = protected_dec_in.invoke(&computation_enc);
-
-    let protected_enc_out = protected_dec_out.encrypt();
-
-    let result = protected_enc_out.take();
-
-    data_buffer.copy_from_slice(result.inner.as_ref());
-    data_mac.copy_from_slice(result.mac.as_ref());
+    data_buffer.copy_from_slice(encrypted_output.inner.as_ref());
+    data_mac.copy_from_slice(encrypted_output.mac.as_ref());
 
     sgx_status_t::SGX_SUCCESS
 }
