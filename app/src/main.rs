@@ -15,18 +15,24 @@ extern "C" {
         sealed_log: *mut u8,
         sealed_log_size: u32,
     ) -> sgx_status_t;
-}
 
-extern "C" {
+    fn sample_task_aes(
+        eid: sgx_enclave_id_t,
+        retval: *mut sgx_status_t,
+        sealed_key_log: *mut u8,
+        sealed_key_log_size: u32,
+        encrypted_data: *mut u8,
+        encrypted_data_size: u32,
+        encrypted_data_mac: *const u8,
+    ) -> sgx_status_t;
+
     fn create_sealeddata_for_fixed(
         eid: sgx_enclave_id_t,
         retval: *mut sgx_status_t,
         sealed_log: *mut u8,
         sealed_log_size: u32,
     ) -> sgx_status_t;
-}
 
-extern "C" {
     fn verify_sealeddata_for_fixed(
         eid: sgx_enclave_id_t,
         retval: *mut sgx_status_t,
@@ -51,6 +57,7 @@ enum Commands {
 
     /// Calculate the hash of a sealed input
     Cal,
+    Calaes,
 }
 
 fn main() {
@@ -72,6 +79,10 @@ fn main() {
         Commands::Cal => {
             let sealed_log = generate_sealed_input(&enclave);
             exec_sample_task(&enclave, sealed_log)
+        }
+        Commands::Calaes => {
+            let sealed_key_log = generate_sealed_input(&enclave);
+            exec_sample_task_aes(&enclave, sealed_key_log)
         }
     };
 
@@ -119,7 +130,10 @@ fn generate_sealed_input(enclave: &SgxEnclave) -> [u8; SEALED_LOG_SIZE] {
     sealed_log
 }
 
-fn exec_sample_task(enclave: &SgxEnclave, sealed_log: [u8; SEALED_LOG_SIZE]) -> [u8; SEALED_LOG_SIZE] {
+fn exec_sample_task(
+    enclave: &SgxEnclave,
+    sealed_log: [u8; SEALED_LOG_SIZE],
+) -> [u8; SEALED_LOG_SIZE] {
     let mut retval = sgx_status_t::SGX_SUCCESS;
 
     let rv = unsafe {
@@ -157,6 +171,52 @@ fn exec_sample_task(enclave: &SgxEnclave, sealed_log: [u8; SEALED_LOG_SIZE]) -> 
     println!("Unsealed data: {:?}", sealed_log);
 
     sealed_log
+}
+
+fn exec_sample_task_aes(
+    enclave: &SgxEnclave,
+    sealed_key_log: [u8; SEALED_LOG_SIZE],
+) -> [u8; SEALED_LOG_SIZE] {
+    let mut retval = sgx_status_t::SGX_SUCCESS;
+
+    // Encrypted [42] * 16
+    let encrypted_data: [u8; 16] = [
+        0x29, 0xa2, 0xf0, 0xe4, 0x4a, 0x9c, 0x89, 0xb8, 0xd9, 0x02, 0xe8, 0x93, 0x5b, 0x98, 0xd4,
+        0x52,
+    ];
+    let mut encrypted_data_ext = [0u8; SEALED_LOG_SIZE];
+    encrypted_data_ext[0..16].copy_from_slice(&encrypted_data);
+    // subject to change
+    let encrypted_data_mac: [u8; SGX_AESGCM_MAC_SIZE] = [
+        0x6b, 0xbb, 0xcb, 0x9c, 0xb8, 0x7e, 0x5b, 0xcb, 0xfe, 0x31, 0x38, 0xf0, 0x9c, 0x1f, 0x0a,
+        0x28,
+    ];
+
+    let rv = unsafe {
+        sample_task_aes(
+            enclave.geteid(),
+            &mut retval,
+            sealed_key_log.as_ptr() as *mut u8,
+            SEALED_LOG_SIZE as u32,
+            encrypted_data_ext.as_ptr() as *mut u8,
+            16,
+            encrypted_data_mac.as_ptr() as *const u8,
+        )
+    };
+    println!("DEBUG: reached here6!");
+
+    match rv {
+        sgx_status_t::SGX_SUCCESS => {}
+        _ => {
+            panic!("[-] ECALL Enclave Failed {}!", rv.as_str());
+        }
+    }
+
+    // println!("Sealed log after sealing: {:?}", sealed_log);
+
+    println!("output data: {:?}", encrypted_data_ext);
+
+    encrypted_data_ext
 }
 
 fn init_enclave() -> SgxResult<SgxEnclave> {

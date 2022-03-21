@@ -1,7 +1,7 @@
+use crate::types::*;
 use sgx_tseal::SgxSealedData;
 use sgx_types::marker::ContiguousMemory;
 use sgx_types::*;
-use crate::types::*;
 
 pub fn from_sealed_log_for_fixed<'a, T: Copy + ContiguousMemory>(
     sealed_log: *mut u8,
@@ -42,7 +42,7 @@ pub fn key_from_sealed_buffer(sealed_buffer: &[u8]) -> AES128Key {
     };
     let data = unsealed_data.get_decrypt_txt();
     let mut key: AES128Key = AES128Key::default();
+    println!("DEBUG: the AES128key is {:?}", key);
     key.copy_from_slice(data);
     key
 }
-

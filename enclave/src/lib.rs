@@ -38,19 +38,21 @@ pub extern "C" fn sample_task_aes(
     sealed_key_log_size: u32,
     encrypted_data: *mut u8,
     encrypted_data_size: u32,
+    encrypted_data_mac: *const u8,
 ) -> sgx_status_t {
     assert!(sealed_key_log_size == BUFFER_SIZE as u32);
     assert!(encrypted_data_size <= BUFFER_SIZE as u32);
     let sealed_key_buffer = unsafe { slice::from_raw_parts_mut(sealed_key_log, BUFFER_SIZE) };
 
-    let data_buffer = unsafe { slice::from_raw_parts_mut(encrypted_data, BUFFER_SIZE)};
-    let data = EncData::from_ref(data_buffer, encrypted_data_size as usize);
+    let data_buffer = unsafe { slice::from_raw_parts_mut(encrypted_data, BUFFER_SIZE) };
+    let data_mac = unsafe { slice::from_raw_parts(encrypted_data_mac, SGX_AESGCM_MAC_SIZE) };
+    let data = EncData::from_ref(data_buffer, data_mac, encrypted_data_size as usize);
 
-    let input_key : AES128Key = key_from_sealed_buffer(sealed_key_buffer);
-    let output_key : AES128Key = input_key.clone();
+    let input_key: AES128Key = key_from_sealed_buffer(sealed_key_buffer);
+    let output_key: AES128Key = input_key.clone();
 
     let protected_enc_in = ProtectedAssets::new(data, input_key, output_key);
-
+    
     let protected_dec_in = protected_enc_in.decrypt();
 
     let protected_dec_out = protected_dec_in.invoke(&computation_enc);
@@ -69,7 +71,7 @@ pub extern "C" fn create_sealeddata_for_fixed(
     sealed_log: *mut u8,
     sealed_log_size: u32,
 ) -> sgx_status_t {
-    let data = [42u8; 16];
+    let data = [0u8; 16];
 
     // uncomment to get random result
     // let mut rand = match StdRng::new() {

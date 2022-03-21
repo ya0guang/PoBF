@@ -24,7 +24,7 @@ pub fn computation_sealed(data: SealedData) -> SealedData {
 }
 
 pub fn computation_enc(data: EncData) -> EncData {
-    let mut new_data = EncData::new([0u8; BUFFER_SIZE], data.length);
+    let mut new_data = EncData::new([0u8; BUFFER_SIZE], data.mac, data.length);
 
     for i in 0..new_data.length {
         new_data.inner[i] = data.inner[i] + 1;

@@ -1,9 +1,12 @@
 extern crate sgx_tcrypto;
 
 use crate::utils::*;
+use sgx_tcrypto::*;
 use sgx_tseal::SgxSealedData;
 use sgx_types::marker::ContiguousMemory;
+use sgx_types::SGX_AESGCM_MAC_SIZE;
 use std::marker::PhantomData;
+use std::slice;
 use std::vec::Vec;
 
 pub const BUFFER_SIZE: usize = 1024;
@@ -32,7 +35,7 @@ pub trait InputKeyState {
     type KeyState;
 }
 
-impl<D, K> InputKeyState for Data<Encrypted, Input, D,K>
+impl<D, K> InputKeyState for Data<Encrypted, Input, D, K>
 where
     D: ContiguousMemory + EncDec<K>,
 {
@@ -168,26 +171,74 @@ unsafe impl ContiguousMemory for SealedData {}
 #[derive(Copy, Clone, Debug)]
 pub struct EncData {
     pub inner: [u8; BUFFER_SIZE],
+    pub mac: [u8; SGX_AESGCM_MAC_SIZE],
     pub length: usize,
 }
 
 impl EncData {
-    pub fn new(raw: [u8; BUFFER_SIZE], length: usize) -> Self {
-        EncData { inner: raw, length }
+    pub fn new(raw: [u8; BUFFER_SIZE], mac: [u8; SGX_AESGCM_MAC_SIZE], length: usize) -> Self {
+        EncData {
+            inner: raw,
+            mac,
+            length,
+        }
     }
 
-    pub fn from_ref(r: &[u8], length: usize) -> Self {
+    pub fn from_ref(raw_r: &[u8], mac_r: &[u8], length: usize) -> Self {
         let mut raw = [0_u8; BUFFER_SIZE];
-        raw.copy_from_slice(r);
-        EncData { inner: raw , length }
+        raw.copy_from_slice(raw_r);
+        let mut mac = [0_u8; SGX_AESGCM_MAC_SIZE];
+        assert!(mac_r.len() == SGX_AESGCM_MAC_SIZE);
+        mac.copy_from_slice(mac_r);
+        EncData {
+            inner: raw,
+            mac,
+            length,
+        }
     }
 }
 
 impl EncDec<AES128Key> for EncData {
+    // iv: default value [0u8; 12]
     fn decrypt(self, key: &AES128Key) -> Self {
-        self
-    }
 
+        let ciphertext_slice = unsafe { slice::from_raw_parts(self.inner.as_ptr(), self.length) };
+
+        let mut plaintext_vec: Vec<u8> = vec![0; self.length];
+        let plaintext_slice = &mut plaintext_vec[..];
+        let iv = [0u8; 12];
+        let aad_array: [u8; 0] = [0; 0];
+        println!(
+            "aes_gcm_128_decrypt parameter prepared! {}",
+            plaintext_slice.len()
+        );
+
+        // debug
+        println!("DEBUG: ciphertext_slice: {:?}", ciphertext_slice);
+        println!("DEBUG: mac: {:?}", self.mac);
+
+        // After everything has been set, call API
+        let result = rsgx_rijndael128GCM_decrypt(
+            key,
+            &ciphertext_slice,
+            &iv,
+            &aad_array,
+            &self.mac,
+            plaintext_slice,
+        );
+
+        let mut decrypted_buffer = [0u8; BUFFER_SIZE];
+
+        match result {
+            Err(x) => {
+                panic!("Error occurs in decryption, {:?}", x);
+            }
+            Ok(()) => {
+                decrypted_buffer[..self.length].copy_from_slice(plaintext_slice);
+            }
+        };
+        EncData::new(decrypted_buffer, self.mac, self.length)
+    }
 
     fn encrypt(self, key: &AES128Key) -> Self {
         self
@@ -288,7 +339,7 @@ where
         }
     }
 
-    pub fn raw_ref(&self) -> &K {
+    fn raw_ref(&self) -> &K {
         &self.raw
     }
 
