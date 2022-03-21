@@ -23,7 +23,7 @@ extern "C" {
         sealed_key_log_size: u32,
         encrypted_data: *mut u8,
         encrypted_data_size: u32,
-        encrypted_data_mac: *const u8,
+        encrypted_data_mac: *mut u8,
     ) -> sgx_status_t;
 
     fn create_sealeddata_for_fixed(
@@ -200,7 +200,7 @@ fn exec_sample_task_aes(
             SEALED_LOG_SIZE as u32,
             encrypted_data_ext.as_ptr() as *mut u8,
             16,
-            encrypted_data_mac.as_ptr() as *const u8,
+            encrypted_data_mac.as_ptr() as *mut u8,
         )
     };
     println!("DEBUG: reached here6!");
@@ -214,7 +214,8 @@ fn exec_sample_task_aes(
 
     // println!("Sealed log after sealing: {:?}", sealed_log);
 
-    println!("output data: {:?}", encrypted_data_ext);
+    println!("output encrypted data: {:?}", encrypted_data_ext);
+    println!("output encrypted data mac: {:?}", encrypted_data_mac);
 
     encrypted_data_ext
 }

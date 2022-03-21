@@ -201,7 +201,6 @@ impl EncData {
 impl EncDec<AES128Key> for EncData {
     // iv: default value [0u8; 12]
     fn decrypt(self, key: &AES128Key) -> Self {
-
         let ciphertext_slice = unsafe { slice::from_raw_parts(self.inner.as_ptr(), self.length) };
 
         let mut plaintext_vec: Vec<u8> = vec![0; self.length];
@@ -241,7 +240,38 @@ impl EncDec<AES128Key> for EncData {
     }
 
     fn encrypt(self, key: &AES128Key) -> Self {
-        self
+        let plaintext_slice = unsafe { slice::from_raw_parts(self.inner.as_ptr(), self.length) };
+        let mut ciphertext_vec: Vec<u8> = vec![0; self.length];
+        let ciphertext_slice = &mut ciphertext_vec[..];
+
+        let aad_array: [u8; 0] = [0; 0];
+        let mut mac_array: [u8; SGX_AESGCM_MAC_SIZE] = [0; SGX_AESGCM_MAC_SIZE];
+        println!(
+            "aes_gcm_128_encrypt parameter prepared! {}",
+            plaintext_slice.len()
+        );
+        let iv = [0u8; 12];
+        let result = rsgx_rijndael128GCM_encrypt(
+            key,
+            &plaintext_slice,
+            &iv,
+            &aad_array,
+            ciphertext_slice,
+            &mut mac_array,
+        );
+
+        let mut encrypt_buffer = [0u8; BUFFER_SIZE];
+
+        match result {
+            Err(x) => {
+                panic!("Error occurs in decryption, {:?}", x);
+            }
+            Ok(()) => {
+                encrypt_buffer[..self.length].copy_from_slice(ciphertext_slice);
+            }
+        };
+
+        EncData::new(encrypt_buffer, mac_array, self.length)
     }
 }
 

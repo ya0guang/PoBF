@@ -32,20 +32,21 @@ pub extern "C" fn sample_task(sealed_log: *mut u8, sealed_log_size: u32) -> sgx_
     sgx_status_t::SGX_SUCCESS
 }
 
+// TODO: reform the size field!
 #[no_mangle]
 pub extern "C" fn sample_task_aes(
     sealed_key_log: *mut u8,
     sealed_key_log_size: u32,
     encrypted_data: *mut u8,
     encrypted_data_size: u32,
-    encrypted_data_mac: *const u8,
+    encrypted_data_mac: *mut u8,
 ) -> sgx_status_t {
     assert!(sealed_key_log_size == BUFFER_SIZE as u32);
     assert!(encrypted_data_size <= BUFFER_SIZE as u32);
     let sealed_key_buffer = unsafe { slice::from_raw_parts_mut(sealed_key_log, BUFFER_SIZE) };
 
     let data_buffer = unsafe { slice::from_raw_parts_mut(encrypted_data, BUFFER_SIZE) };
-    let data_mac = unsafe { slice::from_raw_parts(encrypted_data_mac, SGX_AESGCM_MAC_SIZE) };
+    let data_mac = unsafe { slice::from_raw_parts_mut(encrypted_data_mac, SGX_AESGCM_MAC_SIZE) };
     let data = EncData::from_ref(data_buffer, data_mac, encrypted_data_size as usize);
 
     let input_key: AES128Key = key_from_sealed_buffer(sealed_key_buffer);
@@ -62,6 +63,7 @@ pub extern "C" fn sample_task_aes(
     let result = protected_enc_out.take();
 
     data_buffer.copy_from_slice(result.inner.as_ref());
+    data_mac.copy_from_slice(result.mac.as_ref());
 
     sgx_status_t::SGX_SUCCESS
 }
