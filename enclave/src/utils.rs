@@ -1,4 +1,7 @@
 use crate::types::*;
+#[cfg(feature = "mirai")]
+use crate::bogus::SgxSealedData;
+#[cfg(not(feature = "mirai"))]
 use sgx_tseal::SgxSealedData;
 use sgx_types::marker::ContiguousMemory;
 use sgx_types::*;

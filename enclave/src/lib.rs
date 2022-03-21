@@ -1,18 +1,27 @@
 #![crate_name = "helloworldsampleenclave"]
 #![crate_type = "staticlib"]
-#![cfg_attr(not(target_env = "sgx"), no_std)]
+// doesn't work?
+#![cfg_attr(not(features = "mirai"), no_std)]
+// uncomment when using xargo
+// #![cfg_attr(not(target_env = "sgx"), no_std)]
 #![cfg_attr(target_env = "sgx", feature(rustc_private))]
 
 extern crate sgx_types;
+#[cfg(not(feature = "mirai"))]
 #[cfg(not(target_env = "sgx"))]
 #[macro_use]
 extern crate sgx_tstd as std;
+#[cfg(feature = "mirai")]
+mod bogus;
 mod pobf;
 mod types;
 mod utils;
 
 // use sgx_rand::{Rng, StdRng};
 use pobf::*;
+#[cfg(feature = "mirai")]
+use bogus::*;
+#[cfg(not(feature = "mirai"))]
 use sgx_tseal::SgxSealedData;
 use sgx_types::*;
 use std::slice;
@@ -53,12 +62,7 @@ pub extern "C" fn sample_task_aes(
     let input_key: AES128Key = key_from_sealed_buffer(sealed_key_buffer);
     let output_key: AES128Key = input_key.clone();
 
-    let encrypted_output = pobf_ref_implementation(
-        data,
-        input_key,
-        output_key,
-        &computation_enc,
-    );
+    let encrypted_output = pobf_ref_implementation(data, input_key, output_key, &computation_enc);
 
     data_buffer.copy_from_slice(encrypted_output.inner.as_ref());
     data_mac.copy_from_slice(encrypted_output.mac.as_ref());

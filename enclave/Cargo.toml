@@ -5,18 +5,21 @@ edition = "2021"
 
 [lib]
 name = "helloworldsampleenclave"
-crate-type = ["staticlib"]
+crate-type = ["lib", "staticlib"]
 
 [features]
-default = []
+# turn on mirai when veirifying towards mirai
+default = ["mirai"]
+mirai = []
 
 [target.'cfg(not(target_env = "sgx"))'.dependencies]
 sgx_types = { git = "https://github.com/apache/teaclave-sgx-sdk.git" }
-sgx_tstd = { git = "https://github.com/apache/teaclave-sgx-sdk.git", features = ["backtrace"] }
-sgx_trts = { git = "https://github.com/apache/teaclave-sgx-sdk.git" }
-sgx_rand = { git = "https://github.com/apache/teaclave-sgx-sdk.git" }
-sgx_tseal = { git = "https://github.com/apache/teaclave-sgx-sdk.git" }
-sgx_tcrypto = { git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+# comment out the following lines to run `cargo mirai`
+# sgx_tstd = { git = "https://github.com/apache/teaclave-sgx-sdk.git", features = ["backtrace"] }
+# sgx_trts = { git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+# sgx_rand = { git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+# sgx_tseal = { git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+# sgx_tcrypto = { git = "https://github.com/apache/teaclave-sgx-sdk.git" }
 
 [patch.'https://github.com/apache/teaclave-sgx-sdk.git']
 sgx_alloc = { path = "../incubator-teaclave-sgx-sdk/sgx_alloc" }
