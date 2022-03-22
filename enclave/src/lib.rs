@@ -1,27 +1,28 @@
 #![crate_name = "helloworldsampleenclave"]
 #![crate_type = "staticlib"]
 // doesn't work?
-#![cfg_attr(not(features = "mirai"), no_std)]
+#![cfg_attr(feature = "sgx", no_std)]
 // uncomment when using xargo
 // #![cfg_attr(not(target_env = "sgx"), no_std)]
 #![cfg_attr(target_env = "sgx", feature(rustc_private))]
 
 extern crate sgx_types;
-#[cfg(not(feature = "mirai"))]
+#[cfg(feature = "sgx")]
 #[cfg(not(target_env = "sgx"))]
 #[macro_use]
 extern crate sgx_tstd as std;
-#[cfg(feature = "mirai")]
+#[cfg(not(feature = "sgx"))]
 mod bogus;
 mod pobf;
 mod types;
 mod utils;
+mod ocall;
 
 // use sgx_rand::{Rng, StdRng};
 use pobf::*;
-#[cfg(feature = "mirai")]
+#[cfg(not(feature = "sgx"))]
 use bogus::*;
-#[cfg(not(feature = "mirai"))]
+#[cfg(feature = "sgx")]
 use sgx_tseal::SgxSealedData;
 use sgx_types::*;
 use std::slice;
@@ -35,7 +36,7 @@ pub extern "C" fn sample_task(sealed_log: *mut u8, sealed_log_size: u32) -> sgx_
 
     let sealed_data = SealedData::from_ref(sealed_buffer);
 
-    let sealed_output = pobf_ref_implementation(sealed_data, vec![0], vec![0], &computation_sealed);
+    let sealed_output = pobf_sample_task_seal(sealed_data);
 
     sealed_buffer.copy_from_slice(sealed_output.inner.as_ref());
 
@@ -62,7 +63,7 @@ pub extern "C" fn sample_task_aes(
     let input_key: AES128Key = key_from_sealed_buffer(sealed_key_buffer);
     let output_key: AES128Key = input_key.clone();
 
-    let encrypted_output = pobf_ref_implementation(data, input_key, output_key, &computation_enc);
+    let encrypted_output = pobf_sample_task_aes(data, input_key, output_key);
 
     data_buffer.copy_from_slice(encrypted_output.inner.as_ref());
     data_mac.copy_from_slice(encrypted_output.mac.as_ref());

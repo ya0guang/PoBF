@@ -1,15 +1,15 @@
-#[cfg(not(feature = "mirai"))]
+#[cfg(feature = "sgx")]
 extern crate sgx_tcrypto;
-#[cfg(not(feature = "mirai"))]
+#[cfg(feature = "sgx")]
 use sgx_tcrypto::*;
 
 
-#[cfg(feature = "mirai")]
+#[cfg(not(feature = "sgx"))]
 use crate::bogus::*;
 use crate::utils::*;
-#[cfg(feature = "mirai")]
+#[cfg(not(feature = "sgx"))]
 use crate::bogus::SgxSealedData;
-#[cfg(not(feature = "mirai"))]
+#[cfg(feature = "sgx")]
 use sgx_tseal::SgxSealedData;
 use sgx_types::marker::ContiguousMemory;
 use sgx_types::SGX_AESGCM_MAC_SIZE;
