@@ -10,15 +10,15 @@ use sgx_types::*;
 use std::vec::Vec;
 
 #[derive(Copy, Clone, Debug)]
-pub struct ProtectedData {
+pub struct ArrayAESData {
     pub inner: [u8; BUFFER_SIZE],
     pub mac: [u8; SGX_AESGCM_MAC_SIZE],
     pub length: usize,
 }
 
-impl ProtectedData {
+impl ArrayAESData {
     pub fn new(raw: [u8; BUFFER_SIZE], mac: [u8; SGX_AESGCM_MAC_SIZE], length: usize) -> Self {
-        ProtectedData {
+        ArrayAESData {
             inner: raw,
             mac,
             length,
@@ -31,7 +31,7 @@ impl ProtectedData {
         let mut mac = [0_u8; SGX_AESGCM_MAC_SIZE];
         assert!(mac_r.len() == SGX_AESGCM_MAC_SIZE);
         mac.copy_from_slice(mac_r);
-        ProtectedData {
+        ArrayAESData {
             inner: raw,
             mac,
             length,
@@ -39,16 +39,33 @@ impl ProtectedData {
     }
 }
 
-// pub type AES128Key = [u8; 16];
-#[derive(Default)]
 pub struct AES128Key {
+    buffer: [u8; BUFFER_SIZE],
     inner: [u8; 16],
 }
 
+impl Default for AES128Key {
+    fn default() -> Self {
+        AES128Key {
+            buffer: [0u8; BUFFER_SIZE],
+            inner: [0u8; 16],
+        }
+    }
+}
+
 impl AES128Key {
+
+    // Need to zeroize the buffer?
     pub fn from_sealed_buffer(sealed_buffer: &[u8]) -> SgxResult<Self> {
+        assert!(sealed_buffer.len() == BUFFER_SIZE);
+        let mut key = AES128Key::default();
+        key.buffer.copy_from_slice(sealed_buffer);
+        Ok(key)
+    }
+
+    fn unseal(&self) -> SgxResult<Self> {
         let opt = from_sealed_log_for_fixed::<[u8; SEALED_DATA_SIZE]>(
-            sealed_buffer.as_ptr() as *mut u8,
+            self.buffer.as_ptr() as *mut u8,
             BUFFER_SIZE as u32,
         );
         let sealed_data = match opt {
@@ -61,15 +78,16 @@ impl AES128Key {
 
         let result = sealed_data.unseal_data()?;
         let data = result.get_decrypt_txt();
-        let mut key: AES128Key = AES128Key::default();
-        key.inner.copy_from_slice(data);
-        Ok(key)
+        let mut temp_key = AES128Key::default();
+        temp_key.inner.copy_from_slice(data);
+        Ok(temp_key)
     }
 }
 
-impl EncDec<AES128Key> for ProtectedData {
+impl EncDec<AES128Key> for ArrayAESData {
     // iv: default value [0u8; 12]
     fn decrypt(self, key: &AES128Key) -> SgxResult<Self> {
+        let key = key.unseal()?;
         // can be a demo
         let ciphertext_slice = &self.inner[..self.length];
         let mut plaintext_vec: Vec<u8> = vec![0; self.length];
@@ -98,10 +116,11 @@ impl EncDec<AES128Key> for ProtectedData {
         let mut decrypted_buffer = [0u8; BUFFER_SIZE];
         decrypted_buffer[..self.length].copy_from_slice(plaintext_slice);
 
-        Ok(ProtectedData::new(decrypted_buffer, self.mac, self.length))
+        Ok(ArrayAESData::new(decrypted_buffer, self.mac, self.length))
     }
 
     fn encrypt(self, key: &AES128Key) -> SgxResult<Self> {
+        let key = key.unseal()?;
         let plaintext_slice = &self.inner[..self.length];
         let mut ciphertext_vec: Vec<u8> = vec![0; self.length];
         let ciphertext_slice = &mut ciphertext_vec[..];
@@ -126,6 +145,6 @@ impl EncDec<AES128Key> for ProtectedData {
 
         encrypt_buffer[..self.length].copy_from_slice(ciphertext_slice);
 
-        Ok(ProtectedData::new(encrypt_buffer, mac_array, self.length))
+        Ok(ArrayAESData::new(encrypt_buffer, mac_array, self.length))
     }
 }

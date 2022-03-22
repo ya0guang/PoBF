@@ -49,7 +49,7 @@ pub extern "C" fn sample_task(sealed_log: *mut u8, sealed_log_size: u32) -> sgx_
 
 // TODO: reform the size field!
 #[no_mangle]
-pub extern "C" fn sample_task_aes(
+pub extern "C" fn sample_task_aaes(
     sealed_buffer_ptr: *mut u8,
     sealed_buffer_size: u32,
     encrypted_data_ptr: *mut u8,
@@ -63,12 +63,12 @@ pub extern "C" fn sample_task_aes(
 
     let data_buffer = unsafe { slice::from_raw_parts_mut(encrypted_data_ptr, BUFFER_SIZE) };
     let data_mac = unsafe { slice::from_raw_parts_mut(encrypted_data_mac, SGX_AESGCM_MAC_SIZE) };
-    let data = ProtectedData::from_ref(data_buffer, data_mac, encrypted_data_size as usize);
+    let data = ArrayAESData::from_ref(data_buffer, data_mac, encrypted_data_size as usize);
 
-    let encrypted_output = match pobf_sample_task_aes(data, sealed_key_buffer) {
+    let encrypted_output = match pobf_sample_task_aaes(data, sealed_key_buffer) {
         Ok(x) => x,
         Err(e) => {
-            println!("Error occurs when invoking pobf_sample_task_aes");
+            println!("Error occurs when invoking pobf_sample_task_aaes");
             return e;
         }
     };
@@ -76,6 +76,35 @@ pub extern "C" fn sample_task_aes(
     // append mac to the buffer
     data_buffer.copy_from_slice(encrypted_output.inner.as_ref());
     data_mac.copy_from_slice(encrypted_output.mac.as_ref());
+
+    sgx_status_t::SGX_SUCCESS
+}
+
+#[no_mangle]
+pub extern "C" fn sample_task_vaes(
+    sealed_buffer_ptr: *mut u8,
+    sealed_buffer_size: u32,
+    encrypted_data_ptr: *mut u8,
+    encrypted_data_size: u32,
+) -> sgx_status_t {
+    assert!(sealed_buffer_size == BUFFER_SIZE as u32);
+    assert!(encrypted_data_size <= BUFFER_SIZE as u32);
+
+    let sealed_key_buffer = unsafe { slice::from_raw_parts_mut(sealed_buffer_ptr, BUFFER_SIZE) };
+
+    let data_buffer = unsafe { slice::from_raw_parts_mut(encrypted_data_ptr, encrypted_data_size as usize) };
+
+
+    let encrypted_output = match pobf_sample_task_vaes(data_buffer, sealed_key_buffer) {
+        Ok(x) => x,
+        Err(e) => {
+            println!("Error occurs when invoking pobf_sample_task_aaes");
+            return e;
+        }
+    };
+
+    // append mac to the buffer
+    data_buffer.copy_from_slice(encrypted_output.inner.as_ref());
 
     sgx_status_t::SGX_SUCCESS
 }
