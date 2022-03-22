@@ -1,15 +1,15 @@
 #![forbid(unsafe_code)]
 
 use crate::types::*;
-use mirai_annotations::*;
-// #[macro_use]
-// use crate::ocall::*;
+use crate::{ocall_log};
 use sgx_types::marker::ContiguousMemory;
 
 pub fn pobf_sample_task_aes(data: EncData, inkey: AES128Key, outkey: AES128Key) -> EncData {
     println!("PoBF sample task AES started...");
+    // custom compuatation task
+    let computation_task = &computation_enc;
 
-    pobf_ref_implementation(data, inkey, outkey, &computation_enc)
+    pobf_ref_implementation(data, inkey, outkey, computation_task)
 }
 
 
@@ -18,36 +18,38 @@ pub fn pobf_ref_implementation<T: ContiguousMemory + EncDec<K>, K: Default>(
     input_sealed: T,
     input_key: K,
     output_key: K,
-    f: &dyn Fn(T) -> T,
+    computation_task: &dyn Fn(T) -> T,
 ) -> T {
     let protected_enc_in = ProtectedAssets::new(input_sealed, input_key, output_key);
 
     let protected_dec_in = protected_enc_in.decrypt();
 
-    let protected_dec_out = protected_dec_in.invoke(f);
+    let protected_dec_out = protected_dec_in.invoke(computation_task);
 
     let protected_enc_out = protected_dec_out.encrypt();
 
     protected_enc_out.take()
 }
 
+// data to_vec!
 pub fn computation_enc(data: EncData) -> EncData {
-    let mut new_data = EncData::new([0u8; BUFFER_SIZE], data.mac, data.length);
+
+    // try to violate key? Cannot see the key!
+    // conditional compile some errors
+
+    let mut output_data = EncData::new([0u8; BUFFER_SIZE], data.mac, data.length);
     
     let step = 1;
     // this can be proven true by MIRAI
-    verify!(step == 1);
-    println!("the step is {} in computation_enc", step);
+    ocall_log!("he step is {} in computation_enc", 1, step);
 
-    for i in 0..new_data.length {
-        new_data.inner[i] = data.inner[i] + step;
+    for i in 0..output_data.length {
+        output_data.inner[i] = data.inner[i] + step;
     }
 
     // however, MIRAI complians about this
-    verify!(new_data.inner[0] == 1);
-    println!("after increasing, the 0th data is {}", new_data.inner[0]);
-
-    new_data
+    ocall_log!("after increasing, the 0th data is {}", 1, output_data.inner[0]);
+    output_data
 }
 
 

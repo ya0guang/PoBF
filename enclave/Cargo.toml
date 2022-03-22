@@ -9,7 +9,7 @@ crate-type = ["lib", "staticlib"]
 
 [features]
 # turn on mirai when veirifying towards mirai
-default = ["sgx"]
+default = []
 sgx = ["sgx_tstd", "sgx_trts", "sgx_rand", "sgx_tseal", "sgx_tcrypto"]
 
 [target.'cfg(not(target_env = "sgx"))'.dependencies]

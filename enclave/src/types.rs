@@ -209,6 +209,8 @@ impl EncData {
 impl EncDec<AES128Key> for EncData {
     // iv: default value [0u8; 12]
     fn decrypt(self, key: &AES128Key) -> Self {
+        // avoid unsafe!
+        // can be a demo
         let ciphertext_slice = unsafe { slice::from_raw_parts(self.inner.as_ptr(), self.length) };
 
         let mut plaintext_vec: Vec<u8> = vec![0; self.length];

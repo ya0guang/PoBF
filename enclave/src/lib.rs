@@ -46,25 +46,30 @@ pub extern "C" fn sample_task(sealed_log: *mut u8, sealed_log_size: u32) -> sgx_
 // TODO: reform the size field!
 #[no_mangle]
 pub extern "C" fn sample_task_aes(
-    sealed_key_log: *mut u8,
-    sealed_key_log_size: u32,
-    encrypted_data: *mut u8,
+    sealed_buffer_ptr: *mut u8,
+    sealed_buffer_size: u32,
+    encrypted_data_ptr: *mut u8,
     encrypted_data_size: u32,
     encrypted_data_mac: *mut u8,
 ) -> sgx_status_t {
-    assert!(sealed_key_log_size == BUFFER_SIZE as u32);
+    assert!(sealed_buffer_size == BUFFER_SIZE as u32);
     assert!(encrypted_data_size <= BUFFER_SIZE as u32);
-    let sealed_key_buffer = unsafe { slice::from_raw_parts_mut(sealed_key_log, BUFFER_SIZE) };
 
-    let data_buffer = unsafe { slice::from_raw_parts_mut(encrypted_data, BUFFER_SIZE) };
+    let sealed_key_buffer = unsafe { slice::from_raw_parts_mut(sealed_buffer_ptr, BUFFER_SIZE) };
+
+    let data_buffer = unsafe { slice::from_raw_parts_mut(encrypted_data_ptr, BUFFER_SIZE) };
     let data_mac = unsafe { slice::from_raw_parts_mut(encrypted_data_mac, SGX_AESGCM_MAC_SIZE) };
     let data = EncData::from_ref(data_buffer, data_mac, encrypted_data_size as usize);
 
+    // may unpack the key in PoBF task
+    // seperate the key type
     let input_key: AES128Key = key_from_sealed_buffer(sealed_key_buffer);
+    // avoid cloning the key
     let output_key: AES128Key = input_key.clone();
 
     let encrypted_output = pobf_sample_task_aes(data, input_key, output_key);
 
+    // append mac to the buffer
     data_buffer.copy_from_slice(encrypted_output.inner.as_ref());
     data_mac.copy_from_slice(encrypted_output.mac.as_ref());
 
