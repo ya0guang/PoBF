@@ -25,7 +25,7 @@ e.g., the input arguments should not be tainted by secrets.
 
 - Zone Allocator and its verification
 - Verify this implementation (with a verifier)
-- Formal proof of PoBF constraints
+- *Formal proof of PoBF constraints* partially done
 
 ## Goals in the Long Run
 

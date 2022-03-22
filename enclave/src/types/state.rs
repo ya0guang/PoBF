@@ -1,3 +1,4 @@
+use sgx_types::SgxResult;
 use std::marker::PhantomData;
 
 pub const BUFFER_SIZE: usize = 1024;
@@ -90,9 +91,12 @@ where
     type KeyState = Invalid;
 }
 
-pub trait EncDec<K> {
-    fn encrypt(self, key: &K) -> Self;
-    fn decrypt(self, key: &K) -> Self;
+pub trait EncDec<K>
+where
+    Self: Sized,
+{
+    fn encrypt(self, key: &K) -> SgxResult<Self>;
+    fn decrypt(self, key: &K) -> SgxResult<Self>;
 }
 
 pub struct Data<S, T, D, K>
@@ -129,13 +133,15 @@ where
     D: EncDec<K>,
     K: Default,
 {
-    pub fn decrypt(self, key: &Key<K, Sealed>) -> Data<Decrypted, Input, D, K> {
-        Data {
-            raw: self.raw.decrypt(key.raw_ref()),
+    pub fn decrypt(self, key: &Key<K, Sealed>) -> SgxResult<Data<Decrypted, Input, D, K>> {
+        let raw = self.raw.decrypt(key.raw_ref())?;
+
+        Ok(Data {
+            raw,
             _encryption_state: Decrypted,
             _io_state: Input,
             _key_type: PhantomData,
-        }
+        })
     }
 }
 
@@ -143,13 +149,14 @@ impl<D, K> Data<Decrypted, Input, D, K>
 where
     D: EncDec<K>,
 {
-    pub fn invoke(self, fun: &dyn Fn(D) -> D) -> Data<Decrypted, Output, D, K> {
-        Data {
-            raw: fun(self.raw),
+    pub fn invoke(self, fun: &dyn Fn(D) -> D) -> SgxResult<Data<Decrypted, Output, D, K>> {
+        let raw = fun(self.raw);
+        Ok(Data {
+            raw,
             _encryption_state: Decrypted,
             _io_state: Output,
             _key_type: PhantomData,
-        }
+        })
     }
 }
 
@@ -158,13 +165,14 @@ where
     D: EncDec<K>,
     K: Default,
 {
-    pub fn encrypt(self, key: &Key<K, Sealed>) -> Data<Encrypted, Output, D, K> {
-        Data {
-            raw: self.raw.encrypt(&key.raw_ref()),
+    pub fn encrypt(self, key: &Key<K, Sealed>) -> SgxResult<Data<Encrypted, Output, D, K>> {
+        let raw = self.raw.encrypt(key.raw_ref())?;
+        Ok(Data {
+            raw,
             _encryption_state: Encrypted,
             _io_state: Output,
             _key_type: PhantomData,
-        }
+        })
     }
 }
 
@@ -216,12 +224,13 @@ where
     D: EncDec<K>,
     K: Default,
 {
-    pub fn decrypt(self) -> ProtectedAssets<Decrypted, Input, D, K> {
-        ProtectedAssets {
-            data: self.data.decrypt(&self.input_key),
+    pub fn decrypt(self) -> SgxResult<ProtectedAssets<Decrypted, Input, D, K>> {
+        let data = self.data.decrypt(&self.input_key)?;
+        Ok(ProtectedAssets {
+            data,
             input_key: self.input_key.zeroize(),
             output_key: self.output_key,
-        }
+        })
     }
 
     pub fn new(raw: D, input_key: K, output_key: K) -> Self {
@@ -237,12 +246,17 @@ impl<D, K> ProtectedAssets<Decrypted, Input, D, K>
 where
     D: EncDec<K>,
 {
-    pub fn invoke(self, fun: &dyn Fn(D) -> D) -> ProtectedAssets<Decrypted, Output, D, K> {
-        ProtectedAssets {
-            data: self.data.invoke(fun),
+    pub fn invoke(
+        self,
+        fun: &dyn Fn(D) -> D,
+    ) -> SgxResult<ProtectedAssets<Decrypted, Output, D, K>> {
+        let data = self.data.invoke(fun)?;
+
+        Ok(ProtectedAssets {
+            data,
             input_key: self.input_key,
             output_key: self.output_key,
-        }
+        })
     }
 }
 
@@ -251,12 +265,14 @@ where
     D: EncDec<K>,
     K: Default,
 {
-    pub fn encrypt(self) -> ProtectedAssets<Encrypted, Output, D, K> {
-        ProtectedAssets {
-            data: self.data.encrypt(&self.output_key),
+    pub fn encrypt(self) -> SgxResult<ProtectedAssets<Encrypted, Output, D, K>> {
+        let data = self.data.encrypt(&self.output_key)?;
+
+        Ok(ProtectedAssets {
+            data,
             input_key: self.input_key,
             output_key: self.output_key.zeroize(),
-        }
+        })
     }
 }
 

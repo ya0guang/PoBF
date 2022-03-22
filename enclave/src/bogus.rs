@@ -1,6 +1,7 @@
 use core::marker::PhantomData;
 use sgx_types::*;
 
+#[derive(Default)]
 pub struct SgxSealedData<'a, T: 'a + ?Sized> {
     marker: PhantomData<&'a T>,
 }

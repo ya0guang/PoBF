@@ -1,6 +1,5 @@
 #[cfg(not(feature = "sgx"))]
 use crate::bogus::SgxSealedData;
-use crate::types::*;
 #[cfg(feature = "sgx")]
 use sgx_tseal::SgxSealedData;
 use sgx_types::marker::ContiguousMemory;
@@ -27,4 +26,3 @@ pub fn to_sealed_log_for_fixed<T: Copy + ContiguousMemory>(
         sealed_data.to_raw_sealed_data_t(sealed_log as *mut sgx_sealed_data_t, sealed_log_size)
     }
 }
-

@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+#![allow(unused_imports)]
 #[cfg(not(feature = "sgx"))]
 use mirai_annotations::*;
 

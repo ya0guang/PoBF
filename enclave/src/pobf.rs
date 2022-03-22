@@ -2,15 +2,15 @@
 
 use crate::ocall_log;
 use crate::types::*;
+use sgx_types::*;
 
 pub fn pobf_sample_task_aes(
     data: ProtectedData,
     sealed_key_buffer: &[u8],
-) -> ProtectedData {
-
-    let input_key: AES128Key = AES128Key::from_sealed_buffer(sealed_key_buffer);
+) -> SgxResult<ProtectedData> {
+    let input_key: AES128Key = AES128Key::from_sealed_buffer(sealed_key_buffer)?;
     // avoid cloning the key
-    let output_key: AES128Key = AES128Key::from_sealed_buffer(sealed_key_buffer);
+    let output_key: AES128Key = AES128Key::from_sealed_buffer(sealed_key_buffer)?;
     println!("PoBF sample task AES started...");
     // custom compuatation task
     let computation_task = &computation_enc;
@@ -23,16 +23,16 @@ pub fn pobf_ref_implementation<T: EncDec<K>, K: Default>(
     input_key: K,
     output_key: K,
     computation_task: &dyn Fn(T) -> T,
-) -> T {
+) -> SgxResult<T> {
     let protected_enc_in = ProtectedAssets::new(input_sealed, input_key, output_key);
 
-    let protected_dec_in = protected_enc_in.decrypt();
+    let protected_dec_in = protected_enc_in.decrypt()?;
 
-    let protected_dec_out = protected_dec_in.invoke(computation_task);
+    let protected_dec_out = protected_dec_in.invoke(computation_task)?;
 
-    let protected_enc_out = protected_dec_out.encrypt();
+    let protected_enc_out = protected_dec_out.encrypt()?;
 
-    protected_enc_out.take()
+    Ok(protected_enc_out.take())
 }
 
 // data to_vec!
@@ -59,7 +59,7 @@ pub fn computation_enc(data: ProtectedData) -> ProtectedData {
     output_data
 }
 
-pub fn pobf_sample_task_seal(data: SealedData) -> SealedData {
+pub fn pobf_sample_task_seal(data: SealedData) -> SgxResult<SealedData> {
     println!("PoBF sample task seal started...");
 
     pobf_ref_implementation(data, vec![], vec![], &computation_sealed)

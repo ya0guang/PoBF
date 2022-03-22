@@ -3,14 +3,11 @@ extern crate sgx_tcrypto;
 #[cfg(not(feature = "sgx"))]
 use crate::bogus::*;
 use crate::state::*;
+use crate::utils::*;
 #[cfg(feature = "sgx")]
 use sgx_tcrypto::*;
-#[cfg(feature = "sgx")]
-use sgx_tseal::SgxSealedData;
-use sgx_types::SGX_AESGCM_MAC_SIZE;
-use std::slice;
+use sgx_types::*;
 use std::vec::Vec;
-use crate::utils::*;
 
 #[derive(Copy, Clone, Debug)]
 pub struct ProtectedData {
@@ -49,36 +46,32 @@ pub struct AES128Key {
 }
 
 impl AES128Key {
-    pub fn from_sealed_buffer(sealed_buffer: &[u8]) -> Self {
+    pub fn from_sealed_buffer(sealed_buffer: &[u8]) -> SgxResult<Self> {
         let opt = from_sealed_log_for_fixed::<[u8; SEALED_DATA_SIZE]>(
             sealed_buffer.as_ptr() as *mut u8,
             BUFFER_SIZE as u32,
         );
         let sealed_data = match opt {
             Some(x) => x,
-            _ => panic!("Failed to create sealed data"),
+            _ => {
+                println!("Failed to create sealed data");
+                return Err(sgx_status_t::SGX_ERROR_FILE_NOT_SGX_FILE);
+            }
         };
-    
-        let result = sealed_data.unseal_data();
-        let unsealed_data = match result {
-            Ok(x) => x,
-            Err(ret) => panic!("Failed to unseal data: {:?}", ret),
-        };
-        let data = unsealed_data.get_decrypt_txt();
+
+        let result = sealed_data.unseal_data()?;
+        let data = result.get_decrypt_txt();
         let mut key: AES128Key = AES128Key::default();
-        // println!("DEBUG: the AES128key is {:?}", key);
         key.inner.copy_from_slice(data);
-        key
+        Ok(key)
     }
 }
 
 impl EncDec<AES128Key> for ProtectedData {
     // iv: default value [0u8; 12]
-    fn decrypt(self, key: &AES128Key) -> Self {
-        // avoid unsafe!
+    fn decrypt(self, key: &AES128Key) -> SgxResult<Self> {
         // can be a demo
-        let ciphertext_slice = unsafe { slice::from_raw_parts(self.inner.as_ptr(), self.length) };
-
+        let ciphertext_slice = &self.inner[..self.length];
         let mut plaintext_vec: Vec<u8> = vec![0; self.length];
         let plaintext_slice = &mut plaintext_vec[..];
         let iv = [0u8; 12];
@@ -93,32 +86,23 @@ impl EncDec<AES128Key> for ProtectedData {
         println!("DEBUG: mac: {:?}", self.mac);
 
         // After everything has been set, call API
-        let result = rsgx_rijndael128GCM_decrypt(
+        rsgx_rijndael128GCM_decrypt(
             &key.inner,
-            &ciphertext_slice,
+            ciphertext_slice,
             &iv,
             &aad_array,
             &self.mac,
             plaintext_slice,
-        );
+        )?;
 
         let mut decrypted_buffer = [0u8; BUFFER_SIZE];
+        decrypted_buffer[..self.length].copy_from_slice(plaintext_slice);
 
-        match result {
-            Err(x) => {
-                panic!("Error occurs in decryption, {:?}", x);
-            }
-            Ok(()) => {
-                decrypted_buffer[..self.length].copy_from_slice(plaintext_slice);
-            }
-        };
-
-        // zeroize the key
-        ProtectedData::new(decrypted_buffer, self.mac, self.length)
+        Ok(ProtectedData::new(decrypted_buffer, self.mac, self.length))
     }
 
-    fn encrypt(self, key: &AES128Key) -> Self {
-        let plaintext_slice = unsafe { slice::from_raw_parts(self.inner.as_ptr(), self.length) };
+    fn encrypt(self, key: &AES128Key) -> SgxResult<Self> {
+        let plaintext_slice = &self.inner[..self.length];
         let mut ciphertext_vec: Vec<u8> = vec![0; self.length];
         let ciphertext_slice = &mut ciphertext_vec[..];
 
@@ -129,26 +113,19 @@ impl EncDec<AES128Key> for ProtectedData {
             plaintext_slice.len()
         );
         let iv = [0u8; 12];
-        let result = rsgx_rijndael128GCM_encrypt(
+        rsgx_rijndael128GCM_encrypt(
             &key.inner,
-            &plaintext_slice,
+            plaintext_slice,
             &iv,
             &aad_array,
             ciphertext_slice,
             &mut mac_array,
-        );
+        )?;
 
         let mut encrypt_buffer = [0u8; BUFFER_SIZE];
 
-        match result {
-            Err(x) => {
-                panic!("Error occurs in decryption, {:?}", x);
-            }
-            Ok(()) => {
-                encrypt_buffer[..self.length].copy_from_slice(ciphertext_slice);
-            }
-        };
+        encrypt_buffer[..self.length].copy_from_slice(ciphertext_slice);
 
-        ProtectedData::new(encrypt_buffer, mac_array, self.length)
+        Ok(ProtectedData::new(encrypt_buffer, mac_array, self.length))
     }
 }

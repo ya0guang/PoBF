@@ -34,7 +34,13 @@ pub extern "C" fn sample_task(sealed_log: *mut u8, sealed_log_size: u32) -> sgx_
 
     let sealed_data = SealedData::from_ref(sealed_buffer);
 
-    let sealed_output = pobf_sample_task_seal(sealed_data);
+    let sealed_output = match pobf_sample_task_seal(sealed_data) {
+        Ok(x) => x,
+        Err(x) => {
+            println!("Failed to call pobf_sample_task_seal");
+            return x;
+        }
+    };
 
     sealed_buffer.copy_from_slice(sealed_output.inner.as_ref());
 
@@ -59,7 +65,13 @@ pub extern "C" fn sample_task_aes(
     let data_mac = unsafe { slice::from_raw_parts_mut(encrypted_data_mac, SGX_AESGCM_MAC_SIZE) };
     let data = ProtectedData::from_ref(data_buffer, data_mac, encrypted_data_size as usize);
 
-    let encrypted_output = pobf_sample_task_aes(data, sealed_key_buffer);
+    let encrypted_output = match pobf_sample_task_aes(data, sealed_key_buffer) {
+        Ok(x) => x,
+        Err(e) => {
+            println!("Error occurs when invoking pobf_sample_task_aes");
+            return e;
+        }
+    };
 
     // append mac to the buffer
     data_buffer.copy_from_slice(encrypted_output.inner.as_ref());

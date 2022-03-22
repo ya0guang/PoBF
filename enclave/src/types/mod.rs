@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 pub mod protected;
 pub mod sealed;
 pub mod state;
