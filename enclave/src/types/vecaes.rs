@@ -16,16 +16,14 @@ pub struct VecAESData {
 
 impl VecAESData {
     pub fn new(raw: Vec<u8>) -> Self {
-        VecAESData {
-            inner: raw,
-        }
+        VecAESData { inner: raw }
     }
 
     pub fn from_ref(raw: &[u8]) -> Self {
         // validity check
         assert!(raw.len() >= 32);
         assert!(raw.len() % 16 == 0);
-        
+
         let mut inner = Vec::new();
         inner.extend_from_slice(raw);
         VecAESData { inner }
@@ -84,7 +82,7 @@ impl EncDec<AES128Key> for VecAESData {
     // iv: default value [0u8; 12]
     fn decrypt(self, key: &AES128Key) -> SgxResult<Self> {
         let key = key.unseal()?;
-        
+
         // can be a demo
         let len = self.inner.len();
         let text_len = len - 16;
@@ -92,15 +90,12 @@ impl EncDec<AES128Key> for VecAESData {
         let mac_slice = &self.inner[text_len..(text_len + 16)].try_into().unwrap();
         let mut plaintext_vec: Vec<u8> = vec![0; text_len];
         let plaintext_slice = &mut plaintext_vec[..];
-        
+
         let iv = [0u8; 12];
         let aad_array: [u8; 0] = [0; 0];
-        
+
         // can this be checked towards MIRAI?
-        println!(
-            "aes_gcm_128_decrypt parameter prepared! {}",
-            text_len
-        );
+        println!("aes_gcm_128_decrypt parameter prepared! {}", text_len);
 
         // debug
         println!("DEBUG: ciphertext_slice: {:?}", ciphertext_slice);

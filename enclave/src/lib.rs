@@ -1,8 +1,6 @@
 #![crate_name = "helloworldsampleenclave"]
 #![crate_type = "staticlib"]
 #![cfg_attr(feature = "sgx", no_std)]
-// uncomment when using xargo
-// #![cfg_attr(not(target_env = "sgx"), no_std)]
 #![cfg_attr(target_env = "sgx", feature(rustc_private))]
 
 extern crate sgx_types;
@@ -28,60 +26,7 @@ use types::*;
 use utils::*;
 
 #[no_mangle]
-pub extern "C" fn sample_task(sealed_log: *mut u8, sealed_log_size: u32) -> sgx_status_t {
-    assert!(sealed_log_size == BUFFER_SIZE as u32);
-    let sealed_buffer = unsafe { slice::from_raw_parts_mut(sealed_log, BUFFER_SIZE) };
-
-    let sealed_data = SealedData::from_ref(sealed_buffer);
-
-    let sealed_output = match pobf_sample_task_seal(sealed_data) {
-        Ok(x) => x,
-        Err(x) => {
-            println!("Failed to call pobf_sample_task_seal");
-            return x;
-        }
-    };
-
-    sealed_buffer.copy_from_slice(sealed_output.inner.as_ref());
-
-    sgx_status_t::SGX_SUCCESS
-}
-
-// TODO: reform the size field!
-#[no_mangle]
-pub extern "C" fn sample_task_aaes(
-    sealed_buffer_ptr: *mut u8,
-    sealed_buffer_size: u32,
-    encrypted_data_ptr: *mut u8,
-    encrypted_data_size: u32,
-    encrypted_data_mac: *mut u8,
-) -> sgx_status_t {
-    assert!(sealed_buffer_size == BUFFER_SIZE as u32);
-    assert!(encrypted_data_size <= BUFFER_SIZE as u32);
-
-    let sealed_key_buffer = unsafe { slice::from_raw_parts_mut(sealed_buffer_ptr, BUFFER_SIZE) };
-
-    let data_buffer = unsafe { slice::from_raw_parts_mut(encrypted_data_ptr, BUFFER_SIZE) };
-    let data_mac = unsafe { slice::from_raw_parts_mut(encrypted_data_mac, SGX_AESGCM_MAC_SIZE) };
-    let data = ArrayAESData::from_ref(data_buffer, data_mac, encrypted_data_size as usize);
-
-    let encrypted_output = match pobf_sample_task_aaes(data, sealed_key_buffer) {
-        Ok(x) => x,
-        Err(e) => {
-            println!("Error occurs when invoking pobf_sample_task_aaes");
-            return e;
-        }
-    };
-
-    // append mac to the buffer
-    data_buffer.copy_from_slice(encrypted_output.inner.as_ref());
-    data_mac.copy_from_slice(encrypted_output.mac.as_ref());
-
-    sgx_status_t::SGX_SUCCESS
-}
-
-#[no_mangle]
-pub extern "C" fn sample_task_vaes(
+pub extern "C" fn private_computing_entry(
     sealed_buffer_ptr: *mut u8,
     sealed_buffer_size: u32,
     encrypted_data_ptr: *mut u8,
@@ -90,12 +35,12 @@ pub extern "C" fn sample_task_vaes(
     assert!(sealed_buffer_size == BUFFER_SIZE as u32);
     assert!(encrypted_data_size <= BUFFER_SIZE as u32);
 
-    let sealed_key_buffer = unsafe { slice::from_raw_parts_mut(sealed_buffer_ptr, BUFFER_SIZE) };
+    let sealed_key = unsafe { slice::from_raw_parts_mut(sealed_buffer_ptr, BUFFER_SIZE) };
 
-    let data_buffer = unsafe { slice::from_raw_parts_mut(encrypted_data_ptr, encrypted_data_size as usize) };
+    let encrypted_data =
+        unsafe { slice::from_raw_parts_mut(encrypted_data_ptr, encrypted_data_size as usize) };
 
-
-    let encrypted_output = match pobf_sample_task_vaes(data_buffer, sealed_key_buffer) {
+    let encrypted_output = match pobf_private_computing(encrypted_data, sealed_key) {
         Ok(x) => x,
         Err(e) => {
             println!("Error occurs when invoking pobf_sample_task_aaes");
@@ -104,7 +49,7 @@ pub extern "C" fn sample_task_vaes(
     };
 
     // append mac to the buffer
-    data_buffer.copy_from_slice(encrypted_output.inner.as_ref());
+    encrypted_data.copy_from_slice(encrypted_output.inner.as_ref());
 
     sgx_status_t::SGX_SUCCESS
 }

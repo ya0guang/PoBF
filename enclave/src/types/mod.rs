@@ -6,6 +6,6 @@ pub mod state;
 pub mod vecaes;
 
 pub use arrayaes::*;
-pub use vecaes::*;
 pub use sealed::*;
 pub use state::*;
+pub use vecaes::*;

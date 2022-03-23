@@ -54,7 +54,6 @@ impl Default for AES128Key {
 }
 
 impl AES128Key {
-
     // Need to zeroize the buffer?
     pub fn from_sealed_buffer(sealed_buffer: &[u8]) -> SgxResult<Self> {
         assert!(sealed_buffer.len() == BUFFER_SIZE);
