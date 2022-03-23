@@ -2,6 +2,7 @@
 extern crate sgx_tcrypto;
 #[cfg(not(feature = "sgx"))]
 use crate::bogus::*;
+use crate::ocall_log;
 use crate::state::*;
 use crate::utils::*;
 #[cfg(feature = "sgx")]
@@ -71,7 +72,7 @@ impl AES128Key {
         let sealed_data = match opt {
             Some(x) => x,
             _ => {
-                println!("Failed to create sealed data");
+                ocall_log!("Failed to create sealed data",);
                 return Err(sgx_status_t::SGX_ERROR_FILE_NOT_SGX_FILE);
             }
         };
@@ -101,11 +102,7 @@ impl EncDec<AES128Key> for VecAESData {
         let aad_array: [u8; 0] = [0; 0];
 
         // can this be checked towards MIRAI?
-        println!("aes_gcm_128_decrypt parameter prepared! {}", text_len);
-
-        // debug
-        println!("DEBUG: ciphertext_slice: {:?}", ciphertext_slice);
-        println!("DEBUG: mac: {:?}", mac_slice);
+        ocall_log!("aes_gcm_128_decrypt parameter prepared!",);
 
         // After everything has been set, call API
         rsgx_rijndael128GCM_decrypt(
@@ -134,10 +131,7 @@ impl EncDec<AES128Key> for VecAESData {
         // let mac_slice = &ciphertext_vec[cipher_len..(cipher_len + 16)].try_into().unwrap();
 
         let aad_array: [u8; 0] = [0; 0];
-        println!(
-            "aes_gcm_128_encrypt parameter prepared! {}",
-            plaintext_slice.len()
-        );
+        ocall_log!("aes_gcm_128_encrypt parameter prepared!",);
         let iv = [0u8; 12];
         rsgx_rijndael128GCM_encrypt(
             &key.inner,

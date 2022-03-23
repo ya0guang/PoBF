@@ -1,4 +1,4 @@
-#![crate_name = "helloworldsampleenclave"]
+#![crate_name = "pobfref"]
 #![crate_type = "staticlib"]
 #![cfg_attr(feature = "sgx", no_std)]
 #![cfg_attr(target_env = "sgx", feature(rustc_private))]
@@ -36,9 +36,8 @@ pub extern "C" fn private_computing_entry(
     encrypted_output_size: *mut u32,
 ) -> sgx_status_t {
     assert!(sealed_key_size == BUFFER_SIZE as u32);
-    assert!(encrypted_input_size <= BUFFER_SIZE as u32);
 
-    let sealed_key = unsafe { slice::from_raw_parts_mut(sealed_key_ptr, BUFFER_SIZE) };
+    let sealed_key = unsafe { slice::from_raw_parts_mut(sealed_key_ptr, sealed_key_size as usize) };
 
     let encrypted_input =
         unsafe { slice::from_raw_parts_mut(encrypted_input_ptr, encrypted_input_size as usize) };
@@ -47,7 +46,7 @@ pub extern "C" fn private_computing_entry(
         Ok(x) => x,
         Err(e) => {
             println!("Error occurs when invoking pobf_sample_task_aaes");
-            return e as _;
+            return e;
         }
     };
 
@@ -64,17 +63,13 @@ pub extern "C" fn private_computing_entry(
     let encrypted_output_buffer = unsafe {
         slice::from_raw_parts_mut(encrypted_output_buffer_ptr, encrypted_output_buffer_size)
     };
-    println!(
-        "DEBUG: output slice {:?}, output slice len {}",
-        encrypted_output_slice, encrypted_output_length
-    );
     encrypted_output_buffer[..encrypted_output_length].copy_from_slice(encrypted_output_slice);
     sgx_status_t::SGX_SUCCESS
 }
 
 #[no_mangle]
-pub extern "C" fn create_sealeddata_for_fixed(
-    sealed_log: *mut u8,
+pub extern "C" fn generate_fixed_sealeddata(
+    sealed_log_ptr: *mut u8,
     sealed_log_size: u32,
 ) -> sgx_status_t {
     let data = [0u8; 16];
@@ -97,22 +92,20 @@ pub extern "C" fn create_sealeddata_for_fixed(
         }
     };
 
-    let opt = to_sealed_log_for_fixed(&sealed_data, sealed_log, sealed_log_size);
+    let opt = to_sealed_log_for_fixed(&sealed_data, sealed_log_ptr, sealed_log_size);
     if opt.is_none() {
         return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
     }
-
-    println!("{:?}", data);
 
     sgx_status_t::SGX_SUCCESS
 }
 
 #[no_mangle]
 pub extern "C" fn verify_sealeddata_for_fixed(
-    sealed_log: *mut u8,
+    sealed_log_ptr: *mut u8,
     sealed_log_size: u32,
 ) -> sgx_status_t {
-    let opt = from_sealed_log_for_fixed::<[u8; 16]>(sealed_log, sealed_log_size);
+    let opt = from_sealed_log_for_fixed::<[u8; 16]>(sealed_log_ptr, sealed_log_size);
     let sealed_data = match opt {
         Some(x) => x,
         None => {

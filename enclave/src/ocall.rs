@@ -25,20 +25,3 @@ macro_rules! ocall_log {
         println!($formator, $($arg),*);
     };
 }
-
-#[allow(unused)]
-pub fn log(s: &str) {
-    println!("{}", s);
-}
-
-// #[allow(unused)]
-// pub fn safe_log_str(s: &str, invs: &str) {
-//     precondition!(s.eq(invs));
-//     println!("{}", s);
-// }
-
-// #[allow(unused)]
-// pub fn safe_log_int(s: i32, invs: i32) {
-//     precondition!(s == invs);
-//     println!("{}", s);
-// }

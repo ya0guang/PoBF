@@ -9,10 +9,10 @@ pub fn pobf_private_computing(
     data_buffer: &[u8],
     sealed_key_buffer: &[u8],
 ) -> SgxResult<VecAESData> {
-    println!("PoBF sample task AES started...");
+    ocall_log!("PoBF sample task AES started...",);
     // initialize data from buffer
-    let input_key: vecaes::AES128Key = vecaes::AES128Key::from_sealed_buffer(sealed_key_buffer)?;
-    let output_key: vecaes::AES128Key = vecaes::AES128Key::from_sealed_buffer(sealed_key_buffer)?;
+    let input_key = AES128Key::from_sealed_buffer(sealed_key_buffer)?;
+    let output_key = AES128Key::from_sealed_buffer(sealed_key_buffer)?;
     let data = VecAESData::from_ref(data_buffer);
 
     // privacy violation: cannot see through the key
@@ -27,8 +27,7 @@ pub fn pobf_private_computing(
 
     // custom compuatation task
     let computation_task = &private_inc;
-
-    let result = pobf_ref_implementation(data, input_key, output_key, computation_task);
+    let result = pobf_workflow(data, input_key, output_key, computation_task);
 
     result
 }
@@ -55,32 +54,29 @@ pub fn private_inc(data: VecAESData) -> VecAESData {
     VecAESData::new(new)
 }
 
-pub fn pobf_ref_implementation<D: EncDec<K>, K: Default>(
+pub fn pobf_workflow<D: EncDec<K>, K: Default>(
     input_sealed: D,
     input_key: K,
     output_key: K,
     computation_task: &dyn Fn(D) -> D,
 ) -> SgxResult<D> {
-    let en_in: ProtectedAssets<Encrypted, Input, D, K> =
+    let enc_in: ProtectedAssets<Encrypted, Input, D, K> =
         ProtectedAssets::new(input_sealed, input_key, output_key);
 
-    let de_in: ProtectedAssets<Decrypted, Input, D, K> = en_in.decrypt()?;
-
-    // unsafe code violation: cannot use (unsafe) raw pointer dereferrence to steal data
+    let dec_in: ProtectedAssets<Decrypted, Input, D, K> = enc_in.decrypt()?;
 
     // typestate violation: cannot take inner data from decrypted data
     // captured by: compiler error
     #[cfg(feature = "vio_typestate")]
-    let de_in_data = de_in.take();
+    let dec_in_data = dec_in.take();
 
-    let de_out: ProtectedAssets<Decrypted, Output, D, K> = de_in.invoke(computation_task)?;
+    let dec_out: ProtectedAssets<Decrypted, Output, D, K> = dec_in.invoke(computation_task)?;
 
     // privacy violation: cannot take the inner data from ProtectedAssets
     // captured by: compiler error
     #[cfg(feature = "vio_privacy")]
-    let de_out_data = de_out.data;
+    let de_out_data = dec_out.data;
 
-    let en_out: ProtectedAssets<Encrypted, Output, D, K> = de_out.encrypt()?;
-
+    let en_out: ProtectedAssets<Encrypted, Output, D, K> = dec_out.encrypt()?;
     Ok(en_out.take())
 }
