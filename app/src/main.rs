@@ -13,10 +13,13 @@ extern "C" {
     fn private_computing_entry(
         eid: sgx_enclave_id_t,
         retval: *mut sgx_status_t,
-        sealed_key_log: *mut u8,
-        sealed_key_log_size: u32,
-        encrypted_data: *mut u8,
-        encrypted_data_size: u32,
+        sealed_key_ptr: *mut u8,
+        sealed_key_size: u32,
+        encrypted_input_ptr: *mut u8,
+        encrypted_input_size: u32,
+        encrypted_output_buffer_ptr: *mut u8,
+        encrypted_output_buffer_size: u32,
+        encrypted_output_size: *mut u32,
     ) -> sgx_status_t;
 
     fn create_sealeddata_for_fixed(
@@ -120,7 +123,10 @@ fn generate_sealed_input(enclave: &SgxEnclave) -> [u8; SEALED_LOG_SIZE] {
     sealed_log
 }
 
-fn exec_private_computing_entry(enclave: &SgxEnclave, sealed_key_log: [u8; SEALED_LOG_SIZE]) -> Vec<u8> {
+fn exec_private_computing_entry(
+    enclave: &SgxEnclave,
+    sealed_key_log: [u8; SEALED_LOG_SIZE],
+) -> Vec<u8> {
     let mut retval = sgx_status_t::SGX_SUCCESS;
 
     // Encrypted [42] * 16
@@ -140,6 +146,10 @@ fn exec_private_computing_entry(enclave: &SgxEnclave, sealed_key_log: [u8; SEALE
     encrypted_data_vec.extend_from_slice(&encrypted_data);
     encrypted_data_vec.extend_from_slice(&encrypted_data_mac);
 
+    let encrypted_output_buffer_size = 2048;
+    let mut encrypted_output: Vec<u8> = vec![0u8; encrypted_output_buffer_size];
+    let mut encrypted_output_size: u32 = 0;
+
     let rv = unsafe {
         private_computing_entry(
             enclave.geteid(),
@@ -148,23 +158,35 @@ fn exec_private_computing_entry(enclave: &SgxEnclave, sealed_key_log: [u8; SEALE
             SEALED_LOG_SIZE as u32,
             encrypted_data_vec.as_ptr() as *mut u8,
             encrypted_data_vec.len() as u32,
+            encrypted_output.as_mut_ptr(),
+            encrypted_output_buffer_size as _,
+            &mut encrypted_output_size as _,
         )
     };
-    println!("DEBUG: reached here6!");
-
     match rv {
-        sgx_status_t::SGX_SUCCESS => {}
-        _ => {
-            panic!("[-] ECALL Enclave Failed {}!", rv.as_str());
+        sgx_status_t::SGX_SUCCESS => {
+            println!(
+                "[+] ECALL Successful, returned size: {}",
+                encrypted_output_size
+            );
+            encrypted_output.truncate(encrypted_output_size as _);
+            println!(
+                "output encrypted data: {:?}",
+                &encrypted_output[..(encrypted_output_size - 16) as _]
+            );
+            println!(
+                "output encrypted data mac: {:?}",
+                &encrypted_output[(encrypted_output_size - 16) as _..]
+            );
+        }
+        e => {
+            println!("[-] ECALL Enclave Failed {}!", e.as_str());
         }
     }
 
     // println!("Sealed log after sealing: {:?}", sealed_log);
 
-    println!("output encrypted data: {:?}", &encrypted_data_vec[..16]);
-    println!("output encrypted data mac: {:?}", &encrypted_data_vec[16..]);
-
-    encrypted_data_vec
+    encrypted_output
 }
 
 fn init_enclave() -> SgxResult<SgxEnclave> {

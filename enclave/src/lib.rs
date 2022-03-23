@@ -27,30 +27,48 @@ use utils::*;
 
 #[no_mangle]
 pub extern "C" fn private_computing_entry(
-    sealed_buffer_ptr: *mut u8,
-    sealed_buffer_size: u32,
-    encrypted_data_ptr: *mut u8,
-    encrypted_data_size: u32,
+    sealed_key_ptr: *mut u8,
+    sealed_key_size: u32,
+    encrypted_input_ptr: *mut u8,
+    encrypted_input_size: u32,
+    encrypted_output_buffer_ptr: *mut u8,
+    encrypted_output_buffer_size: u32,
+    encrypted_output_size: *mut u32,
 ) -> sgx_status_t {
-    assert!(sealed_buffer_size == BUFFER_SIZE as u32);
-    assert!(encrypted_data_size <= BUFFER_SIZE as u32);
+    assert!(sealed_key_size == BUFFER_SIZE as u32);
+    assert!(encrypted_input_size <= BUFFER_SIZE as u32);
 
-    let sealed_key = unsafe { slice::from_raw_parts_mut(sealed_buffer_ptr, BUFFER_SIZE) };
+    let sealed_key = unsafe { slice::from_raw_parts_mut(sealed_key_ptr, BUFFER_SIZE) };
 
-    let encrypted_data =
-        unsafe { slice::from_raw_parts_mut(encrypted_data_ptr, encrypted_data_size as usize) };
+    let encrypted_input =
+        unsafe { slice::from_raw_parts_mut(encrypted_input_ptr, encrypted_input_size as usize) };
 
-    let encrypted_output = match pobf_private_computing(encrypted_data, sealed_key) {
+    let encrypted_output = match pobf_private_computing(encrypted_input, sealed_key) {
         Ok(x) => x,
         Err(e) => {
             println!("Error occurs when invoking pobf_sample_task_aaes");
-            return e;
+            return e as _;
         }
     };
 
-    // append mac to the buffer
-    encrypted_data.copy_from_slice(encrypted_output.inner.as_ref());
+    let encrypted_output_buffer_size = encrypted_output_buffer_size as usize;
+    let encrypted_output_slice = encrypted_output.as_ref();
+    let encrypted_output_length = encrypted_output_slice.len();
+    unsafe {
+        std::ptr::write(encrypted_output_size, encrypted_output_length as u32);
+    }
+    if encrypted_output_length > encrypted_output_buffer_size {
+        return sgx_status_t::SGX_ERROR_UNEXPECTED;
+    }
 
+    let encrypted_output_buffer = unsafe {
+        slice::from_raw_parts_mut(encrypted_output_buffer_ptr, encrypted_output_buffer_size)
+    };
+    println!(
+        "DEBUG: output slice {:?}, output slice len {}",
+        encrypted_output_slice, encrypted_output_length
+    );
+    encrypted_output_buffer[..encrypted_output_length].copy_from_slice(encrypted_output_slice);
     sgx_status_t::SGX_SUCCESS
 }
 

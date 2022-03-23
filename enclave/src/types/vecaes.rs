@@ -14,6 +14,12 @@ pub struct VecAESData {
     pub inner: Vec<u8>,
 }
 
+impl AsRef<[u8]> for VecAESData {
+    fn as_ref(&self) -> &[u8] {
+        &self.inner[..]
+    }
+}
+
 impl VecAESData {
     pub fn new(raw: Vec<u8>) -> Self {
         VecAESData { inner: raw }
