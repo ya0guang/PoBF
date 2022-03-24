@@ -1,5 +1,15 @@
 # PoBF Enclave
 
+## Enclave Structure
+
+- `lib.rs`: ECALL interfaces (contains unsafe code)
+- `utils.rs`: utility functions (contains unsafe code)
+- `pobf.rs`: PoBF core implementation
+- `bogus.rs`: the bogus implementations designed for MIRAI verification
+- `ocall.rs`: OCALL interfaces macros wrapping static verifications
+- `types/mod.rs`: typestate implementation
+- `types/vecaes.rs`: encrypted data structure wrapping a vector
+
 ## Verifictaion
 
 The main part of PoBF is verified towards the Rust compiler and MIRAI. The glue code (in `lib.rs` and `utils.rs`) which handles the input, output and type casting may contain unsafe code and are verified manually.

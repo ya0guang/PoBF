@@ -29,6 +29,7 @@ extern "C" {
         sealed_log_size: u32,
     ) -> sgx_status_t;
 
+    #[allow(dead_code)]
     fn verify_sealeddata_for_fixed(
         eid: sgx_enclave_id_t,
         retval: *mut sgx_status_t,
@@ -69,13 +70,27 @@ fn main() {
         }
     };
 
+    // Encrypted input preparation
+    // Encrypted [42] * 16
+    let encrypted_data: [u8; 16] = [
+        0x29, 0xa2, 0xf0, 0xe4, 0x4a, 0x9c, 0x89, 0xb8, 0xd9, 0x02, 0xe8, 0x93, 0x5b, 0x98, 0xd4,
+        0x52,
+    ];
+    let encrypted_data_mac: [u8; SGX_AESGCM_MAC_SIZE] = [
+        0x6b, 0xbb, 0xcb, 0x9c, 0xb8, 0x7e, 0x5b, 0xcb, 0xfe, 0x31, 0x38, 0xf0, 0x9c, 0x1f, 0x0a,
+        0x28,
+    ];
+    let mut encrypted_data_vec = Vec::new();
+    encrypted_data_vec.extend_from_slice(&encrypted_data);
+    encrypted_data_vec.extend_from_slice(&encrypted_data_mac);
+
     match args.command {
         Commands::Gen => {
             generate_sealed_key(&enclave);
         }
         Commands::Cal => {
             let sealed_key_log = generate_sealed_key(&enclave);
-            exec_private_computing_entry(&enclave, sealed_key_log);
+            exec_private_computing(&enclave, sealed_key_log, &encrypted_data_vec);
         }
     };
 
@@ -92,7 +107,7 @@ fn generate_sealed_key(enclave: &SgxEnclave) -> [u8; SEALED_LOG_SIZE] {
         generate_fixed_sealeddata(
             enclave.geteid(),
             &mut retval,
-            sealed_log.as_ptr() as *mut u8,
+            sealed_log.as_mut_ptr() as *mut u8,
             SEALED_LOG_SIZE as u32,
         )
     };
@@ -102,47 +117,30 @@ fn generate_sealed_key(enclave: &SgxEnclave) -> [u8; SEALED_LOG_SIZE] {
         _ => panic!("Failed ECALL to create sealed data"),
     }
 
-    // println!("Sealed log after sealing: {:?}", sealed_log);
-
-    let rv = unsafe {
-        verify_sealeddata_for_fixed(
-            enclave.geteid(),
-            &mut retval,
-            sealed_log.as_ptr() as *const u8,
-            SEALED_LOG_SIZE as u32,
-        )
-    };
-
-    match rv {
-        sgx_status_t::SGX_SUCCESS => {}
-        _ => panic!("[-] ECALL Enclave Failed {}!", rv.as_str()),
-    }
-
-    println!("Sealed log after verifying: {:?}", sealed_log);
+    // uncomment the following line to print the sealed data
+    // let rv = unsafe {
+    //     verify_sealeddata_for_fixed(
+    //         enclave.geteid(),
+    //         &mut retval,
+    //         sealed_log.as_ptr() as *const u8,
+    //         SEALED_LOG_SIZE as u32,
+    //     )
+    // };
+    // match rv {
+    //     sgx_status_t::SGX_SUCCESS => {}
+    //     _ => panic!("[-] ECALL Enclave Failed {}!", rv.as_str()),
+    // }
+    // println!("Sealed log after verification: {:?}", sealed_log);
 
     sealed_log
 }
 
-fn exec_private_computing_entry(
+fn exec_private_computing(
     enclave: &SgxEnclave,
     sealed_key_log: [u8; SEALED_LOG_SIZE],
+    encrypted_input: &Vec<u8>,
 ) -> Vec<u8> {
     let mut retval = sgx_status_t::SGX_SUCCESS;
-
-    // Encrypted [42] * 16
-    let encrypted_data: [u8; 16] = [
-        0x29, 0xa2, 0xf0, 0xe4, 0x4a, 0x9c, 0x89, 0xb8, 0xd9, 0x02, 0xe8, 0x93, 0x5b, 0x98, 0xd4,
-        0x52,
-    ];
-
-    let encrypted_data_mac: [u8; SGX_AESGCM_MAC_SIZE] = [
-        0x6b, 0xbb, 0xcb, 0x9c, 0xb8, 0x7e, 0x5b, 0xcb, 0xfe, 0x31, 0x38, 0xf0, 0x9c, 0x1f, 0x0a,
-        0x28,
-    ];
-
-    let mut encrypted_data_vec = Vec::new();
-    encrypted_data_vec.extend_from_slice(&encrypted_data);
-    encrypted_data_vec.extend_from_slice(&encrypted_data_mac);
 
     // default output buffer size is 2048
     let encrypted_output_buffer_size = 2048;
@@ -155,8 +153,8 @@ fn exec_private_computing_entry(
             &mut retval,
             sealed_key_log.as_ptr() as *mut u8,
             SEALED_LOG_SIZE as u32,
-            encrypted_data_vec.as_ptr() as *mut u8,
-            encrypted_data_vec.len() as u32,
+            encrypted_input.as_ptr() as *mut u8,
+            encrypted_input.len() as u32,
             encrypted_output.as_mut_ptr(),
             encrypted_output_buffer_size as _,
             &mut encrypted_output_size as _,
@@ -170,11 +168,11 @@ fn exec_private_computing_entry(
             );
             encrypted_output.truncate(encrypted_output_size as _);
             println!(
-                "output encrypted data: {:?}",
+                "[+] output encrypted data: {:02X?}",
                 &encrypted_output[..(encrypted_output_size - 16) as _]
             );
             println!(
-                "output encrypted data mac: {:?}",
+                "[+] output encrypted data mac: {:02X?}",
                 &encrypted_output[(encrypted_output_size - 16) as _..]
             );
         }
@@ -182,8 +180,6 @@ fn exec_private_computing_entry(
             println!("[-] ECALL Enclave Failed {}!", e.as_str());
         }
     }
-
-    // println!("Sealed log after sealing: {:?}", sealed_log);
 
     encrypted_output
 }

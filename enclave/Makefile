@@ -13,4 +13,4 @@ all: $(Rust_Enclave_Name)
 
 $(Rust_Enclave_Name): $(Rust_Enclave_Files)
 	cargo build --release --features "sgx"
-	cp ./target/release/libhelloworldsampleenclave.a ../lib/libenclave.a
+	cp ./target/release/libpobfref.a ../lib/libenclave.a

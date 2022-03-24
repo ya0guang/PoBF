@@ -15,6 +15,11 @@ pub fn pobf_private_computing(
     let output_key = AES128Key::from_sealed_buffer(sealed_key_buffer)?;
     let data = VecAESData::from_ref(data_buffer);
 
+    // privacy violation: cannot call decrypt directly on the data
+    // captured by: compiler error
+    #[cfg(feature = "vio_privacy")]
+    data.decrypt(&input_key)?;
+
     // privacy violation: cannot see through the key
     // captured by: compiler error
     #[cfg(feature = "vio_privacy")]
@@ -32,17 +37,22 @@ pub fn pobf_private_computing(
     result
 }
 
-pub fn private_inc(data: VecAESData) -> VecAESData {
+// Require trait To Vector?
+pub fn private_inc<T>(data: T) -> T
+where
+    T: From<Vec<u8>> + Into<Vec<u8>>,
+{
+    let vec_data = data.into();
     // try to violate key? Cannot see the key!
     // conditional compile some errors
 
     let step = 1;
     // this can be proven true by MIRAI
-    ocall_log!("he step is {} in computation_enc", 1, step);
+    ocall_log!("The step is {} in computation_enc", 1, step);
 
-    let original = data.to_vec();
+    
     let mut new = Vec::new();
-    for i in original.iter() {
+    for i in vec_data.iter() {
         new.push(i + step);
     }
 
@@ -51,7 +61,7 @@ pub fn private_inc(data: VecAESData) -> VecAESData {
     // captured by: MIRAI warnning
     ocall_log!("after increasing, the 0th data is {}", 1, new[0]);
 
-    VecAESData::new(new)
+    T::from(new)
 }
 
 pub fn pobf_workflow<D: EncDec<K>, K: Default>(
