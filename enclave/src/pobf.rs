@@ -13,16 +13,16 @@ pub fn pobf_private_computing(
     // initialize data from buffer
     let input_key = AES128Key::from_sealed_buffer(sealed_key_buffer)?;
     let output_key = AES128Key::from_sealed_buffer(sealed_key_buffer)?;
-    let data = VecAESData::from_ref(data_buffer);
+    let data = VecAESData::from(data_buffer);
 
     // privacy violation: cannot call decrypt directly on the data
     // captured by: compiler error
-    #[cfg(feature = "vio_privacy")]
+    #[cfg(feature = "vio_private")]
     data.decrypt(&input_key)?;
 
     // privacy violation: cannot see through the key
     // captured by: compiler error
-    #[cfg(feature = "vio_privacy")]
+    #[cfg(feature = "vio_private")]
     let raw_key = input_key.inner;
 
     // safety violation: cannot see through the key using unsafe code by derefencing it
@@ -37,7 +37,6 @@ pub fn pobf_private_computing(
     result
 }
 
-// Require trait To Vector?
 pub fn private_inc<T>(data: T) -> T
 where
     T: From<Vec<u8>> + Into<Vec<u8>>,
@@ -59,6 +58,7 @@ where
     // however, MIRAI complians about this
     // leakage violation: cannot log the secret data
     // captured by: MIRAI warnning
+    #[cfg(mirai)]
     ocall_log!("after increasing, the 0th data is {}", 1, new[0]);
 
     T::from(new)
@@ -84,7 +84,7 @@ pub fn pobf_workflow<D: EncDec<K>, K: Default>(
 
     // privacy violation: cannot take the inner data from ProtectedAssets
     // captured by: compiler error
-    #[cfg(feature = "vio_privacy")]
+    #[cfg(feature = "vio_private")]
     let de_out_data = dec_out.data;
 
     let en_out: ProtectedAssets<Encrypted, Output, D, K> = dec_out.encrypt()?;

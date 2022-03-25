@@ -12,9 +12,9 @@ crate-type = ["lib", "staticlib"]
 default = []
 sgx = ["sgx_tstd", "sgx_trts", "sgx_rand", "sgx_tseal", "sgx_tcrypto"]
 # potential violations
-violation = ["vio_typestate", "vio_typestate", "vio_unsafe"]
+violation = ["vio_typestate", "vio_private", "vio_unsafe"]
 vio_typestate = []
-vio_privacy = []
+vio_private = []
 vio_unsafe = []
 
 [target.'cfg(not(target_env = "sgx"))'.dependencies]

@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 #[cfg(feature = "sgx")]
 extern crate sgx_tcrypto;
 use super::*;
@@ -20,6 +21,18 @@ impl From<Vec<u8>> for VecAESData {
     }
 }
 
+impl From<&[u8]> for VecAESData {
+    fn from(raw: &[u8]) -> Self {
+        // validity check
+        assert!(raw.len() >= 32);
+        assert!(raw.len() % 16 == 0);
+
+        let mut inner = Vec::new();
+        inner.extend_from_slice(raw);
+        VecAESData { inner }
+    }
+}
+
 impl Into<Vec<u8>> for VecAESData {
     fn into(self) -> Vec<u8> {
         self.inner
@@ -29,26 +42,6 @@ impl Into<Vec<u8>> for VecAESData {
 impl AsRef<[u8]> for VecAESData {
     fn as_ref(&self) -> &[u8] {
         &self.inner[..]
-    }
-}
-
-impl VecAESData {
-    pub fn new(raw: Vec<u8>) -> Self {
-        VecAESData { inner: raw }
-    }
-
-    pub fn from_ref(raw: &[u8]) -> Self {
-        // validity check
-        assert!(raw.len() >= 32);
-        assert!(raw.len() % 16 == 0);
-
-        let mut inner = Vec::new();
-        inner.extend_from_slice(raw);
-        VecAESData { inner }
-    }
-
-    pub fn to_vec(self) -> Vec<u8> {
-        self.inner
     }
 }
 
@@ -120,7 +113,7 @@ impl Encryption<AES128Key> for VecAESData {
         )?;
 
         ciphertext_vec[cipher_len..(cipher_len + 16)].copy_from_slice(&mac_slice);
-        Ok(VecAESData::new(ciphertext_vec))
+        Ok(VecAESData::from(ciphertext_vec))
     }
 }
 
@@ -152,7 +145,7 @@ impl Decryption<AES128Key> for VecAESData {
             plaintext_slice,
         )?;
 
-        Ok(VecAESData::new(plaintext_vec))
+        Ok(VecAESData::from(plaintext_vec))
     }
 }
 
