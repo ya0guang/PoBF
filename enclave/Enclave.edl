@@ -12,10 +12,11 @@ enclave {
         public sgx_status_t verify_sealeddata_for_fixed([in, size=sealed_log_size]
             uint8_t* sealed_log_ptr, uint32_t sealed_log_size);
         
-        public sgx_status_t private_computing_entry([in, size=sealed_key_size]
+        public sgx_status_t private_computing_entry(
+            [in, size=sealed_key_size]
             uint8_t* sealed_key_ptr, uint32_t sealed_key_size, 
             [in, size=encrypted_input_size] 
-            uint8_t* encrypted_input, uint32_t encrypted_input_size,
+            uint8_t* encrypted_input_ptr, uint32_t encrypted_input_size,
             [out, size=encrypted_output_buffer_size]
             uint8_t* encrypted_output_buffer_ptr, uint32_t encrypted_output_buffer_size,
             [out]uint32_t* encrypted_output_size);
