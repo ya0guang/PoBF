@@ -22,18 +22,10 @@ extern "C" {
         encrypted_output_size: *mut u32,
     ) -> sgx_status_t;
 
-    fn generate_fixed_sealeddata(
+    fn generate_sealed_key(
         eid: sgx_enclave_id_t,
         retval: *mut sgx_status_t,
         sealed_log_ptr: *mut u8,
-        sealed_log_size: u32,
-    ) -> sgx_status_t;
-
-    #[allow(dead_code)]
-    fn verify_sealeddata_for_fixed(
-        eid: sgx_enclave_id_t,
-        retval: *mut sgx_status_t,
-        sealed_log_ptr: *const u8,
         sealed_log_size: u32,
     ) -> sgx_status_t;
 }
@@ -86,10 +78,10 @@ fn main() {
 
     match args.command {
         Commands::Gen => {
-            generate_sealed_key(&enclave);
+            generate_key(&enclave);
         }
         Commands::Cal => {
-            let sealed_key_log = generate_sealed_key(&enclave);
+            let sealed_key_log = generate_key(&enclave);
             exec_private_computing(&enclave, sealed_key_log, &encrypted_data_vec);
         }
     };
@@ -98,13 +90,13 @@ fn main() {
     enclave.destroy();
 }
 
-fn generate_sealed_key(enclave: &SgxEnclave) -> [u8; SEALED_LOG_SIZE] {
+fn generate_key(enclave: &SgxEnclave) -> [u8; SEALED_LOG_SIZE] {
     let mut retval = sgx_status_t::SGX_SUCCESS;
 
     let mut sealed_log = [0u8; SEALED_LOG_SIZE as usize];
 
     let rv = unsafe {
-        generate_fixed_sealeddata(
+        generate_sealed_key(
             enclave.geteid(),
             &mut retval,
             sealed_log.as_mut_ptr() as *mut u8,

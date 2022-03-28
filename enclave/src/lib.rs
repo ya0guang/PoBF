@@ -67,10 +67,12 @@ pub extern "C" fn private_computing_entry(
 }
 
 #[no_mangle]
-pub extern "C" fn generate_fixed_sealeddata(
+pub extern "C" fn generate_sealed_key(
     sealed_log_ptr: *mut u8,
     sealed_log_size: u32,
 ) -> sgx_status_t {
+
+    println!("[+] Generating sealed data...");
     let data = [0u8; 16];
 
     // uncomment to get random result
@@ -95,34 +97,6 @@ pub extern "C" fn generate_fixed_sealeddata(
     if opt.is_none() {
         return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
     }
-
-    sgx_status_t::SGX_SUCCESS
-}
-
-#[no_mangle]
-pub extern "C" fn verify_sealeddata_for_fixed(
-    sealed_log_ptr: *mut u8,
-    sealed_log_size: u32,
-) -> sgx_status_t {
-    let opt = from_sealed_log_for_fixed::<[u8; 16]>(sealed_log_ptr, sealed_log_size);
-    let sealed_data = match opt {
-        Some(x) => x,
-        None => {
-            return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
-        }
-    };
-
-    let result = sealed_data.unseal_data();
-    let unsealed_data = match result {
-        Ok(x) => x,
-        Err(ret) => {
-            return ret;
-        }
-    };
-
-    let data = unsealed_data.get_decrypt_txt();
-
-    println!("{:?}", data);
 
     sgx_status_t::SGX_SUCCESS
 }
