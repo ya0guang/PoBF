@@ -6,7 +6,10 @@
 /lib
 
 # intermediate results
-Enclave_u.*
-Enclave_t.*
+enclave_u.*
+enclave_t.*
 *.so
 .lia.cache
+
+# MISC
+Cargo.lock
