@@ -2,7 +2,7 @@
 
 use crate::ocall_log;
 use crate::types::*;
-use sgx_types::*;
+use sgx_types::error::SgxResult;
 use std::vec::Vec;
 
 pub fn pobf_private_computing(

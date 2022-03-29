@@ -1,5 +1,6 @@
 use core::marker::PhantomData;
-use sgx_types::*;
+use sgx_types::error::*;
+use sgx_types::types::*;
 
 #[derive(Default)]
 pub struct SgxSealedData<'a, T: 'a + ?Sized> {
@@ -12,15 +13,15 @@ pub struct SgxUnsealedData<'a, T: 'a + ?Sized> {
 
 #[allow(unused)]
 impl<'a, T: 'a + ?Sized> SgxSealedData<'a, T> {
-    pub unsafe fn from_raw_sealed_data_t(p: *mut sgx_sealed_data_t, len: u32) -> Option<Self> {
+    pub unsafe fn from_raw_sealed_data_t(p: *mut CSealedData, len: u32) -> Option<Self> {
         unimplemented!()
     }
 
     pub unsafe fn to_raw_sealed_data_t(
         &self,
-        p: *mut sgx_sealed_data_t,
+        p: *mut CSealedData,
         len: u32,
-    ) -> Option<*mut sgx_sealed_data_t> {
+    ) -> Option<*mut CSealedData> {
         unimplemented!()
     }
 
@@ -42,11 +43,11 @@ impl<'a, T: 'a + ?Sized> SgxUnsealedData<'a, T> {
 #[allow(unused)]
 #[allow(non_snake_case)]
 pub fn rsgx_rijndael128GCM_decrypt(
-    key: &sgx_aes_gcm_128bit_key_t,
+    key: &Key128bit,
     src: &[u8],
     iv: &[u8],
     aad: &[u8],
-    mac: &sgx_aes_gcm_128bit_tag_t,
+    mac: &Mac128bit,
     dst: &mut [u8],
 ) -> SgxError {
     unimplemented!()
@@ -55,12 +56,12 @@ pub fn rsgx_rijndael128GCM_decrypt(
 #[allow(unused)]
 #[allow(non_snake_case)]
 pub fn rsgx_rijndael128GCM_encrypt(
-    key: &sgx_aes_gcm_128bit_key_t,
+    key: &Key128bit,
     src: &[u8],
     iv: &[u8],
     aad: &[u8],
     dst: &mut [u8],
-    mac: &mut sgx_aes_gcm_128bit_tag_t,
+    mac: &mut Mac128bit,
 ) -> SgxError {
     unimplemented!()
 }

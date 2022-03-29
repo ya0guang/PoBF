@@ -166,14 +166,23 @@ dependencies = [
 
 [[package]]
 name = "sgx_types"
-version = "1.1.4"
+version = "2.0.0"
 
 [[package]]
-name = "sgx_urts"
-version = "1.1.4"
+name = "sgx_uprotected_fs"
+version = "2.0.0"
 dependencies = [
  "libc",
  "sgx_types",
+]
+
+[[package]]
+name = "sgx_urts"
+version = "2.0.0"
+dependencies = [
+ "libc",
+ "sgx_types",
+ "sgx_uprotected_fs",
 ]
 
 [[package]]

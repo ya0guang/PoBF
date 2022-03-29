@@ -18,8 +18,8 @@ mod utils;
 use bogus::*;
 use pobf::*;
 #[cfg(feature = "sgx")]
-use sgx_tseal::SgxSealedData;
-use sgx_types::*;
+use sgx_tseal::seal::SealedData;
+use sgx_types::error::SgxStatus;
 use std::slice;
 use types::*;
 use utils::*;
@@ -33,8 +33,9 @@ pub extern "C" fn private_computing_entry(
     encrypted_output_buffer_ptr: *mut u8,
     encrypted_output_buffer_size: u32,
     encrypted_output_size: *mut u32,
-) -> sgx_status_t {
-    assert!(sealed_key_size == BUFFER_SIZE as u32);
+) -> SgxStatus {
+    // assert!(sealed_key_size == BUFFER_SIZE as u32);
+    println!("[+] private_computing_entry");
 
     let sealed_key = unsafe { slice::from_raw_parts_mut(sealed_key_ptr, sealed_key_size as usize) };
 
@@ -51,27 +52,28 @@ pub extern "C" fn private_computing_entry(
 
     let encrypted_output_buffer_size = encrypted_output_buffer_size as usize;
     let encrypted_output_slice = encrypted_output.as_ref();
+    println!("encrypted_output_slice: {:?}", encrypted_output_slice);
     let encrypted_output_length = encrypted_output_slice.len();
     unsafe {
         std::ptr::write(encrypted_output_size, encrypted_output_length as u32);
     }
     if encrypted_output_length > encrypted_output_buffer_size {
-        return sgx_status_t::SGX_ERROR_UNEXPECTED;
+        return SgxStatus::Unexpected;
     }
 
     let encrypted_output_buffer = unsafe {
         slice::from_raw_parts_mut(encrypted_output_buffer_ptr, encrypted_output_buffer_size)
     };
     encrypted_output_buffer[..encrypted_output_length].copy_from_slice(encrypted_output_slice);
-    sgx_status_t::SGX_SUCCESS
+    SgxStatus::Success
 }
 
 #[no_mangle]
 pub extern "C" fn generate_sealed_key(
-    sealed_log_ptr: *mut u8,
-    sealed_log_size: u32,
-) -> sgx_status_t {
-
+    sealed_key_ptr: *mut u8,
+    sealed_key_buffer_size: u32,
+    sealed_key_size: *mut u32,
+) -> SgxStatus {
     println!("[+] Generating sealed data...");
     let data = [0u8; 16];
 
@@ -79,24 +81,38 @@ pub extern "C" fn generate_sealed_key(
     // let mut rand = match StdRng::new() {
     //     Ok(rng) => rng,
     //     Err(_) => {
-    //         return sgx_status_t::SGX_ERROR_UNEXPECTED;
+    //         return SgxStatus::Unexpected;
     //     }
     // };
     // rand.fill_bytes(&mut data);
 
-    let aad: [u8; 0] = [0_u8; 0];
-    let result = SgxSealedData::<[u8; 16]>::seal_data(&aad, &data);
-    let sealed_data = match result {
+    let result = SealedData::<[u8; 16]>::seal(&data, None);
+    println!("result: {:?}", result);
+    let sealed_key = match result {
         Ok(x) => x,
         Err(ret) => {
             return ret;
         }
     };
+    println!("DEBUG: 1");
 
-    let opt = to_sealed_log_for_fixed(&sealed_data, sealed_log_ptr, sealed_log_size);
-    if opt.is_none() {
-        return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
+    if sealed_key_buffer_size < sealed_key.payload_size() as u32 {
+        return SgxStatus::Unexpected;
     }
 
-    sgx_status_t::SGX_SUCCESS
+    let sealed_key_bytes = match sealed_key.to_bytes() {
+        Ok(x) => x,
+        Err(_) => return SgxStatus::Unexpected,
+    };
+
+    println!("DEBUG: sealed_bytes: {:?}", sealed_key_bytes);
+    unsafe {
+        std::ptr::copy_nonoverlapping(sealed_key_bytes.as_ptr(), sealed_key_ptr, sealed_key_bytes.len());
+    }
+
+    unsafe {
+        std::ptr::write(sealed_key_size, sealed_key_bytes.len() as u32);
+    }
+
+    SgxStatus::Success
 }
