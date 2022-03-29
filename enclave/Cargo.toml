@@ -9,8 +9,8 @@ crate-type = ["lib", "staticlib"]
 
 [features]
 # turn on mirai when veirifying towards mirai
-default = ["sgx"]
-sgx = ["sgx_tstd", "sgx_trts", "sgx_rand", "sgx_tseal", "sgx_crypto"]
+default = []
+sgx = ["sgx_tstd", "sgx_trts", "sgx_rand", "sgx_tseal"]
 # potential violations
 violation = ["vio_typestate", "vio_private", "vio_unsafe"]
 vio_typestate = []
@@ -29,10 +29,10 @@ vio_unsafe = []
 
 [dependencies]
 sgx_types = { path = "../incubator-teaclave-sgx-sdk/sgx_types"}
+sgx_crypto = { path = "../incubator-teaclave-sgx-sdk/sgx_crypto" }
 mirai-annotations = { path = "../../MIRAI/annotations" }
 sgx_tstd = { path = "../incubator-teaclave-sgx-sdk/sgx_tstd", optional = true }
 sgx_trts = { path = "../incubator-teaclave-sgx-sdk/sgx_trts", optional = true }
 sgx_rand = { path = "../incubator-teaclave-sgx-sdk/sgx_rand", optional = true }
 sgx_tseal = { path = "../incubator-teaclave-sgx-sdk/sgx_tseal", optional = true }
-sgx_crypto = { path = "../incubator-teaclave-sgx-sdk/sgx_crypto", optional = true }
 # sgx_crypto_sys = { git = "https://github.com/apache/teaclave-sgx-sdk.git", branch = "v2.0.0-preview" }

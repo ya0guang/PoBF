@@ -49,7 +49,6 @@ where
     // this can be proven true by MIRAI
     ocall_log!("The step is {} in computation_enc", 1, step);
 
-    
     let mut new = Vec::new();
     for i in vec_data.iter() {
         new.push(i + step);

@@ -21,8 +21,6 @@ use pobf::*;
 use sgx_tseal::seal::SealedData;
 use sgx_types::error::SgxStatus;
 use std::slice;
-use types::*;
-use utils::*;
 
 #[no_mangle]
 pub extern "C" fn private_computing_entry(
@@ -52,7 +50,6 @@ pub extern "C" fn private_computing_entry(
 
     let encrypted_output_buffer_size = encrypted_output_buffer_size as usize;
     let encrypted_output_slice = encrypted_output.as_ref();
-    println!("encrypted_output_slice: {:?}", encrypted_output_slice);
     let encrypted_output_length = encrypted_output_slice.len();
     unsafe {
         std::ptr::write(encrypted_output_size, encrypted_output_length as u32);
@@ -87,14 +84,12 @@ pub extern "C" fn generate_sealed_key(
     // rand.fill_bytes(&mut data);
 
     let result = SealedData::<[u8; 16]>::seal(&data, None);
-    println!("result: {:?}", result);
     let sealed_key = match result {
         Ok(x) => x,
         Err(ret) => {
             return ret;
         }
     };
-    println!("DEBUG: 1");
 
     if sealed_key_buffer_size < sealed_key.payload_size() as u32 {
         return SgxStatus::Unexpected;
@@ -105,11 +100,14 @@ pub extern "C" fn generate_sealed_key(
         Err(_) => return SgxStatus::Unexpected,
     };
 
-    println!("DEBUG: sealed_bytes: {:?}", sealed_key_bytes);
+    // prepare output buffer
     unsafe {
-        std::ptr::copy_nonoverlapping(sealed_key_bytes.as_ptr(), sealed_key_ptr, sealed_key_bytes.len());
+        std::ptr::copy_nonoverlapping(
+            sealed_key_bytes.as_ptr(),
+            sealed_key_ptr,
+            sealed_key_bytes.len(),
+        );
     }
-
     unsafe {
         std::ptr::write(sealed_key_size, sealed_key_bytes.len() as u32);
     }

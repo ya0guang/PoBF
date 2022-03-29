@@ -1,12 +1,9 @@
 #![forbid(unsafe_code)]
-// #[cfg(feature = "sgx")]
-// extern crate sgx_crypto_sys;
+
 use super::*;
-#[cfg(not(feature = "sgx"))]
-use crate::bogus::*;
 use crate::ocall_log;
 use crate::utils::*;
-#[cfg(feature = "sgx")]
+// #[cfg(feature = "sgx")]
 use sgx_crypto::aes::gcm::*;
 use sgx_types::error::*;
 use std::vec::Vec;
@@ -71,9 +68,7 @@ impl AES128Key {
     }
 
     fn unseal(&self) -> SgxResult<Self> {
-        let opt = from_sealed_log_for_fixed::<[u8; SEALED_DATA_SIZE]>(
-            &self.buffer
-        );
+        let opt = from_sealed_log_for_fixed::<[u8; SEALED_DATA_SIZE]>(&self.buffer);
         let sealed_data = match opt {
             Some(x) => x,
             _ => {
@@ -92,9 +87,7 @@ impl AES128Key {
 
 impl Encryption<AES128Key> for VecAESData {
     fn encrypt(self, key: &AES128Key) -> SgxResult<Self> {
-        
         let key = key.unseal()?;
-        let iv = [0u8; 12];
         let aad_array: [u8; 0] = [0; 0];
         let aad = Aad::from(aad_array);
         let mut aes = AesGcm::new(&key.inner, Nonce::zeroed(), aad)?;
@@ -105,12 +98,8 @@ impl Encryption<AES128Key> for VecAESData {
         let plaintext_slice = &self.inner[..];
         let mut ciphertext_vec: Vec<u8> = vec![0; cipher_len + 16];
 
-        let mut mac_slice = [0u8; 16];
-
-        
         ocall_log!("aes_gcm_128_encrypt parameter prepared!",);
-        let mac = aes.encrypt(plaintext_slice,  &mut ciphertext_vec[..cipher_len])?;
-        
+        let mac = aes.encrypt(plaintext_slice, &mut ciphertext_vec[..cipher_len])?;
 
         ciphertext_vec[cipher_len..(cipher_len + 16)].copy_from_slice(&mac);
         Ok(VecAESData::from(ciphertext_vec))
@@ -120,7 +109,6 @@ impl Encryption<AES128Key> for VecAESData {
 impl Decryption<AES128Key> for VecAESData {
     fn decrypt(self, key: &AES128Key) -> SgxResult<Self> {
         let key = key.unseal()?;
-        let iv = [0u8; 12];
         let aad_array: [u8; 0] = [0; 0];
         let aad = Aad::from(aad_array);
         let mut aes = AesGcm::new(&key.inner, Nonce::zeroed(), aad)?;
@@ -132,9 +120,6 @@ impl Decryption<AES128Key> for VecAESData {
         let mac_slice = &self.inner[text_len..(text_len + 16)].try_into().unwrap();
         let mut plaintext_vec: Vec<u8> = vec![0; text_len];
         let plaintext_slice = &mut plaintext_vec[..];
-
-        let iv = [0u8; 12];
-        let aad_array: [u8; 0] = [0; 0];
 
         // can this be checked towards MIRAI?
         ocall_log!("aes_gcm_128_decrypt parameter prepared!",);

@@ -7,7 +7,7 @@ use sgx_types::types::*;
 use sgx_urts::enclave::SgxEnclave;
 
 static ENCLAVE_FILE: &'static str = "enclave.signed.so";
-const sealed_key_buffer_size: usize = 1024;
+const SEALED_KEY_BUFFER_SIZE: usize = 1024;
 
 extern "C" {
 
@@ -53,7 +53,7 @@ enum Commands {
 fn main() {
     let args = Args::parse();
 
-    let enclave = match init_enclave() {
+    let enclave = match SgxEnclave::create(ENCLAVE_FILE, false) {
         Ok(r) => {
             println!("[+] Init Enclave Successful {}!", r.eid());
             r
@@ -84,35 +84,31 @@ fn main() {
         }
         Commands::Cal => {
             let sealed_key_log = generate_key(&enclave);
-            println!("Sealed key log: {:?}", sealed_key_log);
             exec_private_computing(&enclave, &sealed_key_log, &encrypted_data_vec);
         }
     };
 
-    println!("[+] say_something success...");
-    // enclave.destroy();
 }
 
 fn generate_key(enclave: &SgxEnclave) -> Vec<u8> {
     let mut retval = SgxStatus::Success;
     let mut encrypted_output_size: u32 = 0;
 
-
-    let mut sealed_log = [0u8; sealed_key_buffer_size as usize];
+    let mut sealed_log = [0u8; SEALED_KEY_BUFFER_SIZE as usize];
 
     let rv = unsafe {
         generate_sealed_key(
             enclave.eid(),
             &mut retval,
             sealed_log.as_mut_ptr() as *mut u8,
-            sealed_key_buffer_size as u32,
+            SEALED_KEY_BUFFER_SIZE as u32,
             &mut encrypted_output_size as *mut u32,
         )
     };
 
     match rv {
         SgxStatus::Success => {}
-        _ => panic!("Failed ECALL to create sealed data"),
+        _ => panic!("Failed ECALL to generate sealed key"),
     }
 
     // uncomment the following line to print the sealed data
@@ -180,20 +176,4 @@ fn exec_private_computing(
     }
 
     encrypted_output
-}
-
-fn init_enclave() -> SgxResult<SgxEnclave> {
-    // let mut launch_token: sgx_launch_token_t = [0; sealed_key_buffer_size];
-    // let mut launch_token_updated: i32 = 0;
-    // call sgx_create_enclave to initialize an enclave instance
-    // Debug Support: set 2nd parameter to 1
-    // let debug = 0;
-    // let mut misc_attr = sgx_misc_attribute_t {
-    //     secs_attr: sgx_attributes_t { flags: 0, xfrm: 0 },
-    //     misc_select: 0,
-    // };
-    SgxEnclave::create(
-        ENCLAVE_FILE,
-        false,
-    )
 }
