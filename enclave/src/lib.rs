@@ -1,6 +1,7 @@
 #![crate_name = "pobfref"]
 #![crate_type = "staticlib"]
 #![cfg_attr(feature = "sgx", no_std)]
+#![feature(vec_into_raw_parts)]
 
 extern crate sgx_types;
 #[cfg(feature = "sgx")]
@@ -16,6 +17,7 @@ mod utils;
 
 #[cfg(not(feature = "sgx"))]
 use bogus::*;
+use ocall::*;
 use pobf::*;
 #[cfg(feature = "sgx")]
 use sgx_tseal::seal::SealedData;
@@ -32,8 +34,7 @@ pub extern "C" fn private_computing_entry(
     encrypted_output_buffer_size: u32,
     encrypted_output_size: *mut u32,
 ) -> SgxStatus {
-    // assert!(sealed_key_size == BUFFER_SIZE as u32);
-    println!("[+] private_computing_entry");
+    verified_log!("[+] private_computing_entry",);
 
     let sealed_key = unsafe { slice::from_raw_parts_mut(sealed_key_ptr, sealed_key_size as usize) };
 

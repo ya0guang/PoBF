@@ -1,6 +1,14 @@
 enclave {
     from "sgx_tstd.edl" import *;
-    from "sgx_stdio.edl" import *;
+    // from "sgx_stdio.edl" import *;
+
+    untrusted {
+        uint32_t u_log_ocall(
+            [in, size = string_capacity]
+            uint8_t* string_ptr, uint32_t string_len, uint32_t string_capacity
+        );
+    };
+
     trusted {
         /* define ECALLs here. */
 

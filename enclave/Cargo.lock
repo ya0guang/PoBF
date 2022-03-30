@@ -8,6 +8,7 @@ version = "0.1.0"
 dependencies = [
  "mirai-annotations",
  "sgx_crypto",
+ "sgx_libc",
  "sgx_rand",
  "sgx_trts",
  "sgx_tseal",
@@ -60,6 +61,18 @@ dependencies = [
 name = "sgx_ffi"
 version = "2.0.0"
 dependencies = [
+ "sgx_types",
+]
+
+[[package]]
+name = "sgx_libc"
+version = "2.0.0"
+dependencies = [
+ "sgx_ffi",
+ "sgx_oc",
+ "sgx_sync",
+ "sgx_tlibc_sys",
+ "sgx_trts",
  "sgx_types",
 ]
 

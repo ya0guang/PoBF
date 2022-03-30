@@ -1,6 +1,8 @@
 extern crate sgx_types;
 extern crate sgx_urts;
 
+mod ocall;
+
 use clap::{Parser, Subcommand};
 use sgx_types::error::*;
 use sgx_types::types::*;
@@ -87,7 +89,6 @@ fn main() {
             exec_private_computing(&enclave, &sealed_key_log, &encrypted_data_vec);
         }
     };
-
 }
 
 fn generate_key(enclave: &SgxEnclave) -> Vec<u8> {
