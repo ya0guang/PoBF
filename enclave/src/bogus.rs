@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 use core::marker::PhantomData;
 use sgx_types::error::*;
 

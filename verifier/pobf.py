@@ -1,17 +1,13 @@
 #!/usr/bin/env python
 
+from secrets import choice
 import subprocess
 import coloredlogs
 import logging
 import sys
 import json
 import os
-# import re
-
-log_format = '%(levelname)s %(message)s'
-coloredlogs.install(level='INFO', fmt=log_format)
-# coloredlogs.install(level='DEBUG', fmt=log_format)
-logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
+import argparse
 
 def compiler_verify(features: list = []):
 
@@ -19,7 +15,7 @@ def compiler_verify(features: list = []):
         compiler_enforcement = \
             {'unsafe': ('vio-unsafe', 'PoBF forbids unsafe code in this souce file, please try to remove it.'),
              'but its trait bounds were not satisfied': ('vio-typestate', 'The code may try to call a function which is not available in this state.'),
-             'private field': ('vio-private','The code may try to access a private filed which can contain secret information'),
+             'private field': ('vio-private', 'The code may try to access a private filed which can contain secret information'),
              'items from traits can only be used': ('vio-private', 'The code may try to access a private trait which deals with secret.'), }
         # check what causes the failure
         details = msg['message']['rendered']
@@ -32,7 +28,8 @@ def compiler_verify(features: list = []):
                 # if re.search(identifier, details):
                 error_captured = True
                 logging.error(explaination)
-                logging.warning('the detailed explaination of this error type [%s] can be found in the document', vio_type)
+                logging.warning(
+                    'the detailed explaination of this error type [%s] can be found in the document', vio_type)
 
         if 'aborting due to' in details:
             return
@@ -64,18 +61,19 @@ def compiler_verify(features: list = []):
     logging.debug(len(compiler_outputs))
 
     for o in compiler_outputs_serialized:
-        match o['reason']:
-            case 'compiler-message': analyze_compiler_message(o)
-            case 'build-finished':
-                return o["success"]
+        if o['reason'] == 'compiler-message':
+            analyze_compiler_message(o)
+        if o['reason'] == 'build-finished':
+            return o["success"]
 
 
 def mirai_verify():
 
     def analyze_mirai_message(msg: dict):
         mirai_enforcement = \
-            {'warning: possible false verification condition': ('vio-ocall', 'PoBF only allows const printing in the enclave.') }
-        
+            {'warning: possible false verification condition': (
+                'vio-ocall', 'PoBF only allows const printing in the enclave.')}
+
         details = msg['message']['rendered']
         logging.debug(details)
 
@@ -86,7 +84,8 @@ def mirai_verify():
                 # if re.search(identifier, details):
                 error_captured = True
                 logging.error(explaination)
-                logging.warning('the detailed explaination of this error type [%s] can be found in the document', vio_type)
+                logging.warning(
+                    'the detailed explaination of this error type [%s] can be found in the document', vio_type)
 
         if error_captured:
             print(msg['message']['rendered'])
@@ -100,19 +99,20 @@ def mirai_verify():
     mirai_outputs_serialized = []
     for i in range(len(mirai_output) - 1):
         mirai_outputs_serialized.append(json.loads(mirai_output[i]))
-    
-    for o in mirai_outputs_serialized:
-        match o['reason']:
-            case 'compiler-message': analyze_mirai_message(o)
 
-def src_verifier():
+    for o in mirai_outputs_serialized:
+        if o['reason'] == 'compiler-message':
+            analyze_mirai_message(o)
+
+
+def src_verify(unsafe_allowed: list = []):
 
     def check_unsafe(path: str) -> bool:
         logging.info("- analyzing file: %s...", path)
-        unsafe_allowed = ['src/lib.rs', 'src/utils.rs', 'src/bogus.rs']
 
         if list(filter(lambda x: x in path, unsafe_allowed)):
-            logging.info("  + unsafe code not forbidden in %s, and this is allowed", path)
+            logging.warning(
+                "  + unsafe code not forbidden in %s, and this is allowed", path)
             return True
 
         with open(path, 'r') as f:
@@ -120,7 +120,8 @@ def src_verifier():
                 logging.info("  + unsafe code fobidden in %s, clear", path)
                 return True
             else:
-                logging.error("  + unsafe code not forbidden in %s, please add `#![forbid(unsafe_code)]` in this file!", path)
+                logging.error(
+                    "  + unsafe code not forbidden in %s, please add `#![forbid(unsafe_code)]` in this file!", path)
                 return False
 
     logging.info("checking unsafe code...")
@@ -132,31 +133,82 @@ def src_verifier():
             check_unsafe(filename)
 
 
+def clean():
+    clean_command = "cargo clean".split()
+    subprocess.run(clean_command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
 def main():
-    if compiler_verify():
+
+    # option: src_verifier / mirai_verifier / compiler_verifier
+    verification_matrix = {'no_leakage':  (True, True,  False),
+                           'no_residue': (True, False, True),
+                           'all':        (True, True,  True)}
+
+    parser = argparse.ArgumentParser(description='PoBF Verfier')
+    parser.add_argument('--property',
+                        choices=verification_matrix.keys(),
+                        default='all',
+                        help='the property to be verified')
+
+    parser.add_argument('--allowed-unsafe',
+                        nargs='*',
+                        default=[],
+                        help='source code filename(s) which are allowed to contain unsafe code')
+
+    parser.add_argument('--log-level',
+                        choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'],
+                        default='INFO',
+                        help='the log level')
+
+    parser.add_argument('features',
+                        nargs=argparse.REMAINDER,
+                        help='features for cargo build')
+
+    # TODO: feature passing
+
+    args = parser.parse_args()
+
+    log_format = '%(levelname)s %(message)s'
+    coloredlogs.install(level=args.log_level, fmt=log_format)
+    logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
+
+    (src_v, mirai_v, compiler_v) = verification_matrix[args.property]
+
+    if len(args.features) > 1 and args.features[0] == '--':
+        features = args.features[1:]
+    else :
+        features = []
+
+    rv = 0
+    if src_v:
+        logging.info("checking if the source code forbids `unsafe` ...\n")
+        src_verify(args.allowed_unsafe)
+
+    if mirai_v:
+        clean()
         logging.info(
-            "Compiler verification passed. Your code will be verified towrads MIRAI.")
-    else:
-        logging.error(
-            "Compiler verification Failed. Please remove the potentially dangerous operations.")
-        return 1
+            "\ninvoking MIRAI to check possible leakage through OCALLs...\n")
+        if mirai_verify():
+            logging.info(
+                "`no_leakage` verification passed: no leakage found by MIRAI\n")
+        else:
+            logging.error(
+                "`no_leakage` verification failed: leakage(s) found by MIRAI\n")
+            rv = 1
 
-    mirai_verify()
+    if compiler_v:
+        clean()
+        logging.info(
+            "\ninvoking rust compiler to check possible secret residue...\n")
+        if compiler_verify(features):
+            logging.info(
+                "`no_residue` verification passed: no secret residue found by rustc\n")
+        else:
+            logging.error(
+                "`no_residue` verification failed: secret(s) residue found by rustc")
+            rv = 1
 
-def demo():
-    logging.info('PoBF demo of potential violations.')
-    logging.info('Violation: unsafe code')
-    compiler_verify(['vio_unsafe'])
-    logging.info('Violation: private field access')
-    compiler_verify(['vio_private'])
-    logging.info('Violation: typestate violation')
-    compiler_verify(['vio_typestate'])
-    logging.info('Violation: ocall containing secret')
-    compiler_verify(['vio_ocall'])
-
-    mirai_verify()
-
-    src_verifier()
+    return rv
 
 if __name__ == "__main__":
-    demo()
+    main()
