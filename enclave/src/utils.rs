@@ -1,28 +1,23 @@
 #[cfg(not(feature = "sgx"))]
-use crate::bogus::SgxSealedData;
+use crate::bogus::SealedData;
+use crate::ocall::*;
+use crate::ocall_log;
 #[cfg(feature = "sgx")]
-use sgx_tseal::SgxSealedData;
+use sgx_tseal::seal::SealedData;
 use sgx_types::marker::ContiguousMemory;
-use sgx_types::*;
+use std::vec::Vec;
 
 pub fn from_sealed_log_for_fixed<'a, T: Copy + ContiguousMemory>(
-    sealed_log_ptr: *mut u8,
-    sealed_log_size: u32,
-) -> Option<SgxSealedData<'a, T>> {
-    unsafe {
-        SgxSealedData::<T>::from_raw_sealed_data_t(
-            sealed_log_ptr as *mut sgx_sealed_data_t,
-            sealed_log_size,
-        )
-    }
-}
+    sealed_log: &Vec<u8>,
+) -> Option<SealedData<T>> {
+    // let r = SealedData::<T>::from_bytes(sealed_log);
+    let r = SealedData::<T>::from_slice(&sealed_log);
 
-pub fn to_sealed_log_for_fixed<T: Copy + ContiguousMemory>(
-    sealed_data: &SgxSealedData<T>,
-    sealed_log_ptr: *mut u8,
-    sealed_log_size: u32,
-) -> Option<*mut sgx_sealed_data_t> {
-    unsafe {
-        sealed_data.to_raw_sealed_data_t(sealed_log_ptr as *mut sgx_sealed_data_t, sealed_log_size)
+    match r {
+        Ok(x) => Some(x),
+        Err(e) => {
+            ocall_log!("Error occurs {:?}", e);
+            None
+        }
     }
 }

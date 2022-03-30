@@ -6,7 +6,7 @@ pub mod vecaes;
 // pub use state::*;
 pub use vecaes::*;
 
-use sgx_types::SgxResult;
+use sgx_types::error::SgxResult;
 use std::marker::PhantomData;
 
 pub const BUFFER_SIZE: usize = 1024;

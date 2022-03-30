@@ -1,15 +1,16 @@
 #![forbid(unsafe_code)]
 
-use crate::ocall_log;
+use crate::ocall::*;
 use crate::types::*;
-use sgx_types::*;
+use crate::{ocall_log, verified_log};
+use sgx_types::error::SgxResult;
 use std::vec::Vec;
 
 pub fn pobf_private_computing(
     data_buffer: &[u8],
     sealed_key_buffer: &[u8],
 ) -> SgxResult<VecAESData> {
-    ocall_log!("PoBF sample task AES started...",);
+    verified_log!("PoBF sample task AES started...",);
     // initialize data from buffer
     let input_key = AES128Key::from_sealed_buffer(sealed_key_buffer)?;
     let output_key = AES128Key::from_sealed_buffer(sealed_key_buffer)?;
@@ -47,9 +48,8 @@ where
 
     let step = 1;
     // this can be proven true by MIRAI
-    ocall_log!("The step is {} in computation_enc", 1, step);
+    verified_log!("The step is {} in computation_enc", 1, step);
 
-    
     let mut new = Vec::new();
     for i in vec_data.iter() {
         new.push(i + step);
@@ -59,7 +59,7 @@ where
     // leakage violation: cannot log the secret data
     // captured by: MIRAI warnning
     #[cfg(mirai)]
-    ocall_log!("after increasing, the 0th data is {}", 1, new[0]);
+    verified_log!("after increasing, the 0th data is {}", 1, new[0]);
 
     T::from(new)
 }

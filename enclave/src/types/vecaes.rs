@@ -1,14 +1,12 @@
 #![forbid(unsafe_code)]
-#[cfg(feature = "sgx")]
-extern crate sgx_tcrypto;
+
 use super::*;
-#[cfg(not(feature = "sgx"))]
-use crate::bogus::*;
-use crate::ocall_log;
+use crate::ocall::*;
 use crate::utils::*;
-#[cfg(feature = "sgx")]
-use sgx_tcrypto::*;
-use sgx_types::*;
+use crate::{ocall_log, verified_log};
+// #[cfg(feature = "sgx")]
+use sgx_crypto::aes::gcm::*;
+use sgx_types::error::*;
 use std::vec::Vec;
 
 pub struct VecAESData {
@@ -46,14 +44,14 @@ impl AsRef<[u8]> for VecAESData {
 }
 
 pub struct AES128Key {
-    buffer: [u8; BUFFER_SIZE],
+    buffer: Vec<u8>,
     inner: [u8; 16],
 }
 
 impl Default for AES128Key {
     fn default() -> Self {
         AES128Key {
-            buffer: [0u8; BUFFER_SIZE],
+            buffer: vec![],
             inner: [0u8; 16],
         }
     }
@@ -61,27 +59,27 @@ impl Default for AES128Key {
 
 impl AES128Key {
     pub fn from_sealed_buffer(sealed_buffer: &[u8]) -> SgxResult<Self> {
-        assert!(sealed_buffer.len() == BUFFER_SIZE);
-        let mut key = AES128Key::default();
-        key.buffer.copy_from_slice(sealed_buffer);
+        assert!(sealed_buffer.len() <= BUFFER_SIZE);
+        let buffer = sealed_buffer.to_vec();
+        let key = AES128Key {
+            buffer,
+            inner: [0u8; 16],
+        };
         Ok(key)
     }
 
     fn unseal(&self) -> SgxResult<Self> {
-        let opt = from_sealed_log_for_fixed::<[u8; SEALED_DATA_SIZE]>(
-            self.buffer.as_ptr() as *mut u8,
-            BUFFER_SIZE as u32,
-        );
+        let opt = from_sealed_log_for_fixed::<[u8; SEALED_DATA_SIZE]>(&self.buffer);
         let sealed_data = match opt {
             Some(x) => x,
             _ => {
-                ocall_log!("Failed to create sealed data",);
-                return Err(sgx_status_t::SGX_ERROR_FILE_NOT_SGX_FILE);
+                verified_log!("Failed to create sealed data",);
+                return Err(SgxStatus::NotSgxFile);
             }
         };
 
-        let result = sealed_data.unseal_data()?;
-        let data = result.get_decrypt_txt();
+        let result = sealed_data.unseal()?;
+        let data = result.to_plaintext();
         let mut temp_key = AES128Key::default();
         temp_key.inner.copy_from_slice(data);
         Ok(temp_key)
@@ -91,28 +89,20 @@ impl AES128Key {
 impl Encryption<AES128Key> for VecAESData {
     fn encrypt(self, key: &AES128Key) -> SgxResult<Self> {
         let key = key.unseal()?;
+        let aad_array: [u8; 0] = [0; 0];
+        let aad = Aad::from(aad_array);
+        let mut aes = AesGcm::new(&key.inner, Nonce::zeroed(), aad)?;
 
         let text_len = self.inner.len();
-        let cipher_len = (text_len + 15) / 16 * 16;
+        let cipher_len = text_len.checked_add(15).unwrap() / 16 * 16;
         // what if not *16?
         let plaintext_slice = &self.inner[..];
         let mut ciphertext_vec: Vec<u8> = vec![0; cipher_len + 16];
 
-        let mut mac_slice = [0u8; 16];
+        verified_log!("aes_gcm_128_encrypt parameter prepared!",);
+        let mac = aes.encrypt(plaintext_slice, &mut ciphertext_vec[..cipher_len])?;
 
-        let aad_array: [u8; 0] = [0; 0];
-        ocall_log!("aes_gcm_128_encrypt parameter prepared!",);
-        let iv = [0u8; 12];
-        rsgx_rijndael128GCM_encrypt(
-            &key.inner,
-            plaintext_slice,
-            &iv,
-            &aad_array,
-            &mut ciphertext_vec[..cipher_len],
-            &mut mac_slice,
-        )?;
-
-        ciphertext_vec[cipher_len..(cipher_len + 16)].copy_from_slice(&mac_slice);
+        ciphertext_vec[cipher_len..(cipher_len + 16)].copy_from_slice(&mac);
         Ok(VecAESData::from(ciphertext_vec))
     }
 }
@@ -120,30 +110,23 @@ impl Encryption<AES128Key> for VecAESData {
 impl Decryption<AES128Key> for VecAESData {
     fn decrypt(self, key: &AES128Key) -> SgxResult<Self> {
         let key = key.unseal()?;
+        let aad_array: [u8; 0] = [0; 0];
+        let aad = Aad::from(aad_array);
+        let mut aes = AesGcm::new(&key.inner, Nonce::zeroed(), aad)?;
 
         // can be a demo
         let len = self.inner.len();
-        let text_len = len - 16;
+        let text_len = len.checked_sub(16).unwrap();
         let ciphertext_slice = &self.inner[..text_len];
         let mac_slice = &self.inner[text_len..(text_len + 16)].try_into().unwrap();
         let mut plaintext_vec: Vec<u8> = vec![0; text_len];
         let plaintext_slice = &mut plaintext_vec[..];
 
-        let iv = [0u8; 12];
-        let aad_array: [u8; 0] = [0; 0];
-
         // can this be checked towards MIRAI?
-        ocall_log!("aes_gcm_128_decrypt parameter prepared!",);
+        verified_log!("aes_gcm_128_decrypt parameter prepared!",);
 
         // After everything has been set, call API
-        rsgx_rijndael128GCM_decrypt(
-            &key.inner,
-            ciphertext_slice,
-            &iv,
-            &aad_array,
-            mac_slice,
-            plaintext_slice,
-        )?;
+        aes.decrypt(ciphertext_slice, plaintext_slice, mac_slice)?;
 
         Ok(VecAESData::from(plaintext_vec))
     }
