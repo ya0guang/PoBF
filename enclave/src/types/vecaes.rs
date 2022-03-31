@@ -4,7 +4,6 @@ use super::*;
 use crate::ocall::*;
 use crate::utils::*;
 use crate::{ocall_log, verified_log};
-// #[cfg(feature = "sgx")]
 use sgx_crypto::aes::gcm::*;
 use sgx_types::error::*;
 use std::vec::Vec;
@@ -92,7 +91,6 @@ impl Encryption<AES128Key> for VecAESData {
         let aad_array: [u8; 0] = [0; 0];
         let aad = Aad::from(aad_array);
         let mut aes = AesGcm::new(&key.inner, Nonce::zeroed(), aad)?;
-
         let text_len = self.inner.len();
         let cipher_len = text_len.checked_add(15).unwrap() / 16 * 16;
         // what if not *16?
@@ -101,7 +99,6 @@ impl Encryption<AES128Key> for VecAESData {
 
         verified_log!("aes_gcm_128_encrypt parameter prepared!",);
         let mac = aes.encrypt(plaintext_slice, &mut ciphertext_vec[..cipher_len])?;
-
         ciphertext_vec[cipher_len..(cipher_len + 16)].copy_from_slice(&mac);
         Ok(VecAESData::from(ciphertext_vec))
     }
@@ -113,8 +110,6 @@ impl Decryption<AES128Key> for VecAESData {
         let aad_array: [u8; 0] = [0; 0];
         let aad = Aad::from(aad_array);
         let mut aes = AesGcm::new(&key.inner, Nonce::zeroed(), aad)?;
-
-        // can be a demo
         let len = self.inner.len();
         let text_len = len.checked_sub(16).unwrap();
         let ciphertext_slice = &self.inner[..text_len];
@@ -122,12 +117,8 @@ impl Decryption<AES128Key> for VecAESData {
         let mut plaintext_vec: Vec<u8> = vec![0; text_len];
         let plaintext_slice = &mut plaintext_vec[..];
 
-        // can this be checked towards MIRAI?
         verified_log!("aes_gcm_128_decrypt parameter prepared!",);
-
-        // After everything has been set, call API
         aes.decrypt(ciphertext_slice, plaintext_slice, mac_slice)?;
-
         Ok(VecAESData::from(plaintext_vec))
     }
 }

@@ -8,7 +8,7 @@ use sgx_types::error::SgxStatus;
 use std::string::String;
 
 extern "C" {
-    pub fn u_log_ocall(
+    fn u_log_ocall(
         result: *mut u32,
         string_ptr: *mut u8,
         string_len: u32,
@@ -20,7 +20,7 @@ pub fn log(s: String) -> SgxStatus {
     let mut rv: u32 = 0;
     let (string_ptr, len, cap) = s.into_raw_parts();
     let result = unsafe { u_log_ocall(&mut rv as _, string_ptr as _, len as _, cap as _) };
-    // for memory deallocation
+    // automatic Rust drop
     let _ = unsafe { String::from_raw_parts(string_ptr, len, cap) };
     result
 }

@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+use crate::custom::vec_inc;
 use crate::ocall::*;
 use crate::types::*;
 use crate::{ocall_log, verified_log};
@@ -32,36 +33,20 @@ pub fn pobf_private_computing(
     let raw_key = unsafe { *(&input_key as *const AES128Key as *const u8) };
 
     // custom compuatation task
-    let computation_task = &private_inc;
+    let computation_task = &private_vec_compute;
     let result = pobf_workflow(data, input_key, output_key, computation_task);
 
     result
 }
 
-pub fn private_inc<T>(data: T) -> T
+pub fn private_vec_compute<T>(input: T) -> T
 where
     T: From<Vec<u8>> + Into<Vec<u8>>,
 {
-    let vec_data = data.into();
-    // try to violate key? Cannot see the key!
-    // conditional compile some errors
+    let input_vec = input.into();
 
-    let step = 1;
-    // this can be proven true by MIRAI
-    verified_log!("The step is {} in computation_enc", 1, step);
-
-    let mut new = Vec::new();
-    for i in vec_data.iter() {
-        new.push(i + step);
-    }
-
-    // however, MIRAI complians about this
-    // leakage violation: cannot log the secret data
-    // captured by: MIRAI warnning
-    #[cfg(mirai)]
-    verified_log!("after increasing, the 0th data is {}", 1, new[0]);
-
-    T::from(new)
+    let output_vec = vec_inc(input_vec);
+    T::from(output_vec)
 }
 
 pub fn pobf_workflow<D: EncDec<K>, K: Default>(
