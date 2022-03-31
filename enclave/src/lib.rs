@@ -10,11 +10,11 @@ extern crate sgx_types;
 extern crate sgx_tstd as std;
 #[cfg(not(feature = "sgx"))]
 mod bogus;
+mod custom;
 mod ocall;
 mod pobf;
 mod types;
 mod utils;
-mod custom;
 
 use ocall::*;
 use pobf::*;

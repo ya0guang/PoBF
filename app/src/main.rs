@@ -14,7 +14,6 @@ static ENCLAVE_FILE: &'static str = "enclave.signed.so";
 const OUTPUT_BUFFER_SIZE: usize = 2048;
 
 extern "C" {
-
     fn private_computing_entry(
         eid: EnclaveId,
         retval: *mut SgxStatus,
@@ -43,19 +42,18 @@ enum Commands {
 }
 
 fn main() {
-    let args = Args::parse();
-
     let enclave = match SgxEnclave::create(ENCLAVE_FILE, false) {
         Ok(r) => {
-            println!("[+] Init Enclave Successful {}!", r.eid());
+            println!("[+] Init Enclave Successful, eid: {}!", r.eid());
             r
         }
         Err(x) => {
-            println!("[-] Init Enclave Failed {}!", x.as_str());
+            println!("[-] Init Enclave Failed, reason: {}!", x.as_str());
             return;
         }
     };
 
+    let args = Args::parse();
     match args.command {
         Commands::Cal {
             key_path,
@@ -81,11 +79,10 @@ fn exec_private_computing(
     encrypted_input: &Vec<u8>,
 ) -> Vec<u8> {
     let mut retval = SgxStatus::Success;
-
     let mut encrypted_output: Vec<u8> = vec![0u8; OUTPUT_BUFFER_SIZE];
     let mut encrypted_output_size: u32 = 0;
 
-    let rv = unsafe {
+    unsafe {
         private_computing_entry(
             enclave.eid(),
             &mut retval,
@@ -98,7 +95,7 @@ fn exec_private_computing(
             &mut encrypted_output_size as _,
         )
     };
-    match rv {
+    match retval {
         SgxStatus::Success => {
             println!(
                 "[+] ECALL Successful, returned size: {}",
@@ -115,7 +112,7 @@ fn exec_private_computing(
             );
         }
         e => {
-            println!("[-] ECALL Enclave Failed {}!", e.as_str());
+            println!("[-] ECALL Enclave Failed, reason: {}!", e.as_str());
         }
     }
 
