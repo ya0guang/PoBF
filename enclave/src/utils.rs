@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 #[cfg(not(feature = "sgx"))]
 use crate::bogus::SealedData;
 use crate::ocall::*;
