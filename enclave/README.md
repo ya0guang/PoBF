@@ -3,10 +3,11 @@
 ## Enclave Structure
 
 - `lib.rs`: ECALL interfaces (contains unsafe code)
-- `utils.rs`: utility functions (contains unsafe code)
+- `utils.rs`: utility functions
 - `pobf.rs`: PoBF core implementation
 - `bogus.rs`: the bogus implementations designed for MIRAI verification (contains unsafe bogus implementations)
-- `ocall.rs`: OCALL interfaces macros wrapping static verifications
+- `ocall.rs`: OCALL interfaces macros wrapping static verifications (contains unsafe code)
+- `userfunc.rs`: task functions provided by the user
 - `types/mod.rs`: typestate implementation
 - `types/vecaes.rs`: encrypted data structure wrapping a vector
 
@@ -19,7 +20,7 @@ Since we only need to verify the implementation of PoBF in enclaves, successfull
 
 ### Usage
 
-Simply run `../verifier/pobf.py` in `enclave/` directory.
+Simply run `./demo-verify.sh` in `enclave/` directory.
 
 ## Violations
 

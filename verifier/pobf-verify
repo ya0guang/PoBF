@@ -15,7 +15,7 @@ def compiler_verify(cargo_args: list = []):
         compiler_enforcement = \
             {'unsafe': ('vio-unsafe', 'PoBF forbids unsafe code in this souce file, please try to remove it.'),
              'but its trait bounds were not satisfied': ('vio-typestate', 'The code may try to call a function which is not available in this state.'),
-             'private field': ('vio-private', 'The code may try to access a private filed which can contain secret information'),
+             'private field': ('vio-private', 'The code may try to access a private filed which can contain secret information.'),
              'items from traits can only be used': ('vio-private', 'The code may try to access a private trait which deals with secret.'), }
 
         details = msg['message']['rendered']
@@ -25,11 +25,10 @@ def compiler_verify(cargo_args: list = []):
         for identifier, (vio_type, explaination) in compiler_enforcement.items():
 
             if identifier in details:
-                # if re.search(identifier, details):
                 error_captured = True
                 logging.error(explaination)
                 logging.warning(
-                    'the detailed explaination of this error type [%s] can be found in the document', vio_type)
+                    'The detailed explaination of this error type [%s] can be found in the document.', vio_type)
 
         if 'aborting due to' in details:
             return
@@ -78,7 +77,7 @@ def mirai_verify():
                 error_captured = True
                 logging.error(explaination)
                 logging.warning(
-                    'the detailed explaination of this error type [%s] can be found in the document', vio_type)
+                    'The detailed explaination of this error type [%s] can be found in the document.', vio_type)
 
         if error_captured:
             print(msg['message']['rendered'])
@@ -105,12 +104,12 @@ def src_verify(unsafe_allowed: list = []):
 
         if list(filter(lambda x: x in path, unsafe_allowed)):
             logging.warning(
-                "  + unsafe code not forbidden in %s, and this is allowed", path)
+                "  + unsafe code not forbidden in %s, and this is allowed.", path)
             return True
 
         with open(path, 'r') as f:
             if list(filter(lambda l: l.startswith('#![forbid(unsafe_code)]'), f.readlines())):
-                logging.info("  + unsafe code fobidden in %s, clear", path)
+                logging.info("  + unsafe code fobidden in %s, clear.", path)
                 return True
             else:
                 logging.error(
@@ -184,25 +183,25 @@ def main():
     if mirai_v:
         clean()
         logging.info(
-            "\ninvoking MIRAI to check possible leakage through OCALLs...\n")
+            "\nchecking possible leakage through OCALLs...\n")
         if mirai_verify():
             logging.info(
-                "`no_leakage` verification passed: no leakage found by MIRAI\n")
+                "`no_leakage` verification passed: no leakage found by MIRAI.\n")
         else:
             logging.error(
-                "`no_leakage` verification failed: leakage(s) found by MIRAI\n")
+                "`no_leakage` verification failed: leakage(s) found by MIRAI.\n")
             rv = 1
 
     if compiler_v:
         clean()
         logging.info(
-            "\ninvoking rust compiler to check possible secret residue...\n")
+            "\nchecking possible secret residue...\n")
         if compiler_verify(cargo_args):
             logging.info(
-                "`no_residue` verification passed: no secret residue found by rustc\n")
+                "`no_residue` verification passed: no secret residue found by rustc.\n")
         else:
             logging.error(
-                "`no_residue` verification failed: secret(s) residue found by rustc")
+                "`no_residue` verification failed: secret(s) residue found by rustc.")
             rv = 1
 
     return rv

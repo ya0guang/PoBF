@@ -1,30 +1,38 @@
 # PoBF-compliant Platform Reference Implementation
 
-## Verifier requirements
+## Verifier
 
-Check [this Readme](verifier/README.md) for more details.
+### Verifier in Rust
+
+Suspended
+`cargo-pobfv/`
+
+### Verifier in Python
+
+`verifier/`
+
+Can verify:
+
+- If `unsafe` is forbidden in the source code files
+- If OCALL(s) potentially sensitive leak
+- If Rust compiler can compile the code
 
 ## Problems in the Rust Code
 
 ### Unsafe Code
 
-When copying input, or constructing datatypes in the ECALL, 
-we need to use unsafe code. Such construction might be wrapped.
-
-Maybe we also need to separate OCALLs from the context 
-and wrap them with precondition verifications? 
-e.g., the input arguments should not be tainted by secrets.
+Automatic Check
 
 #### Potential Solutions
 
-- Provide a library to wrap unsafe code
-- Transfer types directly across enclave boundry
-- **Admit** this problem as a deficit
+- [X] Provide a library to wrap unsafe code
+- [ ] Transfer types directly across enclave boundry
+- [ ] **Admit** this problem as a deficit
 
 ## TODOs
 
 - Zone Allocator and its verification
-- Verify this implementation (with a verifier)
+- Verifier in Rust?
 - *Formal proof of PoBF constraints* partially done
 
 ## Goals in the Long Run

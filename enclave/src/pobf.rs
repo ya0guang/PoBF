@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-use crate::custom::vec_inc;
+use crate::userfunc::vec_inc;
 use crate::ocall::*;
 use crate::types::*;
 use crate::{ocall_log, verified_log};
