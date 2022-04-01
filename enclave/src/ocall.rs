@@ -1,7 +1,9 @@
 #![allow(unused_imports)]
-#[cfg(not(feature = "sgx"))]
-use mirai_annotations::*;
 
+#[cfg(mirai)]
+use mirai_annotations::*;
+#[cfg(mirai)]
+use crate::types::SecretTaint;
 use libc::{c_char, ssize_t};
 use sgx_libc as libc;
 use sgx_types::error::SgxStatus;
@@ -30,8 +32,8 @@ pub fn log(s: String) -> SgxStatus {
 macro_rules! ocall {
     ($func:ident, $($invar:expr, $arg:expr),*) => {
         $ (
-            #[cfg(not(feature = "sgx"))]
-            mirai_annotations::verify!($invar == $arg);
+            #[cfg(mirai)]
+            verify!(does_not_have_tag!($arg, SecretTaint));
         )*
         $func($($arg),*);
     };
@@ -41,7 +43,7 @@ macro_rules! ocall {
 macro_rules! ocall_print {
     ($formator:expr, $($invar:expr, $arg:expr),*) => {
         $ (
-            #[cfg(not(feature = "sgx"))]
+            #[cfg(mirai)]
             mirai_annotations::verify!($invar == $arg);
         )*
         println!($formator, $($arg),*);
@@ -60,10 +62,14 @@ macro_rules! ocall_log {
 #[macro_export]
 macro_rules! verified_log {
     ($formator:expr, $($invar:expr, $arg:expr),*) => {
-        $ (
-            #[cfg(not(feature = "sgx"))]
-            mirai_annotations::verify!($invar == $arg);
-        )*
+        // $(
+        //     #[cfg(mirai)]
+        //     mirai_annotations::verify!(mirai_annotations::does_not_have_tag!(&$arg, crate::types::SecretTaint));
+        // )*
+        // $ (
+        //     #[cfg(mirai)]
+        //     mirai_annotations::verify!($invar == $arg);
+        // )*
         ocall_log!($formator, $($arg),*)
     };
 }

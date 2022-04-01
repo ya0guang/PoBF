@@ -1,10 +1,14 @@
 #![forbid(unsafe_code)]
 
-// pub mod state;
 pub mod vecaes;
+pub mod taint;
 
-// pub use state::*;
 pub use vecaes::*;
+#[cfg(mirai)]
+pub use taint::SecretTaint;
+#[cfg(mirai)]
+use mirai_annotations::*;
+
 
 use sgx_types::error::SgxResult;
 use std::marker::PhantomData;
@@ -209,10 +213,13 @@ where
     K: Default,
 {
     pub fn new(raw: K) -> Key<K, Sealed> {
-        Key {
+        let k = Key {
             raw: raw,
             _key_state: Sealed,
-        }
+        };
+        #[cfg(mirai)]
+        add_tag!(&k, SecretTaint);
+        k
     }
 
     fn raw_ref(&self) -> &K {

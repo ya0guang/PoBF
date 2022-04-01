@@ -43,8 +43,17 @@ pub fn private_vec_compute<T>(input: T) -> T
 where
     T: From<Vec<u8>> + Into<Vec<u8>>,
 {
+
     let input_vec = input.into();
 
+    #[cfg(mirai)]
+    mirai_annotations::add_tag!(&input_vec, crate::types::SecretTaint);
+    
+    for i in input_vec.iter() {
+        #[cfg(mirai)]
+        mirai_annotations::add_tag!(i, crate::types::SecretTaint);
+    }
+    
     let output_vec = vec_inc(input_vec);
     T::from(output_vec)
 }

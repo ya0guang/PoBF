@@ -2,6 +2,8 @@
 #![crate_type = "staticlib"]
 #![cfg_attr(feature = "sgx", no_std)]
 #![feature(vec_into_raw_parts)]
+#![cfg_attr(mirai, allow(incomplete_features), feature(generic_const_exprs))]
+
 
 extern crate sgx_types;
 #[cfg(feature = "sgx")]
