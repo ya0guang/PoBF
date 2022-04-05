@@ -11,7 +11,7 @@ pub fn pobf_private_computing(
     data_buffer: &[u8],
     sealed_key_buffer: &[u8],
 ) -> SgxResult<VecAESData> {
-    verified_log!("PoBF sample task AES started...",);
+    verified_log!("PoBF sample task AES started...");
     // initialize data from buffer
     let input_key = AES128Key::from_sealed_buffer(sealed_key_buffer)?;
     let output_key = AES128Key::from_sealed_buffer(sealed_key_buffer)?;

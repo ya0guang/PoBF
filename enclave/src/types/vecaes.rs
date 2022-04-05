@@ -72,7 +72,7 @@ impl AES128Key {
         let sealed_data = match opt {
             Some(x) => x,
             _ => {
-                verified_log!("Failed to create sealed data",);
+                verified_log!("Failed to create sealed data");
                 return Err(SgxStatus::NotSgxFile);
             }
         };
@@ -97,7 +97,7 @@ impl Encryption<AES128Key> for VecAESData {
         let plaintext_slice = &self.inner[..];
         let mut ciphertext_vec: Vec<u8> = vec![0; cipher_len + 16];
 
-        verified_log!("aes_gcm_128_encrypt parameter prepared!",);
+        verified_log!("aes_gcm_128_encrypt parameter prepared!");
         let mac = aes.encrypt(plaintext_slice, &mut ciphertext_vec[..cipher_len])?;
         ciphertext_vec[cipher_len..(cipher_len + 16)].copy_from_slice(&mac);
         Ok(VecAESData::from(ciphertext_vec))
@@ -117,7 +117,7 @@ impl Decryption<AES128Key> for VecAESData {
         let mut plaintext_vec: Vec<u8> = vec![0; text_len];
         let plaintext_slice = &mut plaintext_vec[..];
 
-        verified_log!("aes_gcm_128_decrypt parameter prepared!",);
+        verified_log!("aes_gcm_128_decrypt parameter prepared!");
         aes.decrypt(ciphertext_slice, plaintext_slice, mac_slice)?;
         Ok(VecAESData::from(plaintext_vec))
     }

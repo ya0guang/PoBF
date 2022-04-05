@@ -50,20 +50,39 @@ macro_rules! ocall_print {
 
 #[macro_export]
 macro_rules! ocall_log {
-    ($formator:expr, $($arg:expr),*) => {
+    ($str: expr) => {
+        let s = format!($str);
+        log(s)
+    };
+    ($formator:expr, $($arg:expr),+ $(,)?) => {
 
-        let s = format!($formator, $($arg),*);
+        let s = format!($formator, $($arg),+);
         log(s)
     };
 }
 
 #[macro_export]
+macro_rules! println {
+    () => {
+        log(String::from("[user function output]")); 
+        ocall_log!("\n")
+    };
+    ($($arg:expr),+ $(,)? ) => {
+        log(String::from("[user function output]")); 
+        ocall_log!($($arg),+);
+    }
+}
+
+#[macro_export]
 macro_rules! verified_log {
-    ($formator:expr, $($invar:expr, $arg:expr),*) => {
+    ($str:expr) => {
+        ocall_log!($str);
+    };
+    ($formator:expr, $($invar:expr, $arg:expr),+ $(,)?) => {
         $ (
             #[cfg(not(feature = "sgx"))]
             mirai_annotations::verify!($invar == $arg);
         )*
-        ocall_log!($formator, $($arg),*)
+        ocall_log!($formator, $($arg),+);
     };
 }

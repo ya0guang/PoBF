@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
 import subprocess
+from this import d
+from unicodedata import numeric
 import coloredlogs
 import logging
 import sys
@@ -127,9 +129,67 @@ def src_verify(unsafe_allowed: list = []):
 
 def clean():
     clean_command = "cargo clean".split()
-    subprocess.run(clean_command, stdout=subprocess.DEVNULL,
+    subprocess.run(clean_command,
                    stderr=subprocess.DEVNULL)
 
+
+def build():
+    logging.info("building PoBF binary...")
+    build_command = "make -C ..".split()
+    subprocess.run(build_command,
+                   stderr=subprocess.DEVNULL)
+
+
+def testflight() -> list[str]:
+    logging.info("trying to test run the PoBF binary...")
+    wd = os.getcwd()
+    os.chdir("../bin")
+    run_command = "./app cal ../key.bin ../data.enc".split()
+    run_output = subprocess.run(run_command, stdout=subprocess.PIPE,
+                   stderr=subprocess.DEVNULL)
+    os.chdir(wd)
+    user_func_prints = []
+
+    run_output = run_output.stdout.decode("utf-8").split('\n')
+    for i in range(len(run_output)):
+        if run_output[i] == "[user function output]":
+            user_func_prints.append(run_output[i + 1])
+    
+    return user_func_prints
+
+def instrument(user_func_prints: list[str]):
+    source_code_path = "./src/userfunc.rs"
+    junk_chars = '();'
+    numerics = {}
+    for line in user_func_prints:
+        for word in line.split():
+            if word.isnumeric():
+                numerics[line] = word
+
+    print(numerics)
+    
+    source_code_lines = []
+    instrument_source_code_lines = []
+    with open(source_code_path, 'r') as f:
+        source_code_lines = f.readlines()
+
+    if len(numerics) == 0:
+        return
+
+    for line in source_code_lines:
+        if line.startswith("//"):
+            instrument_source_code_lines.append(line)
+            continue
+        for (string, n_const_str) in numerics.items():
+            if string.replace(n_const_str, "{}") in line:
+                for c in junk_chars:
+                    line = line.replace(c, '')
+                statement = "verify!(%s == %s);" % (line.split()[-1], n_const_str)
+                instrument_source_code_lines.append(statement)
+        instrument_source_code_lines.append(line)
+    
+    for l in instrument_source_code_lines:
+        print(l)
 
 def main():
 
@@ -181,6 +241,10 @@ def main():
         src_verify(args.allowed_unsafe)
 
     if mirai_v:
+        # build()
+        prints = testflight()
+        instrument(prints)
+        exit()
         clean()
         logging.info(
             "\nchecking possible leakage through OCALLs...\n")

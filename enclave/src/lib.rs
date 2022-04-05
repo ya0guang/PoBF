@@ -20,6 +20,7 @@ use ocall::*;
 use pobf::*;
 use sgx_types::error::SgxStatus;
 use std::slice;
+use std::string::String;
 
 #[no_mangle]
 pub extern "C" fn private_computing_entry(
@@ -31,7 +32,7 @@ pub extern "C" fn private_computing_entry(
     encrypted_output_buffer_size: u32,
     encrypted_output_size: *mut u32,
 ) -> SgxStatus {
-    ocall_log!("[+] private_computing_entry",);
+    ocall_log!("[+] private_computing_entry");
 
     let sealed_key = unsafe { slice::from_raw_parts_mut(sealed_key_ptr, sealed_key_size as usize) };
 
