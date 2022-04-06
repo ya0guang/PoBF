@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 
 import subprocess
-from this import d
-from unicodedata import numeric
 import coloredlogs
 import logging
 import sys
 import json
 import os
 import argparse
+from typing import List
 
 
 def compiler_verify(cargo_args: list = []):
@@ -24,13 +23,15 @@ def compiler_verify(cargo_args: list = []):
         logging.debug(details)
 
         error_captured = False
-        for identifier, (vio_type, explaination) in compiler_enforcement.items():
+        for identifier, (vio_type,
+                         explaination) in compiler_enforcement.items():
 
             if identifier in details:
                 error_captured = True
                 logging.error(explaination)
                 logging.warning(
-                    'The detailed explaination of this error type [%s] can be found in the document.', vio_type)
+                    'The detailed explaination of this error type [%s] can be found in the document.',
+                    vio_type)
 
         if 'aborting due to' in details:
             return
@@ -44,8 +45,9 @@ def compiler_verify(cargo_args: list = []):
     for f in cargo_args:
         rustc_verify_command.append(f)
 
-    rustc_output = subprocess.run(
-        rustc_verify_command, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    rustc_output = subprocess.run(rustc_verify_command,
+                                  stdout=subprocess.PIPE,
+                                  stderr=subprocess.DEVNULL)
     compiler_outputs = rustc_output.stdout.decode("utf-8").split('\n')
     compiler_outputs_serialized = []
 
@@ -79,15 +81,17 @@ def mirai_verify():
                 error_captured = True
                 logging.error(explaination)
                 logging.warning(
-                    'The detailed explaination of this error type [%s] can be found in the document.', vio_type)
+                    'The detailed explaination of this error type [%s] can be found in the document.',
+                    vio_type)
 
         if error_captured:
             print(msg['message']['rendered'])
 
     # analyze the MIRAI output
     mirai_verify_command = "cargo mirai --message-format=json".split()
-    mirai_output = subprocess.run(
-        mirai_verify_command, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    mirai_output = subprocess.run(mirai_verify_command,
+                                  stdout=subprocess.PIPE,
+                                  stderr=subprocess.DEVNULL)
     mirai_output = mirai_output.stdout.decode("utf-8").split('\n')
 
     mirai_outputs_serialized = []
@@ -106,16 +110,20 @@ def src_verify(unsafe_allowed: list = []):
 
         if list(filter(lambda x: x in path, unsafe_allowed)):
             logging.warning(
-                "  + unsafe code not forbidden in %s, and this is allowed.", path)
+                "  + unsafe code not forbidden in %s, and this is allowed.",
+                path)
             return True
 
         with open(path, 'r') as f:
-            if list(filter(lambda l: l.startswith('#![forbid(unsafe_code)]'), f.readlines())):
+            if list(
+                    filter(lambda l: l.startswith('#![forbid(unsafe_code)]'),
+                           f.readlines())):
                 logging.info("  + unsafe code fobidden in %s, clear.", path)
                 return True
             else:
                 logging.error(
-                    "  + unsafe code not forbidden in %s, please add `#![forbid(unsafe_code)]` in this file!", path)
+                    "  + unsafe code not forbidden in %s, please add `#![forbid(unsafe_code)]` in this file!",
+                    path)
                 return False
 
     logging.info("checking unsafe code...")
@@ -129,29 +137,27 @@ def src_verify(unsafe_allowed: list = []):
 
 def format():
     fmt_command = "cargo fmt".split()
-    subprocess.run(fmt_command,
-                   stderr=subprocess.DEVNULL)
+    subprocess.run(fmt_command, stderr=subprocess.DEVNULL)
 
 
 def clean():
     clean_command = "cargo clean".split()
-    subprocess.run(clean_command,
-                   stderr=subprocess.DEVNULL)
+    subprocess.run(clean_command, stderr=subprocess.DEVNULL)
 
 
 def build():
     logging.info("building PoBF binary...")
     build_command = "make -C ..".split()
-    subprocess.run(build_command,
-                   stderr=subprocess.DEVNULL)
+    subprocess.run(build_command, stderr=subprocess.DEVNULL)
 
 
-def testflight() -> list[str]:
+def testflight() -> List[str]:
     logging.info("trying to test run the PoBF binary...")
     wd = os.getcwd()
     os.chdir("../bin")
     run_command = "./app cal ../key.bin ../data.enc".split()
-    run_output = subprocess.run(run_command, stdout=subprocess.PIPE,
+    run_output = subprocess.run(run_command,
+                                stdout=subprocess.PIPE,
                                 stderr=subprocess.DEVNULL)
     os.chdir(wd)
     user_func_prints = []
@@ -164,7 +170,7 @@ def testflight() -> list[str]:
     return user_func_prints
 
 
-def instrument(user_func_prints: list[str]):
+def instrument(user_func_prints: List[str]):
     source_code_path = "./src/userfunc.rs"
     junk_chars = '();'
     numerics = {}
@@ -193,7 +199,8 @@ def instrument(user_func_prints: list[str]):
                 dirty_line = line
                 for c in junk_chars:
                     dirty_line = dirty_line.replace(c, '')
-                statement = "verify!(%s == %s);\n" % (dirty_line.split()[-1], n_const_str)
+                statement = "verify!(%s == %s);\n" % (dirty_line.split()[-1],
+                                                      n_const_str)
                 instrument_source_code_lines.append(statement)
         instrument_source_code_lines.append(line)
 
@@ -208,9 +215,11 @@ def main():
         sys.argv.pop(0)
 
     # option: src_verifier / mirai_verifier / compiler_verifier
-    verification_matrix = {'no_leakage':  (True, True,  False),
-                           'no_residue': (True, False, True),
-                           'all':        (True, True,  True)}
+    verification_matrix = {
+        'no_leakage': (True, True, False),
+        'no_residue': (True, False, True),
+        'all': (True, True, True)
+    }
 
     parser = argparse.ArgumentParser(description='PoBF Verfier')
     parser.add_argument('--property',
@@ -218,10 +227,12 @@ def main():
                         default='all',
                         help='the property to be verified')
 
-    parser.add_argument('--allowed-unsafe',
-                        nargs='*',
-                        default=[],
-                        help='source code filename(s) which are allowed to contain unsafe code')
+    parser.add_argument(
+        '--allowed-unsafe',
+        nargs='*',
+        default=[],
+        help='source code filename(s) which are allowed to contain unsafe code'
+    )
 
     parser.add_argument('--log-level',
                         choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'],
@@ -256,26 +267,28 @@ def main():
         instrument(prints)
         format()
         clean()
-        logging.info(
-            "\nchecking possible leakage through OCALLs...\n")
+        logging.info("\nchecking possible leakage through OCALLs...\n")
         if mirai_verify():
             logging.info(
-                "`no_leakage` verification passed: no leakage found by MIRAI.\n")
+                "`no_leakage` verification passed: no leakage found by MIRAI.\n"
+            )
         else:
             logging.error(
-                "`no_leakage` verification failed: leakage(s) found by MIRAI.\n")
+                "`no_leakage` verification failed: leakage(s) found by MIRAI.\n"
+            )
             rv = 1
 
     if compiler_v:
         clean()
-        logging.info(
-            "\nchecking possible secret residue...\n")
+        logging.info("\nchecking possible secret residue...\n")
         if compiler_verify(cargo_args):
             logging.info(
-                "`no_residue` verification passed: no secret residue found by rustc.\n")
+                "`no_residue` verification passed: no secret residue found by rustc.\n"
+            )
         else:
             logging.error(
-                "`no_residue` verification failed: secret(s) residue found by rustc.")
+                "`no_residue` verification failed: secret(s) residue found by rustc."
+            )
             rv = 1
 
     return rv
