@@ -1,8 +1,8 @@
 #![forbid(unsafe_code)]
 
-use crate::userfunc::vec_inc;
 use crate::ocall::*;
 use crate::types::*;
+use crate::userfunc::vec_inc;
 use crate::{ocall_log, verified_log};
 use sgx_types::error::SgxResult;
 use std::vec::Vec;

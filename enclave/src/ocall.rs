@@ -64,11 +64,11 @@ macro_rules! ocall_log {
 #[macro_export]
 macro_rules! println {
     () => {
-        log(String::from("[user function output]")); 
+        log(String::from("[user function output]"));
         ocall_log!("\n")
     };
     ($($arg:expr),+ $(,)? ) => {
-        log(String::from("[user function output]")); 
+        log(String::from("[user function output]"));
         ocall_log!($($arg),+);
     }
 }
