@@ -3,15 +3,15 @@
 #![cfg_attr(feature = "sgx", no_std)]
 #![feature(vec_into_raw_parts)]
 
-extern crate sgx_types;
 #[cfg(feature = "sgx")]
 #[cfg(not(target_env = "sgx"))]
-#[macro_use]
 extern crate sgx_tstd as std;
+extern crate sgx_types;
 #[cfg(not(feature = "sgx"))]
 mod bogus;
 mod ocall;
 mod pobf;
+mod pobf_verifier;
 mod types;
 mod userfunc;
 mod utils;
@@ -20,7 +20,6 @@ use ocall::*;
 use pobf::*;
 use sgx_types::error::SgxStatus;
 use std::slice;
-use std::string::String;
 
 #[no_mangle]
 pub extern "C" fn private_computing_entry(

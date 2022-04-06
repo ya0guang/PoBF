@@ -1,10 +1,7 @@
 #![forbid(unsafe_code)]
 
-use crate::ocall::*;
-use crate::{ocall_log, println};
+use crate::pobf_verifier::*;
 use std::vec::Vec;
-use std::string::String;
-use mirai_annotations::*;
 
 pub fn vec_inc(input: Vec<u8>) -> Vec<u8> {
     let step = 1;
@@ -16,7 +13,6 @@ pub fn vec_inc(input: Vec<u8>) -> Vec<u8> {
     for i in input.iter() {
         output.push(i + step);
     }
-
 
     // however, MIRAI complians about this
     // leakage violation: cannot log the secret data
