@@ -19,18 +19,25 @@ pub fn pobf_private_computing(
 
     // privacy violation: cannot call decrypt directly on the data
     // captured by: compiler error
-    #[cfg(feature = "vio_private")]
+    #[cfg(feature = "direct_decrypt")]
     data.decrypt(&input_key)?;
 
     // privacy violation: cannot see through the key
     // captured by: compiler error
-    #[cfg(feature = "vio_private")]
+    #[cfg(feature = "access_inner")]
     let raw_key = input_key.inner;
 
-    // safety violation: cannot see through the key using unsafe code by derefencing it
+    // safety violation: cannot read the key through dereferencing using unsafe
     // captured by: compiler error
-    #[cfg(feature = "vio_unsafe")]
+    #[cfg(feature = "raw_read")]
     let raw_key = unsafe { *(&input_key as *const AES128Key as *const u8) };
+
+    // safety violation: cannot write to the insecure world through dereferencing using unsafe
+    // captured by: compiler error
+    #[cfg(feature = "raw_write")]
+    unsafe {
+        *(0x3ffffff as *const u8 as *mut u8) = data_buffer[1];
+    }
 
     // custom compuatation task
     let computation_task = &private_vec_compute;
@@ -62,14 +69,17 @@ pub fn pobf_workflow<D: EncDec<K>, K: Default>(
 
     // typestate violation: cannot take inner data from decrypted data
     // captured by: compiler error
-    #[cfg(feature = "vio_typestate")]
+    #[cfg(feature = "disallowed_trans")]
     let dec_in_data = dec_in.take();
+
+    #[cfg(feature = "rude_copy")]
+    let data_copy = dec_in.copy();
 
     let dec_out: ProtectedAssets<Decrypted, Output, D, K> = dec_in.invoke(computation_task)?;
 
     // privacy violation: cannot take the inner data from ProtectedAssets
     // captured by: compiler error
-    #[cfg(feature = "vio_private")]
+    #[cfg(feature = "access_key")]
     let de_out_data = dec_out.data;
 
     let en_out: ProtectedAssets<Encrypted, Output, D, K> = dec_out.encrypt()?;

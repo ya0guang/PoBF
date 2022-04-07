@@ -44,11 +44,16 @@ Only limited set of operations can be performed on protected data in each state.
 For example, developers cannot `decrypt` the data when the data is already in `decrypted` state.
 This violation may lead to unexpected decryption, further resulting in secret leak.
 
-- Deferred Key Destruction
+- Deferred Secret Destruction
 
-The keys are invalid right after the encryption/decrption operations.
-If the attcker wants to defer the destruction of used keys, the compiler will reject such operation
-This violation may result in residue of the key.
+The privacy is ruined right after the encryption/decrption operations.
+If the attcker wants to defer the destruction of used secrets, the compiler will reject such operation
+This violation may result in residue of the privacy.
+
+#### Examples
+
+- disallowed control flow/typestate transition (`disallowed_trans`)
+- potential residue caused by copy (`reside_copy`)
 
 ### `vio_unsafe`
 
@@ -70,6 +75,11 @@ Unsafe blocks could also easily break the secruity rules encoforced by Rust
 x(e.g., borrow checker and lifetime checker).
 Attacker can thus introduce memory errors to the code, leading to potential secret leak or residue.
 
+#### Examples
+
+- raw data reading (`raw_read`)
+- raw data writing to teh insecure world (`raw_write`)
+
 ### `vio_private`
 
 This implies the code tries to access a private method or field of a strcut or trait.
@@ -88,6 +98,12 @@ since the raw key and data might then be stolen and further lead to secret leak 
 Security-critical methods (e.g., `decrypt()`) are private, and their invokations are also protected.
 Calling these methods directly may lead to unexpected results (e.g., unauthorized decryption).
 
+#### Examples
+
+- calling `decrypt()` directly on encrypted data (`direct_decrypt`)
+- accessing the inner part of the key (`access_inner`)
+- accessing the key nested in the protected data structure (`access_key`)
+
 ### `vio_ocall`
 
 This implies the enclave code OCALL(s) with non-constant parameter(s).
@@ -101,3 +117,9 @@ PoBF ensures that all verified enclave cannot leak secret through OCALL.
 
 The arguments in OCALLs can contain sensitive data and the enclave can make OCALLs to the normal world with secrets in the arguments.
 This may potetially leak secrets through OCALL.
+
+#### Examples
+
+- leak through network traffic (`leak_net`)
+- file I/O (`leak_file`)
+- logging (`leak_log`)

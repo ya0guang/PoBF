@@ -16,8 +16,11 @@ def compiler_verify(cargo_args: list = []):
         compiler_enforcement = \
             {'unsafe': ('vio-unsafe', 'PoBF forbids unsafe code in this souce file, please try to remove it.'),
              'but its trait bounds were not satisfied': ('vio-typestate', 'The code may try to call a function which is not available in this state.'),
+             'method not found in': ('vio-typestate', 'The code may try to call a function which is not impplemented for this type.'),
              'private field': ('vio-private', 'The code may try to access a private filed which can contain secret information.'),
-             'items from traits can only be used': ('vio-private', 'The code may try to access a private trait which deals with secret.'), }
+             'items from traits can only be used': ('vio-private', 'The code may try to access a private trait which deals with secret.'), 
+             'unresolved import': ('vio-ocall', 'The code may try to import a module which is not permitted to use in this enclave.'),
+             'private module': ('vio-ocall', 'The code may try to import a module which is not permitted to use in this enclave.'),}
 
         details = msg['message']['rendered']
         logging.debug(details)
