@@ -9,24 +9,25 @@ crate-type = ["lib", "staticlib"]
 
 [features]
 # turn on mirai when veirifying towards mirai
-default = []
+default = ["leak_log"]
 sgx = ["sgx_tstd", "sgx_trts", "sgx_tseal"]
 rand = ["sgx_rand"]
 # potential violations
-violation = ["vio_typestate", "vio_private", "vio_unsafe"]
-vio_typestate = []
-vio_private = []
-vio_unsafe = []
-
-# [dependencies]
-# sgx_types = { git = "https://github.com/apache/teaclave-sgx-sdk.git", branch = "v2.0.0-preview"}
-# mirai-annotations = { path = "../../MIRAI/annotations" }
-# sgx_tstd = { git = "https://github.com/apache/teaclave-sgx-sdk.git", branch = "v2.0.0-preview", optional = true }
-# sgx_trts = { git = "https://github.com/apache/teaclave-sgx-sdk.git", branch = "v2.0.0-preview", optional = true }
-# sgx_rand = { git = "https://github.com/apache/teaclave-sgx-sdk.git", branch = "v2.0.0-preview", optional = true }
-# sgx_tseal = { git = "https://github.com/apache/teaclave-sgx-sdk.git", branch = "v2.0.0-preview", optional = true }
-# sgx_crypto = { git = "https://github.com/apache/teaclave-sgx-sdk.git", branch = "v2.0.0-preview", optional = true }
-# # sgx_crypto_sys = { git = "https://github.com/apache/teaclave-sgx-sdk.git", branch = "v2.0.0-preview" }
+violation = ["vio_typestate", "vio_private", "vio_unsafe", "vio_ocall", "sgx"]
+vio_typestate = ["sgx", "disallowed_trans", "rude_copy"]
+disallowed_trans = []
+rude_copy = []
+vio_private = ["sgx", "direct_decrypt", "access_inner", "access_key"]
+direct_decrypt = []
+access_inner = []
+access_key = []
+vio_unsafe = [ "sgx", "raw_read", "raw_write"]
+raw_read = []
+raw_write = []
+vio_ocall = ["sgx", "leak_log", "leak_net", "leak_file"]
+leak_log = []
+leak_net = []
+leak_file = []
 
 [dependencies]
 sgx_types = { path = "../incubator-teaclave-sgx-sdk/sgx_types"}

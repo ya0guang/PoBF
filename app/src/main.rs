@@ -7,12 +7,13 @@ use clap::{Parser, Subcommand};
 use sgx_types::error::*;
 use sgx_types::types::*;
 use sgx_urts::enclave::SgxEnclave;
+use std::fs::File;
+use std::io::prelude::*;
 
 static ENCLAVE_FILE: &'static str = "enclave.signed.so";
-const SEALED_KEY_BUFFER_SIZE: usize = 1024;
+const OUTPUT_BUFFER_SIZE: usize = 2048;
 
 extern "C" {
-
     fn private_computing_entry(
         eid: EnclaveId,
         retval: *mut SgxStatus,
@@ -24,17 +25,8 @@ extern "C" {
         encrypted_output_buffer_size: u32,
         encrypted_output_size: *mut u32,
     ) -> SgxStatus;
-
-    fn generate_sealed_key(
-        eid: EnclaveId,
-        retval: *mut SgxStatus,
-        sealed_key_ptr: *mut u8,
-        sealed_key_buffer_size: u32,
-        sealed_key_size: *mut u32,
-    ) -> SgxStatus;
 }
 
-/// Simple program to greet a person
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
 #[clap(propagate_version = true)]
@@ -45,89 +37,40 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Generate a sealed input
-    Gen,
-
-    /// Calculate the hash of a sealed input
-    Cal,
+    /// do private computation on encrypted data with a sealed key
+    Cal { key_path: String, data_path: String },
 }
 
 fn main() {
-    let args = Args::parse();
-
     let enclave = match SgxEnclave::create(ENCLAVE_FILE, false) {
         Ok(r) => {
-            println!("[+] Init Enclave Successful {}!", r.eid());
+            println!("[+] Init Enclave Successful, eid: {}!", r.eid());
             r
         }
         Err(x) => {
-            println!("[-] Init Enclave Failed {}!", x.as_str());
+            println!("[-] Init Enclave Failed, reason: {}!", x.as_str());
             return;
         }
     };
 
-    // Encrypted input preparation
-    // Encrypted [42] * 16
-    let encrypted_data: [u8; 16] = [
-        0x29, 0xa2, 0xf0, 0xe4, 0x4a, 0x9c, 0x89, 0xb8, 0xd9, 0x02, 0xe8, 0x93, 0x5b, 0x98, 0xd4,
-        0x52,
-    ];
-    let encrypted_data_mac: [u8; 16] = [
-        0x6b, 0xbb, 0xcb, 0x9c, 0xb8, 0x7e, 0x5b, 0xcb, 0xfe, 0x31, 0x38, 0xf0, 0x9c, 0x1f, 0x0a,
-        0x28,
-    ];
-    let mut encrypted_data_vec = Vec::new();
-    encrypted_data_vec.extend_from_slice(&encrypted_data);
-    encrypted_data_vec.extend_from_slice(&encrypted_data_mac);
-
+    let args = Args::parse();
     match args.command {
-        Commands::Gen => {
-            generate_key(&enclave);
-        }
-        Commands::Cal => {
-            let sealed_key_log = generate_key(&enclave);
+        Commands::Cal {
+            key_path,
+            data_path,
+        } => {
+            // Sealed [0] * 16
+            let mut key_file = File::open(key_path).expect("key file not found");
+            let mut sealed_key_log = Vec::new();
+            key_file.read_to_end(&mut sealed_key_log).unwrap();
+
+            // Encrypted [42] * 16
+            let mut data_file = File::open(data_path).expect("data file not found");
+            let mut encrypted_data_vec = Vec::new();
+            data_file.read_to_end(&mut encrypted_data_vec).unwrap();
             exec_private_computing(&enclave, &sealed_key_log, &encrypted_data_vec);
         }
     };
-}
-
-fn generate_key(enclave: &SgxEnclave) -> Vec<u8> {
-    let mut retval = SgxStatus::Success;
-    let mut encrypted_output_size: u32 = 0;
-
-    let mut sealed_log = [0u8; SEALED_KEY_BUFFER_SIZE as usize];
-
-    let rv = unsafe {
-        generate_sealed_key(
-            enclave.eid(),
-            &mut retval,
-            sealed_log.as_mut_ptr() as *mut u8,
-            SEALED_KEY_BUFFER_SIZE as u32,
-            &mut encrypted_output_size as *mut u32,
-        )
-    };
-
-    match rv {
-        SgxStatus::Success => {}
-        _ => panic!("Failed ECALL to generate sealed key"),
-    }
-
-    // uncomment the following line to print the sealed data
-    // let rv = unsafe {
-    //     verify_sealeddata_for_fixed(
-    //         enclave.geteid(),
-    //         &mut retval,
-    //         sealed_log.as_ptr() as *const u8,
-    //         sealed_key_buffer_size as u32,
-    //     )
-    // };
-    // match rv {
-    //     SgxStatus::Success => {}
-    //     _ => panic!("[-] ECALL Enclave Failed {}!", rv.as_str()),
-    // }
-    // println!("Sealed log after verification: {:?}", sealed_log);
-
-    sealed_log[..encrypted_output_size as _].to_vec()
 }
 
 fn exec_private_computing(
@@ -136,13 +79,10 @@ fn exec_private_computing(
     encrypted_input: &Vec<u8>,
 ) -> Vec<u8> {
     let mut retval = SgxStatus::Success;
-
-    // default output buffer size is 2048
-    let encrypted_output_buffer_size = 2048;
-    let mut encrypted_output: Vec<u8> = vec![0u8; encrypted_output_buffer_size];
+    let mut encrypted_output: Vec<u8> = vec![0u8; OUTPUT_BUFFER_SIZE];
     let mut encrypted_output_size: u32 = 0;
 
-    let rv = unsafe {
+    unsafe {
         private_computing_entry(
             enclave.eid(),
             &mut retval,
@@ -151,11 +91,11 @@ fn exec_private_computing(
             encrypted_input.as_ptr() as *mut u8,
             encrypted_input.len() as u32,
             encrypted_output.as_mut_ptr(),
-            encrypted_output_buffer_size as _,
+            OUTPUT_BUFFER_SIZE as _,
             &mut encrypted_output_size as _,
         )
     };
-    match rv {
+    match retval {
         SgxStatus::Success => {
             println!(
                 "[+] ECALL Successful, returned size: {}",
@@ -164,15 +104,15 @@ fn exec_private_computing(
             encrypted_output.truncate(encrypted_output_size as _);
             println!(
                 "[+] output encrypted data: {:02X?}",
-                &encrypted_output[..(encrypted_output_size - 16) as _]
+                &encrypted_output[..(encrypted_output_size as usize - MAC_SIZE) as _]
             );
             println!(
                 "[+] output encrypted data mac: {:02X?}",
-                &encrypted_output[(encrypted_output_size - 16) as _..]
+                &encrypted_output[(encrypted_output_size as usize - MAC_SIZE) as _..]
             );
         }
         e => {
-            println!("[-] ECALL Enclave Failed {}!", e.as_str());
+            println!("[-] ECALL Enclave Failed, reason: {}!", e.as_str());
         }
     }
 
