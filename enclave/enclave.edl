@@ -1,6 +1,5 @@
 enclave {
-    from "sgx_tstd.edl" import *;
-
+    
     untrusted {
         uint32_t u_log_ocall(
             [in, size = string_capacity]

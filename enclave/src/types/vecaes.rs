@@ -6,8 +6,8 @@ use crate::utils::*;
 use crate::{ocall_log, verified_log};
 use sgx_crypto::aes::gcm::*;
 use sgx_types::error::*;
-use std::vec;
-use std::vec::Vec;
+use alloc::vec;
+use alloc::vec::Vec;
 
 pub struct VecAESData {
     inner: Vec<u8>,

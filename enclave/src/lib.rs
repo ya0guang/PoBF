@@ -3,10 +3,9 @@
 #![cfg_attr(feature = "sgx", no_std)]
 #![feature(vec_into_raw_parts)]
 
-#[cfg(feature = "sgx")]
-#[cfg(not(target_env = "sgx"))]
-extern crate sgx_tstd as std;
 extern crate sgx_types;
+extern crate alloc;
+extern crate sgx_no_tstd;
 #[cfg(not(feature = "sgx"))]
 mod bogus;
 mod ocall;
@@ -19,7 +18,7 @@ mod utils;
 use ocall::*;
 use pobf::*;
 use sgx_types::error::SgxStatus;
-use std::slice;
+use alloc::slice;
 
 #[no_mangle]
 pub extern "C" fn private_computing_entry(
@@ -50,7 +49,7 @@ pub extern "C" fn private_computing_entry(
     let encrypted_output_slice = encrypted_output.as_ref();
     let encrypted_output_length = encrypted_output_slice.len();
     unsafe {
-        std::ptr::write(encrypted_output_size, encrypted_output_length as u32);
+        core::ptr::write(encrypted_output_size, encrypted_output_length as u32);
     }
     if encrypted_output_length > encrypted_output_buffer_size {
         return SgxStatus::Unexpected;

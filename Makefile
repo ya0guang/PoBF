@@ -174,7 +174,7 @@ ifeq ($(BUILD_STD), cargo)
 else ifeq ($(BUILD_STD), xargo)
 	@cd enclave && RUST_TARGET_PATH=$(Rust_Target_Path) xargo build --target $(Rust_Build_Target) $(RustEnclave_Build_Flags)
 else
-	@cd enclave && cargo build $(RustEnclave_Build_Flags) --no-default-features --features "sgx"
+	@cd enclave && cargo build $(RustEnclave_Build_Flags) --features "sgx"
 endif
 
 ######## Run Enclave ########

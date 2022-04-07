@@ -10,7 +10,7 @@ crate-type = ["lib", "staticlib"]
 [features]
 # turn on mirai when veirifying towards mirai
 default = ["leak_log"]
-sgx = ["sgx_tstd", "sgx_trts", "sgx_tseal"]
+sgx = ["sgx_no_tstd", "sgx_trts", "sgx_tseal"]
 rand = ["sgx_rand"]
 # potential violations
 violation = ["vio_typestate", "vio_private", "vio_unsafe", "vio_ocall", "sgx"]
@@ -30,11 +30,12 @@ leak_net = []
 leak_file = []
 
 [dependencies]
-sgx_types = { path = "../incubator-teaclave-sgx-sdk/sgx_types"}
+sgx_types = { path = "../incubator-teaclave-sgx-sdk/sgx_types" }
 sgx_crypto = { path = "../incubator-teaclave-sgx-sdk/sgx_crypto" }
+sgx_no_tstd = { path = "../incubator-teaclave-sgx-sdk/sgx_no_tstd", optional = true }
 sgx_libc = { path = "../incubator-teaclave-sgx-sdk/sgx_libc", default-features = false }
 mirai-annotations = { path = "../../MIRAI/annotations" }
-sgx_tstd = { path = "../incubator-teaclave-sgx-sdk/sgx_tstd", default-features = false, optional = true }
+# sgx_tstd = { path = "../incubator-teaclave-sgx-sdk/sgx_tstd", default-features = false, optional = true }
 sgx_trts = { path = "../incubator-teaclave-sgx-sdk/sgx_trts", optional = true }
 sgx_rand = { path = "../incubator-teaclave-sgx-sdk/sgx_rand", optional = true }
 sgx_tseal = { path = "../incubator-teaclave-sgx-sdk/sgx_tseal", optional = true }

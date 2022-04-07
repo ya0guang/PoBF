@@ -7,7 +7,7 @@ pub mod vecaes;
 pub use vecaes::*;
 
 use sgx_types::error::SgxResult;
-use std::marker::PhantomData;
+use core::marker::PhantomData;
 
 pub const BUFFER_SIZE: usize = 1024;
 pub const SEALED_DATA_SIZE: usize = 16;

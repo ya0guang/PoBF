@@ -5,7 +5,7 @@ use mirai_annotations::*;
 use libc::{c_char, ssize_t};
 use sgx_libc as libc;
 use sgx_types::error::SgxStatus;
-use std::string::String;
+use alloc::string::String;
 
 extern "C" {
     fn u_log_ocall(
@@ -21,7 +21,7 @@ pub fn log(s: String) -> SgxStatus {
     let (string_ptr, len, cap) = s.into_raw_parts();
     let result = unsafe { u_log_ocall(&mut rv as _, string_ptr as _, len as _, cap as _) };
     // automatic Rust drop
-    let _ = unsafe { std::string::String::from_raw_parts(string_ptr, len, cap) };
+    let _ = unsafe { alloc::string::String::from_raw_parts(string_ptr, len, cap) };
     result
 }
 
@@ -51,12 +51,12 @@ macro_rules! ocall_print {
 #[macro_export]
 macro_rules! ocall_log {
     ($str: expr) => {
-        let s = std::format!($str);
+        let s = alloc::format!($str);
         log(s)
     };
     ($formator:expr, $($arg:expr),+ $(,)?) => {
 
-        let s = std::format!($formator, $($arg),+);
+        let s = alloc::format!($formator, $($arg),+);
         log(s)
     };
 }
@@ -64,11 +64,11 @@ macro_rules! ocall_log {
 #[macro_export]
 macro_rules! println {
     () => {
-        log(std::string::String::from("[user function output]"));
+        log(alloc::string::String::from("[user function output]"));
         ocall_log!("\n")
     };
     ($($arg:expr),+ $(,)? ) => {
-        log(std::string::String::from("[user function output]"));
+        log(alloc::string::String::from("[user function output]"));
         ocall_log!($($arg),+);
     }
 }

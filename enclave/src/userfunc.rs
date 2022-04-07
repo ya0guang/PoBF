@@ -1,7 +1,7 @@
 #![forbid(unsafe_code)]
 
 use crate::pobf_verifier::*;
-use std::vec::Vec;
+use alloc::vec::Vec;
 
 pub fn vec_inc(input: Vec<u8>) -> Vec<u8> {
     let step = 1;
