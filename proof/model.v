@@ -181,16 +181,6 @@ Definition raw_access (me: memory) (s: location) : option tagged_value :=
   end.
 
 (* Normal access doens't have restriction on reading to the Zone *)
-Definition access' (me: memory) (mo: mode) (s: location) : @result tagged_value := 
-  let c := me s in
-    match mo, c with
-    | _, UnusedMem => Err([Invalid])
-    | EnclaveMode, AppMem v
-    | EnclaveMode, EncMem _ v => Ok(v)
-    | NormalMode, EncMem _ _ => Err([NoPriviledge])
-    | NormalMode, AppMem v => Ok(v)
-    end.
-
 Definition access (me: memory) (mo: mode) (s: location) : @result tagged_value := 
   let c := me s in
     match mo, c with
@@ -598,7 +588,7 @@ Inductive com_eval_critical : com -> state -> state -> Prop :=
     com_eval_critical c2 (me, mo, vars, ers) st' -> 
     com_eval_critical (CIf b c1 c2) (me, mo, vars, ers) st'
   | E_If_err (me: memory) (mo: mode) (vars: list location) (ers: errors) (Her: ers = [])
-    (b: exp) (c1 c2: com) (st': state) (er: errors):
+    (b: exp) (c1 c2: com) (er: errors):
     exp_as_bool me mo b = Err er -> 
     com_eval_critical (CIf b c1 c2) (me, mo, vars, ers) (me, mo, vars, er ++ ers)
   | E_while_true (me: memory) (mo: mode) (vars: list location) (ers: errors) (Her: ers = [])
@@ -607,11 +597,11 @@ Inductive com_eval_critical : com -> state -> state -> Prop :=
     com_eval_critical c (me, mo, vars, ers) st' -> 
     com_eval_critical (CWhile b c) (me, mo, vars, ers) st'
   | E_while_false (me: memory) (mo: mode) (vars: list location) (ers: errors) (Her: ers = [])
-    (b: exp) (c: com) (st': state):
+    (b: exp) (c: com):
     exp_as_bool me mo b = Ok false -> 
     com_eval_critical (CWhile b c) (me, mo, vars, ers) (me, mo, vars, ers)
   | E_while_err (me: memory) (mo: mode) (vars: list location) (ers: errors) (Her: ers = [])
-    (b: exp) (c: com) (st': state) (er: errors):
+    (b: exp) (c: com) (er: errors):
     exp_as_bool me mo b = Err er -> 
     com_eval_critical (CWhile b c) (me, mo, vars, ers) (me, mo, vars, er ++ ers)
   | E_Err_ignore (me: memory) (mo: mode) (vars: accessible) (ers: errors) 

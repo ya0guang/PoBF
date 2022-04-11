@@ -13,3 +13,9 @@ enclave_t.*
 
 # MISC
 Cargo.lock
+
+# Coq
+*.aux
+*.vo*
+*.glob
+/proof/*Makefile*
