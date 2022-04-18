@@ -182,8 +182,6 @@ def instrument(user_func_prints: List[str]):
             if word.isnumeric():
                 numerics[line] = word
 
-    print(numerics)
-
     source_code_lines = []
     instrument_source_code_lines = []
     with open(source_code_path, 'r') as f:

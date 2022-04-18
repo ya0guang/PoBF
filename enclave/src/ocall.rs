@@ -2,10 +2,10 @@
 #[cfg(not(feature = "sgx"))]
 use mirai_annotations::*;
 
+use alloc::string::String;
 use libc::{c_char, ssize_t};
 use sgx_libc as libc;
 use sgx_types::error::SgxStatus;
-use alloc::string::String;
 
 extern "C" {
     fn u_log_ocall(

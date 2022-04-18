@@ -3,10 +3,10 @@
 #![cfg_attr(feature = "sgx", no_std)]
 #![feature(vec_into_raw_parts)]
 
-extern crate sgx_types;
 extern crate alloc;
 #[cfg(feature = "sgx")]
 extern crate sgx_no_tstd;
+extern crate sgx_types;
 #[cfg(not(feature = "sgx"))]
 mod bogus;
 mod ocall;
@@ -16,10 +16,10 @@ mod types;
 mod userfunc;
 mod utils;
 
+use alloc::slice;
 use ocall::*;
 use pobf::*;
 use sgx_types::error::SgxStatus;
-use alloc::slice;
 
 #[no_mangle]
 pub extern "C" fn private_computing_entry(

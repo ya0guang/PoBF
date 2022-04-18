@@ -4,8 +4,8 @@ use crate::ocall::*;
 use crate::types::*;
 use crate::userfunc::vec_inc;
 use crate::{ocall_log, verified_log};
-use sgx_types::error::SgxResult;
 use alloc::vec::Vec;
+use sgx_types::error::SgxResult;
 
 pub fn pobf_private_computing(
     data_buffer: &[u8],

@@ -4,10 +4,10 @@ use super::*;
 use crate::ocall::*;
 use crate::utils::*;
 use crate::{ocall_log, verified_log};
-use sgx_crypto::aes::gcm::*;
-use sgx_types::error::*;
 use alloc::vec;
 use alloc::vec::Vec;
+use sgx_crypto::aes::gcm::*;
+use sgx_types::error::*;
 
 pub struct VecAESData {
     inner: Vec<u8>,
