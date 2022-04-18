@@ -5,6 +5,7 @@
 
 extern crate sgx_types;
 extern crate alloc;
+#[cfg(feature = "sgx")]
 extern crate sgx_no_tstd;
 #[cfg(not(feature = "sgx"))]
 mod bogus;

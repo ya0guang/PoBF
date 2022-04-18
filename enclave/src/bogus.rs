@@ -2,6 +2,7 @@
 
 use core::marker::PhantomData;
 use sgx_types::error::*;
+use alloc::vec::Vec;
 
 #[derive(Default)]
 pub struct SealedData<T: ?Sized> {
