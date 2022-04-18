@@ -181,7 +181,7 @@ def instrument(user_func_prints: List[str]):
         for word in line.split():
             if word.isnumeric():
                 numerics[line] = word
-
+                
     source_code_lines = []
     instrument_source_code_lines = []
     with open(source_code_path, 'r') as f:
@@ -202,6 +202,7 @@ def instrument(user_func_prints: List[str]):
                     dirty_line = dirty_line.replace(c, '')
                 statement = "verify!(%s == %s);\n" % (dirty_line.split()[-1],
                                                       n_const_str)
+                instrument_source_code_lines.append("#[cfg(mirai)]\n")
                 instrument_source_code_lines.append(statement)
         instrument_source_code_lines.append(line)
 
