@@ -3,17 +3,16 @@ Require Import Logic.FunctionalExtensionality.
 Require Import Lists.List.
 Import ListNotations.
 
-(* Execution modes *)
+(** ** TEE Execution modes *)
 Inductive mode : Type := 
   | NormalMode
   | EnclaveMode (* maybe we should have another critical mode! *)
 .
 
-(* Abstract Memory model *)
+(** * Abstract Memory model *)
 
-(* Content stored in the memory *)
-
-Inductive enc_mem_tag : Type :=
+(** ** Tags *)
+Inductive enclave_tag : Type :=
   | ZoneMem
   | NonzoneMem
 .
@@ -24,6 +23,7 @@ Inductive security_tag : Type :=
   | Nonsense
 .
 
+(** *** security_tag Propagation *)
 Definition sum_two_tags (t1 t2: security_tag) : security_tag := 
   match t1 with
   | Nonsense => Nonsense
@@ -39,6 +39,7 @@ Definition sum_two_tags (t1 t2: security_tag) : security_tag :=
               end
   end.
 
+(** *** Abstract value v' *)
 Inductive value : Type :=
   | ConcreteN (v: nat) (* This may not be a nat here? *)
   | ConcreteB (v: bool)
@@ -46,6 +47,7 @@ Inductive value : Type :=
   | Cleared
 .
 
+(** *** Location l  *)
 Inductive location : Type :=
   | Stack (n: nat) (* the stack should be bounded! *)
   | Ident (s: string)
@@ -63,8 +65,8 @@ Definition eq_location (i1 i2: location) : bool :=
 Theorem eq_location_eq: forall i1 i2, eq_location i1 i2 = true <-> i1 = i2.
 Proof.
   split. 
-  - destruct i1 eqn:eqi1; destruct i2 eqn:eqi2; unfold eq_location; 
-    intros; try discriminate H.
+  - destruct i1 eqn:eqi1; destruct i2 eqn:eqi2; unfold eq_location;
+      intros; try discriminate H. 
     + apply beq_nat_true in H. rewrite H. reflexivity.
     + destruct (string_dec s s0) as [Hs_eq | Hs_not_eq]. subst. reflexivity. discriminate H.
     + reflexivity.
@@ -93,19 +95,21 @@ Proof.
   apply eq_location_eq. reflexivity.
 Qed.
 
-Definition tagged_value: Type := prod value security_tag.
+(** *** TagValue v *)
+Definition tag_value: Type := prod value security_tag.
 
-Definition tagged_value_example: tagged_value := (Any, Secret).
+Definition tag_value_example: tag_value := (Any, Secret).
 
+(** *** Cell c *)
 Inductive cell: Type :=
-  | AppMem (v: tagged_value)
+  | AppMem (v: tag_value)
   | UnusedMem (* may not need this! *)
-  | EncMem (z: enc_mem_tag) (v: tagged_value)
+  | EncMem (z: enclave_tag) (v: tag_value)
 .
 
-Definition cell_example1: cell := AppMem tagged_value_example.
+Definition cell_example1: cell := AppMem tag_value_example.
 
-Definition cell_example2: cell := EncMem ZoneMem tagged_value_example.
+Definition cell_example2: cell := EncMem ZoneMem tag_value_example.
 
 (* Result, memory, mapping, and accessing *)
 
@@ -121,25 +125,25 @@ Inductive result {X: Type} : Type :=
   | Err (e: errors)
 .
 
+(** *** Memory me *)
+(* memory is modeled as a functional list *)
 Definition memory: Type := location -> cell.
 
 Definition loc_in_enclave (me: memory) (l: location) : Prop := 
-  exists (z: enc_mem_tag) (v: tagged_value), me l = EncMem z v.
+  exists (z: enclave_tag) (v: tag_value), me l = EncMem z v.
 
 Definition loc_unused (me: memory) (l: location) : Prop :=
   me l = UnusedMem.
 
 Definition loc_in_app (me: memory) (l: location) : Prop :=
-  exists (v: tagged_value), me l = AppMem v.
+  exists (v: tag_value), me l = AppMem v.
 
 (* Definition empty_mem' (l: location) : memory := 
   (fun _ => UnusedMem). *)
 
+(* all memory locations are initialized to UnusedMem *)
 Definition empty_mem : memory := 
   (fun _ => UnusedMem).
-
-Definition eqb_string (x y : location) : bool :=
-  if eq_location x y then true else false.
 
 Definition update (s: location) (v: cell) (m: memory) : memory := 
   fun s' => if (eq_location s' s) then v else m s'.
@@ -162,7 +166,6 @@ Proof.
   - reflexivity.
 Qed.
 
-
 Lemma update_shadow: forall (me: memory) (l: location) (c1 c2: cell),
   update l c1 (update l c2 me) = update l c1 me.
 Proof.
@@ -171,17 +174,16 @@ Proof.
   reflexivity. reflexivity.
 Qed.
 
-
-(* raw_* is designed for security monitor, and should not be used in *)
-Definition raw_access (me: memory) (s: location) : option tagged_value := 
+(* raw_* is designed for security monitor, and should not be used in programs *)
+Definition raw_access (me: memory) (s: location) : option tag_value := 
   match me s with
   | AppMem v => Some v
   | EncMem _ v => Some v
   | UnusedMem => None
   end.
 
-(* Normal access doens't have restriction on reading to the Zone *)
-Definition access (me: memory) (mo: mode) (s: location) : @result tagged_value := 
+(* Enclave memory access doens't have restriction on reading to the Zone *)
+Definition access (me: memory) (mo: mode) (s: location) : @result tag_value := 
   let c := me s in
     match mo, c with
     | _, UnusedMem => Err([Invalid])
@@ -191,13 +193,14 @@ Definition access (me: memory) (mo: mode) (s: location) : @result tagged_value :
     | NormalMode, AppMem v => Ok(v)
     end.
 
-(* Abstract Syntax: Expressions *)
+(** * Abstract Syntax *)
 
 (* Inductive oprand: Type :=
   | OpLoc (l: location) (* secret level dependet *)
   | OpVal (v: value)    (* secret level always normal *)
 . *)
 
+(** ** Expression *)
 Inductive exp: Type :=
   | ExpLoc (l: location)
   | ExpVal (v: value)
@@ -205,9 +208,7 @@ Inductive exp: Type :=
   | ExpBinary (e1 e2: exp) (op: value -> value -> value)
 .
 
-(* Expression evaluation *)
-
-
+(** *** Expression: tag propagation *)
 Fixpoint exp_prop_tag (me: memory) (mo: mode) (e: exp) : security_tag := 
   match e with
   | ExpLoc l => match access me mo l with
@@ -223,6 +224,7 @@ Fixpoint exp_prop_tag (me: memory) (mo: mode) (e: exp) : security_tag :=
 
 (* bool evaluation *)
 
+(** *** Expression: Evaluation *)
 (* NOT use in interpretation! *)
 Fixpoint raw_exp_eval (me: memory) (e: exp) : @result value := 
   match e with
@@ -266,15 +268,13 @@ Fixpoint exp_eval (me: memory) (mo: mode) (e: exp) : @result value :=
                          end
   end.
 
-Definition exp_tagged_val (me: memory) (mo: mode) (e: exp) : @result tagged_value := 
+Definition exp_tagged_val (me: memory) (mo: mode) (e: exp) : @result tag_value := 
   match (exp_eval me mo e), (exp_prop_tag me mo e) with
   | Ok v, t => Ok (v, t)
   | Err ev, _ => Err ev
   end.
 
-
-(* bool evaluation *)
-
+(** *** Expression: bool evaluation  *)
 Definition value_as_bool (v: value) : bool := 
   match v with
   | ConcreteN n => match n with
@@ -336,12 +336,11 @@ Fixpoint exp_as_bool (me: memory) (mo: mode) (e: exp) : @result bool :=
                          end
   end. *)
 
-(* Abstract Syntax: Statements (commands) *)
-
+(** ** Abstract Syntax: Statements (commands) *)
 Inductive com : Type :=
   | CNop
-  | CEenter
-  | CEexit
+  | CEenter                     (* Enclave specific *)
+  | CEexit                      (* Enclave specific *)
   | CAsgn (l: location) (v: exp)
   | CSeq (c1 c2: com)
   | CIf (b: exp) (c1 c2: com)
@@ -349,6 +348,7 @@ Inductive com : Type :=
   (* Declasification *)
 .
 
+(* a list tracking all accessible vars *)
 Definition accessible: Type := list location.
 
 (* State Machine
@@ -361,9 +361,10 @@ Record State := {
 
 About State. *)
 
+(* procedure is semantically equivalent to com *)
 Definition procedure: Type := com.
 
-
+(** * PoBF: leaked *)
 (* secrets find on places other than the zone *)
 Fixpoint leaked (me: memory) (vars: accessible) : bool := 
   match vars with
@@ -376,7 +377,7 @@ Fixpoint leaked (me: memory) (vars: accessible) : bool :=
             end
   end.
 
-Lemma leaked_no_leak: forall (me: memory) (vars: accessible) (l: location) (tv: tagged_value),
+Lemma leaked_no_leak: forall (me: memory) (vars: accessible) (l: location) (tv: tag_value),
   leaked me vars = false -> In l vars -> raw_access me l = Some tv -> 
   me l = AppMem tv \/ me l = EncMem NonzoneMem tv -> ~(snd tv = Secret).
 Proof.
@@ -401,7 +402,7 @@ Proof.
     + assumption.
 Qed.
 
-Lemma leaked_update': forall (me: memory) (vars: accessible) (l: location) (tv: tagged_value),
+Lemma leaked_update': forall (me: memory) (vars: accessible) (l: location) (tv: tag_value),
   leaked me vars = false -> leaked (update l (EncMem ZoneMem tv) me) vars = false.
 Proof.
   intros. generalize dependent l. generalize dependent tv. generalize dependent H. induction vars.
@@ -427,8 +428,8 @@ Proof.
 Qed.
 
 (* writing new var in the Zone doesn't leak secret *)
-Lemma leaked_update_l: forall (me: memory) (vars: accessible) (l: location) (tv: tagged_value),
-  leaked me vars = false -> leaked (update l (EncMem ZoneMem tv) me) (l::vars) = false.
+Lemma leaked_update_l: forall (me: memory) (vars: accessible) (l: location) (tv: tag_value),
+  leaked me vars = false -> leaked (update l (EncMem ZoneMem tv) me) (l :: vars) = false.
 Proof.
   intros. generalize dependent l. generalize dependent tv. generalize dependent H. induction vars.
   - simpl. intros. unfold update. rewrite eq_location_refl. reflexivity.
@@ -453,6 +454,7 @@ Qed.
               end
   end. *)
 
+(** ** Definition: Critical Procedure *)
 (* accessible vars contain secrets in the zone *)
 (* Critical Should ONLY describe procedure(s) *)
 Fixpoint is_critical (me: memory) (vars: accessible) : bool :=
@@ -503,7 +505,7 @@ Proof.
   intros. inversion H. assert (H1' := H1). apply orb_true_iff in H1. rewrite H1'. assumption.
 Qed.
 
-Lemma cirtical_propagate_sec_zone: forall (me: memory) (vars: accessible) (l: location) (tv: tagged_value),
+Lemma cirtical_propagate_sec_zone: forall (me: memory) (vars: accessible) (l: location) (tv: tag_value),
 (* should not update a location on stack *)
   is_critical me vars = true -> snd(tv) = Secret ->
   is_critical (update l (EncMem ZoneMem tv) me) (l::vars) = true.
@@ -519,7 +521,7 @@ Qed.
 
 (* updating the state may result in declassification of a secret variable in the Zone, which may lead to declassification!!!! *)
 
-(* Lemma cirtical_propagate: forall (me: memory) (vars: accessible) (l: location) (tv: tagged_value),
+(* Lemma cirtical_propagate: forall (me: memory) (vars: accessible) (l: location) (tv: tag_value),
 (* should not update a location on stack *)
   is_critical me vars = true -> 
   is_critical (update l (EncMem ZoneMem tv) me) (l::vars) = true. *)
@@ -540,23 +542,19 @@ Qed.
 (* for critical procedures, secrects need to lay in the Zone *)
 
 Inductive valid_asgn: mode -> memory -> accessible -> Prop :=
-  | VA_Normal_Empty (l: location) (tv: tagged_value):
+  | VA_Normal_Empty (l: location) (tv: tag_value):
     valid_asgn NormalMode (update l (AppMem tv) empty_mem) [l]
-  | VA_Normal_Claim (me: memory) (vars: accessible) (l: location) (tv: tagged_value)
+  | VA_Normal_Claim (me: memory) (vars: accessible) (l: location) (tv: tag_value)
     (Hm: loc_unused me l) (HI: valid_asgn NormalMode me vars):
-    valid_asgn NormalMode (update l (AppMem tv) me) (l::vars)
-  | VA_Normal_Update (me: memory) (vars: accessible) (l: location) (tv: tagged_value)
+    valid_asgn NormalMode (update l (AppMem tv) me) (l :: vars)
+  | VA_Normal_Update (me: memory) (vars: accessible) (l: location) (tv: tag_value)
     (Hm: loc_in_app me l) (HI: valid_asgn NormalMode me vars):
-    valid_asgn NormalMode (update l (AppMem tv) me) (l::vars)
-  
+    valid_asgn NormalMode (update l (AppMem tv) me) (l :: vars)
 .
 
 Definition state: Type := memory * mode * accessible * errors.
 
-(* Semantics *)
-
-Check (length).
-
+(** * Semantics of the Statements *)
 (* interpreter for cirtcal procedures *)
 Inductive com_eval_critical : com -> state -> state -> Prop :=
   | E_Nop (me: memory) (mo: mode) (vars: accessible) (ers: errors) (ers: errors): 
@@ -566,7 +564,7 @@ Inductive com_eval_critical : com -> state -> state -> Prop :=
   | E_Eexit (me: memory) (mo: mode) (vars: accessible) (ers: errors) (Her: ers = []):
     com_eval_critical CEexit (me, mo, vars, ers) (me, NormalMode, vars, ers)
   | E_Asgn_Ok_enc (me: memory) (mo: mode) (vars: accessible) (ers: errors) (Her: ers = [])
-    (l: location) (v: exp) (r: tagged_value) (Hexp: exp_tagged_val me mo v = (Ok r))
+    (l: location) (v: exp) (r: tag_value) (Hexp: exp_tagged_val me mo v = (Ok r))
     (Henc: mo = EnclaveMode):
     (* What if not in the enclave mode? *)
     (* Write restricted in the Zone! *)
@@ -629,7 +627,7 @@ Lemma criticanlness_not_change: forall (c: com) (me me': memory) (mo mo': mode) 
 Proof.
 Admitted.
 
-(* Restricted *)
+(** ** Security Constraint: Restricted *)
 (* for a critical procedure, executing in the critical mode never leads to leakage *)
 Theorem restricted_no_leakage_proc: forall (c: com) (me me': memory) (mo mo': mode) (vars vars': accessible) (ers ers': errors),
   com_eval_critical c (me, mo, vars, ers) (me', mo', vars', ers') ->
@@ -677,13 +675,10 @@ Proof.
 Qed.
 
 (* Procedure(functionn) and task *)
-
 Definition task := list procedure.
 
+(** * Residue *)
 (* And leftover will be considered residue *)
-
-(* Residue handling *)
-
 (* Fixpoints with prime(') denote that the whole memory is considered, including RV *)
 Fixpoint residue_secret' (me: memory) (vars: accessible): bool := 
   match vars with
@@ -708,6 +703,7 @@ Fixpoint residue_secret (me: memory) (vars: accessible): bool :=
               end
   end.
 
+(** ** Zeroize *)
 Fixpoint zeroize' (me: memory) (vars: accessible): memory := 
   match vars with
   | [] => me
@@ -736,7 +732,7 @@ Fixpoint zeroize (me: memory) (vars: accessible): memory :=
   end.
 
 Lemma zeroize_not_effect_nonezone: forall (vars: accessible) (me: memory) (l: location),
-  (forall (tv: tagged_value), ~(me l = EncMem ZoneMem tv)) -> zeroize me vars l = me l.
+  (forall (tv: tag_value), ~(me l = EncMem ZoneMem tv)) -> zeroize me vars l = me l.
 Proof.
   intros vars. induction vars.
   - intros. simpl. reflexivity.
