@@ -146,33 +146,37 @@ Definition loc_in_app (me: memory) (l: location) : Prop :=
 Definition empty_mem : memory := 
   (fun _ => UnusedMem).
 
-Definition update (s: location) (v: cell) (m: memory) : memory := 
-  fun s' => if (eq_location s' s) then v else m s'.
+Definition update (s: location) (v: cell) (m: memory) : memory :=
+  match v with
+  | DummyMem => m
+  | _ => fun s' => if (eq_location s' s) then v else m s'
+  end.
 
 (* update a location different from X desn't affect X's value *)
 Lemma update_invariant: forall (l1 l2: location) (v: cell) (m: memory),
   eq_location l1 l2 = false -> update l2 v m l1 = m l1.
 Proof.
-  intros. unfold update. rewrite H. reflexivity.
+  intros. unfold update. destruct v; try rewrite H; try reflexivity.
 Qed.
 
 Lemma update_comm: forall l1 l2 c1 c2 me,
   l1 <> l2 -> update l1 c1 (update l2 c2 me) = update l2 c2 (update l1 c1 me).
 Proof.
-  intros. extensionality l. unfold update. 
-  destruct (eq_location l l1) eqn: eqll1; destruct (eq_location l l2) eqn: eqll2.
-  - apply eq_location_eq in eqll1. apply eq_location_eq in eqll2. subst. unfold not in H. destruct H. reflexivity.
-  - reflexivity.
-  - reflexivity.
-  - reflexivity.
+  intros. extensionality l. unfold update.
+  destruct c1; destruct c2; try reflexivity;
+    destruct (eq_location l l1) eqn: eqll1; destruct (eq_location l l2) eqn: eqll2; try reflexivity;
+    try (apply eq_location_eq in eqll1; apply eq_location_eq in eqll2;
+         subst; unfold not in H; destruct H); reflexivity.
 Qed.
 
 Lemma update_shadow: forall (me: memory) (l: location) (c1 c2: cell),
-  update l c1 (update l c2 me) = update l c1 me.
+  c1 <> DummyMem -> update l c1 (update l c2 me) = update l c1 me.
 Proof.
   intros. unfold update. extensionality s.
-  destruct (eq_location s l) eqn: eqsl.
-  reflexivity. reflexivity.
+  destruct c1 eqn: eqc1; destruct c2 eqn: eqc2;
+  destruct (eq_location s l) eqn: eqsl;
+    try reflexivity;
+  destruct H; reflexivity.
 Qed.
 
 (* raw_* is designed for security monitor, and should not be used in programs *)
@@ -415,23 +419,16 @@ Proof.
     + simpl. rewrite eqa. intros. discriminate H.
     + simpl. rewrite eqa. intros. destruct (eq_location a l) eqn: eqal. apply eq_location_eq in eqal.
     (* can be simpler *)
-      * subst. unfold update. rewrite eq_location_refl. apply IHvars with tv l in H. unfold update in H. assumption.
-      * subst. unfold update. rewrite eqal. rewrite eqa. apply IHvars with tv l in H. unfold update in H. assumption.
+      * subst. unfold update. apply IHvars with tv l in H. unfold update in H. assumption.
+      * subst. unfold update. apply IHvars with tv l in H. unfold update in H. assumption.        
     + simpl. rewrite eqa. intros. apply IHvars with tv l in H.  destruct (eq_location a l) eqn: eqal;
-      unfold update; unfold update in H.
-      * rewrite eqal. assumption.
-      * rewrite eqal. rewrite eqa. assumption.
+      unfold update; unfold update in H; assumption.
     + simpl. rewrite eqa. intros. apply IHvars with tv l in H.  destruct (eq_location a l) eqn: eqal;
-      unfold update; unfold update in H.
-      * rewrite eqal. assumption.
-      * rewrite eqal. rewrite eqa. assumption.
+      unfold update; unfold update in H; assumption.
     + simpl. rewrite eqa. intros. apply IHvars with tv l in H.  destruct (eq_location a l) eqn: eqal;
-      unfold update; unfold update in H.
-      * rewrite eqal. assumption.
-      * rewrite eqal. rewrite eqa. assumption. 
-    + simpl. rewrite eqa. destruct z eqn: eqz. intros. apply IHvars with tv l in H. destruct (eq_location a l) eqn: eqal; unfold update in *; rewrite eqal.
-      * assumption.
-      * rewrite eqa. assumption.
+      unfold update; unfold update in H; assumption.
+    + simpl. rewrite eqa. destruct z eqn: eqz. intros. apply IHvars with tv l in H.
+      destruct (eq_location a l) eqn: eqal; unfold update in *; try assumption.
       * destruct v. destruct s eqn: eqs; intros; try discriminate H; apply IHvars with tv l in H; unfold update in *; destruct (eq_location a l) eqn: eqal; try rewrite eqa; try assumption; try assumption.
 Qed.
 
@@ -753,80 +750,137 @@ Proof.
     destruct (eq_location l (Stack n)) eqn: eqln. apply eq_location_eq in eqln.
     rewrite <- eqln in eqma. apply H' in eqma. destruct eqma.
     assert (Ha: (update (Stack n) (EncMem ZoneMem (Cleared, Notsecret)) me) l = me l).
-    apply update_invariant. assumption. rewrite <- Ha. apply IHvars. intros. rewrite Ha. apply H'.
-
+    apply update_invariant. assumption. rewrite <- Ha. apply IHvars. intros. rewrite eqln. apply H'.
     destruct (eq_location l (Ident s)) eqn: eqln. apply eq_location_eq in eqln.
     rewrite <- eqln in eqma. apply H' in eqma. destruct eqma.
     assert (Ha: (update (Ident s) (EncMem ZoneMem (Cleared, Notsecret)) me) l = me l).
-    apply update_invariant. assumption. rewrite <- Ha. apply IHvars. intros. rewrite Ha. apply H'.
+    apply update_invariant. assumption. rewrite <- Ha. apply IHvars. intros. rewrite eqln. apply H'.
 Qed.
 
 Lemma zeroize_update_invariant: forall (vars: accessible) (me: memory) (l1 l2: location) (c: cell),
   l1 <> l2 -> zeroize (update l2 c me) vars l1 = zeroize me vars l1.
 Proof.
   intros vars. induction vars.
-  - intros. simpl. unfold update. apply eq_location_ne in H. rewrite H. reflexivity.
+  - intros. simpl. unfold update. apply eq_location_ne in H. destruct c eqn: eqc; try reflexivity;
+    rewrite H; reflexivity.
   - intros. simpl. destruct a eqn: eqa.
     + destruct (eq_location a l2) eqn: eql2a.
-      * unfold update in *. rewrite eqa in eql2a. rewrite eql2a.
+      * unfold update in *. destruct c eqn: eqc;
+        try rewrite eqa in eql2a; try rewrite eql2a;
         destruct (me (Stack n)) eqn: eqma;
-        destruct c eqn: eqc; try destruct z eqn: eqz; try (apply IHvars; assumption);
-        apply eq_location_eq in eql2a; subst.
-        -- assert (Hup:  update (Stack n) (EncMem ZoneMem (Cleared, Notsecret)) (update (Stack n) (EncMem ZoneMem v0) me) = update (Stack n) (EncMem ZoneMem (Cleared, Notsecret)) me).
-        apply update_shadow. unfold update in Hup. rewrite Hup. apply IHvars. assumption.
+        try destruct z eqn: eqz; try (apply IHvars; assumption);
+          apply eq_location_eq in eql2a; try reflexivity;
+          assert (H':= H);
+          try apply IHvars with (me:= me) (c:= c) in H;
+          try (apply IHvars with (me:= me) (c:= c) in H; subst; rewrite H; reflexivity);
+          try (subst; assumption).
+        -- subst. simpl in *. rewrite H. symmetry.
+           apply IHvars with (me:=me) (c:= (EncMem ZoneMem (Cleared, Notsecret))) in H'. assumption.
+        -- subst. simpl in *. rewrite H. symmetry.
+           apply IHvars with (me:=me) (c:= (EncMem ZoneMem (Cleared, Notsecret))) in H'. assumption.
         -- assert (Hup:  update (Stack n) (EncMem ZoneMem (Cleared, Notsecret)) (update (Stack n) (EncMem ZoneMem v) me) = update (Stack n) (EncMem ZoneMem (Cleared, Notsecret)) me).
-           apply update_shadow. unfold update in Hup. rewrite Hup. apply IHvars. assumption.
+           { apply update_shadow. unfold not. intros. inversion H0. }
+           unfold update in Hup. subst. rewrite Hup.
+           apply IHvars with (me:=me) (c:= (EncMem ZoneMem (Cleared, Notsecret))) in H'. assumption.
         -- assert (Hup:  update (Stack n) (EncMem ZoneMem (Cleared, Notsecret)) (update (Stack n) (EncMem ZoneMem v) me) = update (Stack n) (EncMem ZoneMem (Cleared, Notsecret)) me).
-           apply update_shadow. unfold update in Hup. rewrite Hup. apply IHvars. assumption.
-        -- assert (H' := H). apply IHvars with (me:= me) (c:= AppMem v0) in H. rewrite H. symmetry. 
-        apply IHvars. assumption.
-        -- assert (H' := H). apply IHvars with (me:= me) (c:= DummyMem) in H. rewrite H. symmetry. 
-           apply IHvars. assumption.
-        -- assert (H' := H). apply IHvars with (me:= me) (c:= UnusedMem) in H. rewrite H. symmetry. 
-           apply IHvars. assumption.
-        -- destruct z0 eqn: eqz. 
-          assert (Hup:  update (Stack n) (EncMem ZoneMem (Cleared, Notsecret)) (update (Stack n) (EncMem ZoneMem v0) me) = update (Stack n) (EncMem ZoneMem (Cleared, Notsecret)) me). apply update_shadow. unfold update in Hup. rewrite Hup. reflexivity.
-          assert (H' := H). apply IHvars with (me:= me) (c:= EncMem NonzoneMem v0) in H. rewrite H. 
-          symmetry. apply IHvars. assumption.
-        -- destruct z0 eqn: eqz. 
-          assert (Hup:  update (Stack n) (EncMem ZoneMem (Cleared, Notsecret)) (update (Stack n) (EncMem ZoneMem v0) me) = update (Stack n) (EncMem ZoneMem (Cleared, Notsecret)) me). apply update_shadow. unfold update in Hup. rewrite Hup.  apply IHvars. assumption.
-          apply IHvars. assumption.
-      * unfold update in *. rewrite eqa in eql2a. rewrite eql2a.
-        destruct (me (Stack n)) eqn: eqma; try apply IHvars; try assumption.
-        destruct z eqn: eqz. 
-        assert (Ha: update (Stack n) (EncMem ZoneMem (Cleared, Notsecret)) (update l2 c me) = update l2 c (update (Stack n) (EncMem ZoneMem (Cleared, Notsecret)) me)). apply update_comm. apply eq_location_ne in eql2a. assumption. unfold update in Ha. rewrite Ha.
-        apply IHvars. assumption.
-        apply IHvars. assumption.
+           { apply update_shadow. unfold not. intros. inversion H0. }
+           unfold update in Hup. subst. rewrite Hup.
+           apply IHvars with (me:=me) (c:= (EncMem ZoneMem (Cleared, Notsecret))) in H'. assumption.
+        -- assert (Hup:  update (Stack n) (EncMem ZoneMem (Cleared, Notsecret)) (update (Stack n) (EncMem ZoneMem v) me) = update (Stack n) (EncMem ZoneMem (Cleared, Notsecret)) me).
+           { apply update_shadow. unfold not. intros. inversion H0. }
+           unfold update in Hup. subst. rewrite Hup.
+           apply IHvars with (me:=me) (c:= (EncMem ZoneMem (Cleared, Notsecret))) in H'. assumption.
+        -- assert (Hup:  update (Stack n) (EncMem ZoneMem (Cleared, Notsecret)) (update (Stack n) (EncMem ZoneMem v) me) = update (Stack n) (EncMem ZoneMem (Cleared, Notsecret)) me).
+          { apply update_shadow. unfold not. intros. inversion H0. }
+          destruct z0 eqn: eqz0;
+            unfold update in Hup; subst; rewrite Hup.
+          reflexivity. 
+          apply IHvars with (me:=me) (c:= (EncMem ZoneMem (Cleared, Notsecret))) in H'. assumption.
+        -- subst.
+          destruct z0 eqn: eqz0.
+          apply IHvars with (me:=me) (c:= (EncMem ZoneMem (Cleared, Notsecret))) in H'.
+          rewrite H'. assumption.
+          assumption.
+      * destruct c eqn: eqc;
+        unfold update in *; rewrite eqa in eql2a; try rewrite eql2a;
+        destruct (me (Stack n)) eqn: eqma; try apply IHvars;
+          try destruct z0 eqn: eqz0; try reflexivity;
+          try (apply IHvars with (me:= me) (c:= c) in H; subst; assumption).
+        -- destruct z eqn: eqz.
+           assert (Ha: update (Stack n) (EncMem ZoneMem (Cleared, Notsecret)) (update l2 c me) = update l2 c (update (Stack n) (EncMem ZoneMem (Cleared, Notsecret)) me)).
+           { apply update_comm. apply eq_location_ne in eql2a. assumption. }
+           apply IHvars with (me:= update (Stack n) (EncMem ZoneMem (Cleared, Notsecret)) me) (c:= c) in H. rewrite eqc in H.
+           unfold update in *. subst. simpl in Ha. rewrite Ha. assumption.
+           apply IHvars with (me:=me) (c:=c) in H. subst. assumption.
+        -- destruct z eqn: eqz.
+           assert (Ha: update (Stack n) (EncMem ZoneMem (Cleared, Notsecret)) (update l2 c me) = update l2 c (update (Stack n) (EncMem ZoneMem (Cleared, Notsecret)) me)).
+           { apply update_comm. apply eq_location_ne in eql2a. assumption. }
+           apply IHvars with (me:= update (Stack n) (EncMem ZoneMem (Cleared, Notsecret)) me) (c:= c) in H. rewrite eqc in H.
+           unfold update in *. subst. simpl in Ha. rewrite Ha. assumption.
+           apply IHvars with (me:=me) (c:=c) in H. subst. assumption.
+        --  assert (Ha: update (Stack n) (EncMem ZoneMem (Cleared, Notsecret)) (update l2 c me) = update l2 c (update (Stack n) (EncMem ZoneMem (Cleared, Notsecret)) me)).
+           { apply update_comm. apply eq_location_ne in eql2a. assumption. }
+           apply IHvars with (me:= update (Stack n) (EncMem ZoneMem (Cleared, Notsecret)) me) (c:= c) in H. rewrite eqc in H.
+           unfold update in *. subst. simpl in Ha. rewrite Ha. assumption.
+           
     + destruct (eq_location a l2) eqn: eql2a.
-      * unfold update in *. rewrite eqa in eql2a. rewrite eql2a.
+      * unfold update in *. destruct c eqn: eqc;
+        try rewrite eqa in eql2a; try rewrite eql2a;
         destruct (me (Ident s)) eqn: eqma;
-        destruct c eqn: eqc; try destruct z eqn: eqz; try (apply IHvars; assumption);
-        apply eq_location_eq in eql2a; subst.
-        -- assert (Hup:  update (Ident s) (EncMem ZoneMem (Cleared, Notsecret)) (update (Ident s) (EncMem ZoneMem v0) me) = update (Ident s) (EncMem ZoneMem (Cleared, Notsecret)) me).
-        apply update_shadow. unfold update in Hup. rewrite Hup. apply IHvars. assumption.
+        try destruct z eqn: eqz; try (apply IHvars; assumption);
+          apply eq_location_eq in eql2a; try reflexivity;
+          assert (H':= H);
+          try apply IHvars with (me:= me) (c:= c) in H;
+          try (apply IHvars with (me:= me) (c:= c) in H; subst; rewrite H; reflexivity);
+          try (subst; assumption).
+        -- subst. simpl in *. rewrite H. symmetry.
+           apply IHvars with (me:=me) (c:= (EncMem ZoneMem (Cleared, Notsecret))) in H'. assumption.
+        -- subst. simpl in *. rewrite H. symmetry.
+           apply IHvars with (me:=me) (c:= (EncMem ZoneMem (Cleared, Notsecret))) in H'. assumption.
         -- assert (Hup:  update (Ident s) (EncMem ZoneMem (Cleared, Notsecret)) (update (Ident s) (EncMem ZoneMem v) me) = update (Ident s) (EncMem ZoneMem (Cleared, Notsecret)) me).
-           apply update_shadow. unfold update in Hup. rewrite Hup. apply IHvars. assumption.
+           { apply update_shadow. unfold not. intros. inversion H0. }
+           unfold update in Hup. subst. rewrite Hup.
+           apply IHvars with (me:=me) (c:= (EncMem ZoneMem (Cleared, Notsecret))) in H'. assumption.
         -- assert (Hup:  update (Ident s) (EncMem ZoneMem (Cleared, Notsecret)) (update (Ident s) (EncMem ZoneMem v) me) = update (Ident s) (EncMem ZoneMem (Cleared, Notsecret)) me).
-        apply update_shadow. unfold update in Hup. rewrite Hup. apply IHvars. assumption.
-        -- assert (H' := H). apply IHvars with (me:= me) (c:= AppMem v0) in H. rewrite H. symmetry. 
-           apply IHvars. assumption.
-        -- assert (H' := H). apply IHvars with (me:= me) (c:= DummyMem) in H. rewrite H. symmetry. 
-           apply IHvars. assumption.
-        -- assert (H' := H). apply IHvars with (me:= me) (c:= UnusedMem) in H. rewrite H. symmetry. 
-        apply IHvars. assumption.
-        -- destruct z0 eqn: eqz. 
-          assert (Hup:  update (Ident s) (EncMem ZoneMem (Cleared, Notsecret)) (update (Ident s) (EncMem ZoneMem v0) me) = update (Ident s) (EncMem ZoneMem (Cleared, Notsecret)) me). apply update_shadow. unfold update in Hup. rewrite Hup. reflexivity.
-          assert (H' := H). apply IHvars with (me:= me) (c:= EncMem NonzoneMem v0) in H. rewrite H. 
-          symmetry. apply IHvars. assumption.
-        -- destruct z0 eqn: eqz. 
-          assert (Hup:  update (Ident s) (EncMem ZoneMem (Cleared, Notsecret)) (update (Ident s) (EncMem ZoneMem v0) me) = update (Ident s) (EncMem ZoneMem (Cleared, Notsecret)) me). apply update_shadow. unfold update in Hup. rewrite Hup.  apply IHvars. assumption.
-          apply IHvars. assumption.
-      * unfold update in *. rewrite eqa in eql2a. rewrite eql2a.
-        destruct (me (Ident s)) eqn: eqma; try apply IHvars; try assumption.
-        destruct z eqn: eqz. 
-        assert (Ha: update (Ident s) (EncMem ZoneMem (Cleared, Notsecret)) (update l2 c me) = update l2 c (update (Ident s) (EncMem ZoneMem (Cleared, Notsecret)) me)). apply update_comm. apply eq_location_ne in eql2a. assumption. unfold update in Ha. rewrite Ha.
-        apply IHvars. assumption.
-        apply IHvars. assumption.
+           { apply update_shadow. unfold not. intros. inversion H0. }
+           unfold update in Hup. subst. rewrite Hup.
+           apply IHvars with (me:=me) (c:= (EncMem ZoneMem (Cleared, Notsecret))) in H'. assumption.
+        -- assert (Hup:  update (Ident s) (EncMem ZoneMem (Cleared, Notsecret)) (update (Ident s) (EncMem ZoneMem v) me) = update (Ident s) (EncMem ZoneMem (Cleared, Notsecret)) me).
+           { apply update_shadow. unfold not. intros. inversion H0. }
+           unfold update in Hup. subst. rewrite Hup.
+           apply IHvars with (me:=me) (c:= (EncMem ZoneMem (Cleared, Notsecret))) in H'. assumption.
+        -- assert (Hup:  update (Ident s) (EncMem ZoneMem (Cleared, Notsecret)) (update (Ident s) (EncMem ZoneMem v) me) = update (Ident s) (EncMem ZoneMem (Cleared, Notsecret)) me).
+          { apply update_shadow. unfold not. intros. inversion H0. }
+          destruct z0 eqn: eqz0;
+            unfold update in Hup; subst; rewrite Hup.
+          reflexivity. 
+          apply IHvars with (me:=me) (c:= (EncMem ZoneMem (Cleared, Notsecret))) in H'. assumption.
+        -- subst.
+          destruct z0 eqn: eqz0.
+          apply IHvars with (me:=me) (c:= (EncMem ZoneMem (Cleared, Notsecret))) in H'.
+          rewrite H'. assumption.
+          assumption.
+      * destruct c eqn: eqc;
+        unfold update in *; rewrite eqa in eql2a; try rewrite eql2a;
+        destruct (me (Ident s)) eqn: eqma; try apply IHvars;
+          try destruct z0 eqn: eqz0; try reflexivity;
+          try (apply IHvars with (me:= me) (c:= c) in H; subst; assumption).
+        -- destruct z eqn: eqz.
+           assert (Ha: update (Ident s) (EncMem ZoneMem (Cleared, Notsecret)) (update l2 c me) = update l2 c (update (Ident s) (EncMem ZoneMem (Cleared, Notsecret)) me)).
+           { apply update_comm. apply eq_location_ne in eql2a. assumption. }
+           apply IHvars with (me:= update (Ident s) (EncMem ZoneMem (Cleared, Notsecret)) me) (c:= c) in H. rewrite eqc in H.
+           unfold update in *. subst. simpl in Ha. rewrite Ha. assumption.
+           apply IHvars with (me:=me) (c:=c) in H. subst. assumption.
+        -- destruct z eqn: eqz.
+           assert (Ha: update (Ident s) (EncMem ZoneMem (Cleared, Notsecret)) (update l2 c me) = update l2 c (update (Ident s) (EncMem ZoneMem (Cleared, Notsecret)) me)).
+           { apply update_comm. apply eq_location_ne in eql2a. assumption. }
+           apply IHvars with (me:= update (Ident s) (EncMem ZoneMem (Cleared, Notsecret)) me) (c:= c) in H. rewrite eqc in H.
+           unfold update in *. subst. simpl in Ha. rewrite Ha. assumption.
+           apply IHvars with (me:=me) (c:=c) in H. subst. assumption.
+        --  assert (Ha: update (Ident s) (EncMem ZoneMem (Cleared, Notsecret)) (update l2 c me) = update l2 c (update (Ident s) (EncMem ZoneMem (Cleared, Notsecret)) me)).
+           { apply update_comm. apply eq_location_ne in eql2a. assumption. }
+           apply IHvars with (me:= update (Ident s) (EncMem ZoneMem (Cleared, Notsecret)) me) (c:= c) in H. rewrite eqc in H.
+           unfold update in *. subst. simpl in Ha. rewrite Ha. assumption.
     + apply IHvars. assumption.
 Qed.
 
@@ -839,33 +893,90 @@ Proof.
     + destruct (eq_location a l) eqn: eqal. 
       (* eq_location a l = true *)
       apply eq_location_eq in eqal. subst.
-      unfold update. rewrite eq_location_refl. 
+      unfold update. Search (Nat.eqb).
+      rewrite Nat.eqb_refl.
       assert (Hup:  update (Stack n) (EncMem ZoneMem (Cleared, Notsecret)) (update (Stack n) (EncMem ZoneMem (Cleared, Notsecret)) me) = update (Stack n) (EncMem ZoneMem (Cleared, Notsecret)) me).
-      apply update_shadow. unfold update in *. rewrite Hup. 
-      apply IHvars. auto. unfold update. rewrite eqa in eqal. rewrite eqal. destruct (me (Stack n)) eqn: eqma; unfold update in IHvars; try apply IHvars; try assumption.
+      { apply update_shadow. unfold update in *. unfold not. intros. discriminate H0. }
+      unfold update in Hup. rewrite Hup. apply IHvars. auto.
+      unfold update. rewrite eqa in eqal. rewrite eq_location_ne in eqal.
+      destruct l eqn: eql.
+      assert (Hnn0: n <> n0).  {unfold not in *. intros. apply eqal. rewrite H0. reflexivity. }
+      assert (Hnn0':= Hnn0).
+      apply Nat.eqb_neq in Hnn0. rewrite Hnn0.
+      * destruct (me (Stack n)) eqn: eqma; unfold update in IHvars; try apply IHvars; try assumption.
       (* eq_location a l = false *)
       destruct z eqn: eqz.
       (* Zonemem *)
-      apply eq_location_ne in eqal. assert (Hn: Stack n <> RV). unfold not. intros. inversion H0. 
-      assert (Hln : l <> Stack n). auto.
-      apply zeroize_update_invariant with (vars:=vars) (me:=(update l (EncMem ZoneMem (Cleared, Notsecret)) me)) (c:=EncMem ZoneMem (Cleared, Notsecret)) in Hln. unfold update in Hln. rewrite Hln. apply IHvars. assumption.
+      apply eq_location_ne in eqal. assert (Hn: Stack n <> RV).
+      { unfold not. intros. inversion H0. }
+      assert (Hln : l <> Stack n).
+      { unfold not. intros.  rewrite eql in H0. inversion H0. rewrite H2 in Hnn0'. destruct Hnn0'. reflexivity. }
+      apply zeroize_update_invariant with (vars:=vars) (me:=(update l (EncMem ZoneMem (Cleared, Notsecret)) me)) (c:=EncMem ZoneMem (Cleared, Notsecret)) in Hln.
+      unfold update in Hln. rewrite eql in Hln. rewrite Hln. apply IHvars. assumption.
       (* Nonzonemem *)
       apply IHvars. assumption.
-    + destruct (eq_location a l) eqn: eqal. 
+      * destruct (me (Stack n)) eqn: eqma; unfold update in IHvars; try apply IHvars; try assumption.
+      (* eq_location a l = false *)
+      destruct z eqn: eqz.
+      (* Zonemem *)
+      apply eq_location_ne in eqal. assert (Hn: Stack n <> RV).
+      { unfold not. intros. inversion H0. }
+      assert (Hln : l <> Stack n).
+      { unfold not. intros. rewrite eql in H0. inversion H0. } 
+      apply zeroize_update_invariant with (vars:=vars) (me:=(update l (EncMem ZoneMem (Cleared, Notsecret)) me)) (c:=EncMem ZoneMem (Cleared, Notsecret)) in Hln.
+      unfold update in Hln. rewrite eql in Hln. rewrite Hln. apply IHvars. assumption.
+      (* Nonzonemem *)
+      apply IHvars. assumption.
+    * destruct (me (Stack n)) eqn: eqma; unfold update in IHvars; try apply IHvars; try assumption.
+      (* eq_location a l = false *)
+      destruct z eqn: eqz.
+      (* Zonemem *)
+      apply eq_location_ne in eqal. assert (Hn: Stack n <> RV).
+      { unfold not. intros. inversion H0. }
+      assert (Hln : l <> Stack n).
+      { unfold not. intros. rewrite eql in H0. inversion H0. } 
+      apply zeroize_update_invariant with (vars:=vars) (me:=(update l (EncMem ZoneMem (Cleared, Notsecret)) me)) (c:=EncMem ZoneMem (Cleared, Notsecret)) in Hln.
+      unfold update in Hln. rewrite eql in Hln. rewrite Hln. apply IHvars. assumption.
+      (* Nonzonemem *)
+      apply IHvars. assumption.
+    + destruct (eq_location a l) eqn: eqal.
+      *
       (* eq_location a l = true *)
       apply eq_location_eq in eqal. subst.
-      unfold update. rewrite eq_location_refl. 
+      unfold update.
+      destruct (string_dec s s) eqn: eqss.
       assert (Hup: update (Ident s) (EncMem ZoneMem (Cleared, Notsecret)) (update (Ident s) (EncMem ZoneMem (Cleared, Notsecret)) me) = update (Ident s) (EncMem ZoneMem (Cleared, Notsecret)) me).
-      apply update_shadow. unfold update in *. rewrite Hup. 
-      apply IHvars. auto. unfold update. rewrite eqa in eqal. rewrite eqal. destruct (me (Ident s)) eqn: eqma; unfold update in IHvars; try apply IHvars; try assumption.
-      (* eq_location a l = false *)
+      { apply update_shadow. intros H'. inversion H'. }
+      unfold update in *. rewrite Hup. 
+      apply IHvars. auto. unfold update.
+      destruct (me (Ident s)) eqn: eqma; unfold update in IHvars; try apply IHvars; try assumption.
       destruct z eqn: eqz.
       (* Zonemem *)
-      apply eq_location_ne in eqal. assert (Hn: Ident s <> RV). unfold not. intros. inversion H0. 
-      assert (Hln : l <> Ident s). auto.
-      apply zeroize_update_invariant with (vars:=vars) (me:=(update l (EncMem ZoneMem (Cleared, Notsecret)) me)) (c:=EncMem ZoneMem (Cleared, Notsecret)) in Hln. unfold update in Hln. rewrite Hln. apply IHvars. assumption.
+      assert (Hn: Ident s <> RV). unfold not. intros. inversion H0. 
+      assert (Hln : RV <> Ident s). auto.
+      apply zeroize_update_invariant with (vars:=vars) (me:=(update RV (EncMem ZoneMem (Cleared, Notsecret)) me)) (c:=EncMem ZoneMem (Cleared, Notsecret)) in Hln. unfold update in Hln.
+      apply IHvars. assumption.
       (* Nonzonemem *)
       apply IHvars. assumption.
+      * (* eq_location a l = false *) subst.
+        destruct l eqn: eql.
+        -- destruct (me (Ident s)) eqn: eqmel; try apply IHvars; try assumption.
+           destruct z eqn: eqz.
+           apply IHvars with (me:= (update (Ident s) (EncMem ZoneMem (Cleared, Notsecret)) me)) in H. unfold update in H.
+           assert (Hup: update (Ident s) (EncMem ZoneMem (Cleared, Notsecret)) (update (Stack n) (EncMem ZoneMem (Cleared, Notsecret)) me) = update (Stack n) (EncMem ZoneMem (Cleared, Notsecret)) (update (Ident s) (EncMem ZoneMem (Cleared, Notsecret)) me)).
+           { apply update_comm. intros H'. inversion H'. }
+           unfold update in *. rewrite Hup.  apply H.
+           apply IHvars. assumption.
+        -- destruct ( string_dec s s0). rewrite e in eqal.
+           rewrite eq_location_refl in eqal. inversion eqal.
+           destruct (me (Ident s)) eqn: eqmel; try apply IHvars; try assumption.
+           destruct z eqn: eqz.
+           apply IHvars with (me:= (update (Ident s) (EncMem ZoneMem (Cleared, Notsecret)) me)) in H. unfold update in H.
+           assert (Hup: update (Ident s) (EncMem ZoneMem (Cleared, Notsecret)) (update (Ident s0) (EncMem ZoneMem (Cleared, Notsecret)) me) = update (Ident s0) (EncMem ZoneMem (Cleared, Notsecret)) (update (Ident s) (EncMem ZoneMem (Cleared, Notsecret)) me)).
+           { apply update_comm. intros H'. inversion H'. rewrite H1 in n. destruct n. reflexivity. }
+           unfold update in *. rewrite Hup. apply H.
+           apply IHvars. assumption.
+        -- destruct H. reflexivity.
     + apply IHvars. assumption.
 Qed.
 
@@ -909,7 +1020,7 @@ Proof.
       * destruct z eqn: eqz; simpl in H; rewrite eqma in H.
         assert (Ha: zeroize (update (Stack n) (EncMem ZoneMem (Cleared, Notsecret)) me) vars
         (Stack n) =(EncMem ZoneMem (Cleared, Notsecret))).
-        apply zeroize_zeroize_zone. unfold not. intros. inversion H0.
+        apply zeroize_zeroize_zone. unfold not. intros. inversion H0. unfold update in Ha.
         rewrite Ha. apply IHvars. apply leaked_update'. simpl in H. assumption.
         (* nonzone *)
         assert (Ha: forall tv, me a <> EncMem ZoneMem tv). unfold not; intros tv Ha'. subst.
@@ -920,7 +1031,7 @@ Proof.
         assert (Ha: zeroize (update (Ident s) (EncMem ZoneMem (Cleared, Notsecret)) me) vars
         (Ident s) =(EncMem ZoneMem (Cleared, Notsecret))).
         apply zeroize_zeroize_zone. unfold not. intros. inversion H0.
-        rewrite Ha. apply IHvars. apply leaked_update'. simpl in H. assumption.
+        unfold update in Ha. rewrite Ha. apply IHvars. apply leaked_update'. simpl in H. assumption.
         (* nonzone *)
         assert (Ha: forall tv, me a <> EncMem ZoneMem tv). unfold not; intros tv Ha'. subst.
         rewrite eqma in Ha'. inversion Ha'. apply zeroize_not_effect_nonezone with vars me a in Ha.
@@ -929,3 +1040,4 @@ Proof.
       * apply IHvars. simpl in H. rewrite eqma in H. destruct z eqn: eqz. assumption.
         destruct v. destruct s eqn: eqs. discriminate H. assumption. assumption.
 Qed.
+
