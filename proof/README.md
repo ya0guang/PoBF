@@ -1,6 +1,11 @@
 # Proof of PoBF Constraints
 
-- Granularity of this model:
+The model is built on the **language** level, rather than on the **machine** level.
+Therefore the model is mahcine-independent, but mimics the behaviors of common imperative 
+
+## Concerns
+
+- May the model be too general? i.e., not modeling specific enclaves
 
 ## Capabilities of the Abstract Machine Model
 
@@ -34,7 +39,7 @@ Allowed operations
 - Dereference
 - **Declassification/Encryption**: how
 - Branch
-- Jump (**call** & direct jump with the function)
+- Loop
 - **Any others**?
 
 ### Execution
