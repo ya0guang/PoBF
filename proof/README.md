@@ -64,3 +64,9 @@ loc := Stack(n) | Var(str) | RV
 exp := Loc(loc) | Val(v) | Unary(exp, op) | Binary(exp1, exp2, op)
 com := Nop | Eenter | Eexit | Asgn (loc, exp) | Seq(com1, com2) 
       | If(exp, comt, come) | While(exp, com) | *call* | *declassification* 
+
+## Usage
+
+First, make sure that Coq is correctly installed.
+Then run `coq_makefile -f _CoqProject -o Makefile` to generate a makefile.
+Last, run `make` to compile the proof.

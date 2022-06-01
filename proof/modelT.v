@@ -222,112 +222,158 @@ Inductive Tcom_eval_critical : ThreadId -> com -> Tstate -> Tstate -> Prop :=
 .
 
 (* Singlize the multi-threading state-related data structures *)
-Definition singlize_Tcell (tid: ThreadId) (c: Tcell) := 
+Definition singlize_Tcell (tid: ThreadId) (c: Tcell) : cell := 
   match c with
-  | TDummyMem => TDummyMem
+  | TDummyMem => DummyMem
   | TAppMem v => AppMem v
   | TUnusedMem => UnusedMem
   | TEncMem t z v
-    => if (t =? tid) then EncMem z v else UnusedMem
+    => if (t =? tid) then EncMem z v else DummyMem
   end.
 
-Fixpoint singlize_accessible (tid: ThreadId) (vars: accessible) : accessible := 
-  match vars with
-  | [] => []
-  | h :: t => if (fst h =? tid) then (snd h) :: (singlize_accessible tid t) else (singlize_accessible tid t)
-  end.
+(* Fixpoint singlize_accessible (tid: ThreadId) (vars: accessible) : accessible :=  *)
+(*   match vars with *)
+(*   | [] => [] *)
+(*   | h :: t => if (fst h =? tid) then (snd h) :: (singlize_accessible tid t) else (singlize_accessible tid t) *)
+(*   end. *)
 
 Fixpoint singlize_Tmemory (tid: ThreadId) (me: Tmemory) (vars: accessible) : memory := 
   match vars with
   | [] => empty_mem
-  | h :: t => update (snd h) (singlize_Tcell (fst h) (me h)) (singlize_Tmemory tid me t)
+  | h :: t => update h (singlize_Tcell tid (me h)) (singlize_Tmemory tid me t)
   end.
 
 Lemma singlize_Tapp_app: forall me tid l v vars,
-  In (tid, l) vars ->
-  me (tid, l) = TAppMem v -> (singlize_Tmemory tid me vars) l = AppMem v.
+  In l vars ->
+  me l = TAppMem v -> (singlize_Tmemory tid me vars) l = AppMem v.
 Proof.
   intros. induction vars.
   - inversion H.
-  - simpl. destruct a. simpl in *. destruct H.
-    + inversion H. subst. unfold singlize_Tcell. rewrite H0. unfold update. rewrite eq_location_refl. reflexivity.
-    + unfold update. destruct (eq_location l l0) eqn:eqll0.
-      * apply eq_location_eq in eqll0. subst.
-        apply T_access_App_shared with (tid':=t) in H0.
-        rewrite H0. simpl. reflexivity.
-      * apply IHvars. assumption.
+  - inversion H.
+    + subst. unfold singlize_Tmemory. rewrite H0. simpl.
+      rewrite eq_location_refl. reflexivity.
+    + simpl. apply IHvars in H1.
+      unfold update. unfold singlize_Tcell.
+      destruct (me a) eqn: eqa; try destruct (eq_location l a) eqn: eqla;
+        try assumption.
+      * apply eq_location_eq in eqla. subst.
+        assert (Ha: TAppMem v = TAppMem v0).
+        { rewrite <- eqa. rewrite <- H0. reflexivity. }
+        inversion Ha. reflexivity.
+      * apply eq_location_eq in eqla. subst.
+        rewrite H0 in eqa. inversion eqa.
+      * apply eq_location_eq in eqla. subst.
+        rewrite H0 in eqa. inversion eqa.
+      * destruct (t =? tid) eqn: eqt.
+        rewrite eqla. assumption. assumption.
 Qed.
 
 Lemma singlize_Tunused_unused: forall me tid l vars,
-  In (tid, l) vars ->
-  me (tid, l) = TUnusedMem -> (singlize_Tmemory tid me vars) l = UnusedMem.
+  In l vars ->
+  me l = TUnusedMem -> (singlize_Tmemory tid me vars) l = UnusedMem.
 Proof.
   intros. induction vars.
   - inversion H.
-  - simpl. destruct a. simpl in *. destruct H.
-    + inversion H. subst. unfold singlize_Tcell. rewrite H0. unfold update. rewrite eq_location_refl. reflexivity.
-    + unfold update. destruct (eq_location l l0) eqn:eqll0.
-      * apply eq_location_eq in eqll0. subst.
-        apply T_access_Unused_shared with (tid':=t) in H0.
-        rewrite H0. simpl. reflexivity.
-      * apply IHvars. assumption.
+  - inversion H.
+    + subst. unfold singlize_Tmemory. rewrite H0. simpl.
+      rewrite eq_location_refl. reflexivity.
+    + simpl. apply IHvars in H1.
+      unfold update. unfold singlize_Tcell.
+      destruct (me a) eqn: eqa; try destruct (eq_location l a) eqn: eqla;
+        try assumption.
+      * apply eq_location_eq in eqla. subst.
+        rewrite H0 in eqa. inversion eqa.
+      * reflexivity.
+      * apply eq_location_eq in eqla. subst.
+        rewrite H0 in eqa. inversion eqa.
+      * destruct (t =? tid) eqn: eqt.
+        rewrite eqla. assumption. assumption.
 Qed.
 
 Definition singlize_Tstate (tid: ThreadId) (st: Tstate) : state := 
   match st with
-  | (me, mo, vars, ers) => ((singlize_Tmemory tid me vars), mo, (singlize_accessible tid vars), ers)
+  | (me, mo, vars, ers) => ((singlize_Tmemory tid me vars), mo, vars, ers)
   end.
 
-Fixpoint singlize_Texp (te: exp) : exp :=
-  match te with
-  | TExpLoc l => ExpLoc (snd l)
-  | TExpVal v => ExpVal v
-  | TExpUnary e op => ExpUnary (singlize_Texp e) op
-  | TExpBinary e1 e2 op => ExpBinary (singlize_Texp e1) (singlize_Texp e2) op
-  end
-.
+(* Fixpoint singlize_Texp (te: exp) : exp := *)
+(*   match te with *)
+(*   | TExpLoc l => ExpLoc (snd l) *)
+(*   | TExpVal v => ExpVal v *)
+(*   | TExpUnary e op => ExpUnary (singlize_Texp e) op *)
+(*   | TExpBinary e1 e2 op => ExpBinary (singlize_Texp e1) (singlize_Texp e2) op *)
+(*   end *)
+(* . *)
 
-Fixpoint singlize_Tcom (tc: Tcom) : com := 
-  match tc with
-  | TCNop => CNop
-  | TCEenter => CEenter
-  | TCEexit => CEexit
-  | TCAsgn l v => CAsgn (snd l) (singlize_Texp v)
-  | TCSeq c1 c2 => CSeq (singlize_Tcom c1) (singlize_Tcom c2)
-  | TCIf b c1 c2 => CIf (singlize_Texp b) (singlize_Tcom c1) (singlize_Tcom c2)
-  | TCWhile b c => CWhile (singlize_Texp b) (singlize_Tcom c)
-  end.
+(* Fixpoint singlize_Tcom (tc: Tcom) : com :=  *)
+(*   match tc with *)
+(*   | TCNop => CNop *)
+(*   | TCEenter => CEenter *)
+(*   | TCEexit => CEexit *)
+(*   | TCAsgn l v => CAsgn (snd l) (singlize_Texp v) *)
+(*   | TCSeq c1 c2 => CSeq (singlize_Tcom c1) (singlize_Tcom c2) *)
+(*   | TCIf b c1 c2 => CIf (singlize_Texp b) (singlize_Tcom c1) (singlize_Tcom c2) *)
+(*   | TCWhile b c => CWhile (singlize_Texp b) (singlize_Tcom c) *)
+(*   end. *)
 
-Lemma Texp_eval_singlize_err_prop: forall tid me mo vars v er,
-  Texp_tagged_val me mo v = Err er -> 
-  (exists er', exp_tagged_val (singlize_Tmemory tid me vars) mo (singlize_Texp v) = Err er').
-Proof.
-  intros. induction v; simpl.
-  - destruct l. simpl in *. 
-    unfold Texp_tagged_val in *. unfold Texp_eval in *. unfold Taccess in *.
-    unfold exp_tagged_val. unfold exp_eval. unfold access.
-    destruct mo eqn: mode.
-    + destruct (me (t, l)) eqn: Hl; try inversion H.
-    (* Need a lemma here! *)
-      destruct (singlize_Tmemory tid me vars l) eqn: eql. admit.
-      exists [Invalid]. reflexivity. exists [NoPriviledge]. reflexivity. 
-      destruct (singlize_Tmemory tid me vars l) eqn: eql. admit. exists [Invalid]. reflexivity.
-    exists [NoPriviledge]. reflexivity.
-    + destruct (me (t, l)) eqn:eqt. inversion H.
-      inversion H. assert (Ha: In (tid, l) vars). admit.
-      apply singlize_Tunused_unused with (me:=me) in Ha. rewrite Ha.
-      eauto. apply T_access_Unused_shared with (tid':= tid) in eqt. assumption.
-      destruct (t0 =? t) eqn : eqtt0; simpl in *. 
-      rewrite eqtt0 in H. rewrite eqt in H. inversion H.
-      rewrite eqtt0 in H. admit.
-  - unfold exp_tagged_val. admit.
-  - admit.
-  - admit.
-Admitted.
+(* Lemma Texp_eval_singlize_err_prop: forall tid me mo vars v er, *)
+(*   Texp_tagged_val tid me mo v = Err er ->  *)
+(*   (exists er', exp_tagged_val (singlize_Tmemory tid me vars) mo v = Err er'). *)
+(* Proof. *)
+(*   intros. induction v; simpl. *)
+(*   - destruct l. simpl in *.  *)
+(*     unfold Texp_tagged_val in *. unfold Texp_eval in *. unfold Taccess in *. *)
+(*     unfold exp_tagged_val. unfold exp_eval. unfold access. *)
+(*     destruct mo eqn: mode. *)
+(*     + destruct (me (t, l)) eqn: Hl; try inversion H. *)
+(*     (* Need a lemma here! *) *)
+(*       destruct (singlize_Tmemory tid me vars l) eqn: eql. admit. *)
+(*       exists [Invalid]. reflexivity. exists [NoPriviledge]. reflexivity.  *)
+(*       destruct (singlize_Tmemory tid me vars l) eqn: eql. admit. exists [Invalid]. reflexivity. *)
+(*     exists [NoPriviledge]. reflexivity. *)
+(*     + destruct (me (t, l)) eqn:eqt. inversion H. *)
+(*       inversion H. assert (Ha: In (tid, l) vars). admit. *)
+(*       apply singlize_Tunused_unused with (me:=me) in Ha. rewrite Ha. *)
+(*       eauto. apply T_access_Unused_shared with (tid':= tid) in eqt. assumption. *)
+(*       destruct (t0 =? t) eqn : eqtt0; simpl in *.  *)
+(*       rewrite eqtt0 in H. rewrite eqt in H. inversion H. *)
+(*       rewrite eqtt0 in H. admit. *)
+(*   - unfold exp_tagged_val. admit. *)
+(*   - admit. *)
+(*   - admit. *)
+(* Admitted. *)
 
 (* TODO: bool exp transition! *)
+
+Lemma singlized_update_inv: forall tid me l vars r,
+    singlize_Tmemory tid (Tupdate tid l (TEncMem tid ZoneMem r) me) (l :: vars) =
+    (update l (EncMem ZoneMem r) (singlize_Tmemory tid me  vars)).
+Proof.
+  intros.
+
+Admitted.
+
+Lemma eval_inv: forall tid me vars mo v r,
+    Texp_tagged_val tid me mo v = Ok r ->
+    exp_tagged_val (singlize_Tmemory tid me vars) mo v = Ok r.
+Proof.
+  intros. induction v; induction vars.
+  - simpl in *. unfold Texp_tagged_val in H. unfold exp_tagged_val.
+    unfold Texp_eval in H. unfold  exp_eval.
+    unfold Taccess in H. unfold access.
+    destruct mo eqn: eqmo. destruct (me l) eqn: eql.
+    simpl in H. rewrite eql in H. simpl.
+    induction v.
+    + simpl. unfold Texp_tagged_val, exp_tagged_val.
+      destruct ( exp_eval empty_mem mo (ExpLoc l)) eqn: eql;
+      destruct ( Texp_eval tid me mo (ExpLoc l)) eqn: eqsl.
+    
+  induction v.
+
+  Admitted.
+  
+
 Theorem singlize_exec: forall tid com st st', 
-  Tcom_eval_critical tid com st st' -> com_eval_critical (singlize_Tcom com) (singlize_Tstate tid st) (singlize_Tstate tid st').
+  Tcom_eval_critical tid com st st' -> com_eval_critical com (singlize_Tstate tid st) (singlize_Tstate tid st').
 Proof.
   intros. induction H.
   (* Nop *)
@@ -337,8 +383,42 @@ Proof.
   (* Eexit *)
   - simpl. apply E_Eexit. assumption.
   (* Asgn *)
-  - simpl. destruct l. simpl in *. subst. rewrite <- beq_nat_refl with tid in *. rewrite eq_location_refl.
-    simpl. rewrite <- beq_nat_refl with tid. admit.
+  - unfold singlize_Tstate. rewrite singlized_update_inv. apply E_Asgn_Ok_enc.
+    assumption.
+    inversion Hexp.
+    unfold Texp_tagged_val. unfold exp_tagged_val.
+    simpl. rewrite <- beq_nat_refl. rewrite eq_location_refl. simpl.
+    rewrite <- beq_nat_refl. 
+    
+    * simpl in *. subst.
+      rewrite <- beq_nat_refl with tid in *. rewrite eq_location_refl.
+      simpl. rewrite <- beq_nat_refl with tid.
+      remember (fun s' : location => if eq_location s' (Stack n) then TEncMem tid ZoneMem r else me s') as me'.
+      assert (Ha: update (Stack n) (EncMem ZoneMem r) (singlize_Tmemory tid me' vars) = update (Stack n) (EncMem ZoneMem r) (singlize_Tmemory tid me vars)).
+      { rewrite Heqme'. unfold update. induction vars.
+        apply functional_extensionality. intros x.
+        destruct (eq_location x (Stack n)) eqn: eqxn. reflexivity.
+        simpl. reflexivity.
+        apply functional_extensionality. intros.
+        destruct (eq_location x (Stack n)) eqn: eqxn. reflexivity.
+        simpl in *. unfold update. simpl.
+        unfold singlize_Tcell.
+        destruct (eq_location a (Stack n)) eqn: eqan.
+        rewrite <- beq_nat_refl.
+        apply eq_location_eq in eqan.
+        rewrite <- eqan in eqxn.
+        rewrite eqxn. destruct (me a) eqn: eqma.
+        rewrite eqxn. apply functional_extensionality in IHvars.
+        rewrite <- IHvars. assert (Ha': (singlize_Tmemory tid
+    (fun s' : location => if eq_location s' (Stack n) then TEncMem tid ZoneMem r else me s')
+    vars) =  singlize_Tmemory tid me vars).
+        apply functional_extensionality. intros.  apply IHvars
+        
+        destruct (eq_location a (Stack n)) eqn: eqan.
+        
+          
+      apply E_Asgn_Ok_enc.
+      
   - apply E_Asgn_Err_access. assumption. 
   apply Texp_eval_singlize_err_prop in Hexp. admit.
   (* Seq *)
@@ -354,4 +434,5 @@ Proof.
   (* Err_ignore *)
   - simpl. apply E_Err_ignore. assumption.
 Admitted.
+
 

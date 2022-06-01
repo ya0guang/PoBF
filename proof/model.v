@@ -215,6 +215,17 @@ Inductive exp: Type :=
   | ExpBinary (e1 e2: exp) (op: value -> value -> value)
 .
 
+(* This function should not be modeled as a boolean! Maybe we need a proposition *)
+(* 
+Fixpoint valid_exp (e: exp) (vars: accessible) : bool :=
+  match e with
+  | ExpLoc l => In l vars
+  | ExpVal v => true
+  | ExpUnary e op => valid_exp e vars
+  | ExpBinary e1 e2 op => andb (valid_exp e1 vars) (valid_exp e2 vars)
+  end. *)
+
+
 (** *** Expression: tag propagation *)
 Fixpoint exp_prop_tag (me: memory) (mo: mode) (e: exp) : security_tag := 
   match e with
