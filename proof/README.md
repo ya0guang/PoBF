@@ -1,69 +1,72 @@
-# Proof of PoBF Constraints
+# Proof of PoBF Security Constraints
 
 The model is built on the **language** level, rather than on the **machine** level.
-Therefore the model is mahcine-independent, but mimics the behaviors of common imperative 
+Therefore the model is mahcine-independent, but mimics the behaviors of common imperative languages because of Turing Completeness.
 
 ## Concerns
 
 - May the model be too general? i.e., not modeling specific enclaves
 
-## Capabilities of the Abstract Machine Model
+## Simplified Model
 
-- Execution mode: enclave/normal
-- machine model? functional/stack/register?
+### Capabilities of the Abstract Model
 
-### Memory Model
+- Execution mode : enclave/normal
+- Memory isolation: enclave and normal memory
+- *Multi-threading*
 
-- Linear Memory or Abstract Memory (named vars)
-- Values: abstract/concrete values
-- Cells: tagged secret levels + value
-- Type: enclave(zone/not) or app
-- Data structure: association List (mutable?) of Index * Type * Cell, mutable assoc. list is in Coq?
-- Behavior of access
-- Stack: need? how?
+### Memory Model (Enclave Model)
 
-### Tasks
+- Mode := NormalMode | EnclaveMode
+- Value := ConcretN(v: nat) | ConcretB (v: bool) | Any | Cleared
+- Location := Stack(n: nat) | Ident(s: string) | RV
+- SecurityTag := Secret | NotSecret | NonSense
+- EnclaveTag := ZoneMem | NonZoneMem
+- TagValue := Value * SecurityTag
+- Cell := AppMem(v: TagValue) | DummyMem | UnusedMem | EncMem(z: EnclaveTag, v: TagValue)
+- Memory: functional list (location -> cell) 
 
-- Task: a list of procedures
-- Procedure == Function
-- Function: list of instr. + **a stack for arg passing?**
-- How to say a procedure is critical?
+The registers can be represented by location for Ident(s), e.g., Ident("rax").
 
-### Instruction
+### Enclave Program Model
 
-Allowed operations
+- Exp := ExpLoc(l: Location) | ExpVal(v: Value) | ExpUnary(e: Exp) | ExpBinary(E1 E2: Exp)
+- Com := Nop | Eenter | Eexit | Asgn(l: Location) (v: Exp) | Seq(c1 c2: Com) | If(b: Exp, c1 c2: Com) | While(b: Exp, c: Com)
+- Procedure := Com
+- Accessible := listof(Location)
+- State := Mode * Memory * Accessible
 
-- Enclave instr. (eenter/eexit)
-- Memory Access (write/read/copy)
-- Computation (unary & binary)
-- Dereference
-- **Declassification/Encryption**: how
-- Branch
-- Loop
-- **Any others**?
+Branch, loop, and assignment are modeled, as well as the TEE context switches.
+Semantics are modeled as relationships.
 
-### Execution
+### Definitions
 
-- Input: (secret) tagged values on stack
-- Error list.
-- State: *stack*, *program(task(functions))*, memory, mode
-- Execution as relation between states
-- How to pass argument to a function?
-  - Stack: binding of values?
-  - Raw mem: PID instr?
-- How to use a function as PID code?
+- Leak: secrets find on places other than the zone (i.e., secrets cannot stay on AppMem or nonzone EncMem)
+- Residue: secret found in memory (other than RV).
+- Critical: accessible vars contain secrets in the zone
 
-### AST
+### Security Constraints
 
-security_tag := Secret | Declassified | Nonsense
-enc_mem_tag  := ZoneMem | NonzoneMem
-v   := nat | bool | Cleared | Any
-tv  := v * security_tag
-cell:= AppMem(tv) | UnusedMem | Encmem(enc_mem_tag, tv)
-loc := Stack(n) | Var(str) | RV
-exp := Loc(loc) | Val(v) | Unary(exp, op) | Binary(exp1, exp2, op)
-com := Nop | Eenter | Eexit | Asgn (loc, exp) | Seq(com1, com2) 
-      | If(exp, comt, come) | While(exp, com) | *call* | *declassification* 
+#### For Leakage (proved)
+
+For any critical procedure $p$ and initial state $st=(me, mo, vars, errs)$,, the execution of $p$ does not leak secret if:
+1. the initial state $st$ does not leak secret
+2. all memory writes (i.e., `Asgn`) in $p$ are within Zone if the value
+is Secret
+3. execution of $p$ aborts when error occurs
+
+#### For Residue (proved)
+
+`zeroize` is a procedure taking memory $me$ and accessible variables $vars$,
+for every location $l \in vars$ where $c=me(l)$ is in Zone of the enclave,
+the tagged value $v$ stored in the cell $c$ is cleared and the security tag is set to `NotSecret`.
+
+For any critical procedure $p$, if it satisfies No-Leakage
+requirement, the procedure $p'$ concatenating $p$ and `Zeroize` ($p'=p;\;zerorize$) satisfies No-Residue requirement.
+
+#### Multi-threading (stuck)
+
+If thread-specific Zone can only be accessible to the corresponding thread (i.e., dedicated Zone for each thread), then it satisfies No-Leakage and No-Residue.
 
 ## Usage
 
