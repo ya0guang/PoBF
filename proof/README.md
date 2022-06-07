@@ -17,24 +17,24 @@ Therefore the model is mahcine-independent, but mimics the behaviors of common i
 
 ### Memory Model (Enclave Model)
 
-- Mode := NormalMode | EnclaveMode
-- Value := ConcretN(v: nat) | ConcretB (v: bool) | Any | Cleared
-- Location := Stack(n: nat) | Ident(s: string) | RV
-- SecurityTag := Secret | NotSecret | NonSense
-- EnclaveTag := ZoneMem | NonZoneMem
-- TagValue := Value * SecurityTag
-- Cell := AppMem(v: TagValue) | DummyMem | UnusedMem | EncMem(z: EnclaveTag, v: TagValue)
-- Memory: functional list (location -> cell) 
+- Mode := `NormalMode` | `EnclaveMode`
+- Value := `ConcretN(v: nat)` | `ConcretB (v: bool)` | `Any` | `Cleared`
+- Location := `Stack(n: nat)` | `Ident(s: string)` | `RV`
+- SecurityTag := `Secret` | `NotSecret` | `NonSense`
+- EnclaveTag := `ZoneMem` | `NonZoneMem`
+- TagValue := `Value * SecurityTag`
+- Cell := `AppMem(v: TagValue)` | `DummyMem` | `UnusedMem` | `EncMem(z: EnclaveTag, v: TagValue)`
+- Memory: functional list `Location -> Cell` 
 
 The registers can be represented by location for Ident(s), e.g., Ident("rax").
 
 ### Enclave Program Model
 
-- Exp := ExpLoc(l: Location) | ExpVal(v: Value) | ExpUnary(e: Exp) | ExpBinary(E1 E2: Exp)
-- Com := Nop | Eenter | Eexit | Asgn(l: Location) (v: Exp) | Seq(c1 c2: Com) | If(b: Exp, c1 c2: Com) | While(b: Exp, c: Com)
-- Procedure := Com
-- Accessible := listof(Location)
-- State := Mode * Memory * Accessible
+- Exp := `ExpLoc(l: Location)` | `ExpVal(v: Value)` | `ExpUnary(e: Exp)` | `ExpBinary(E1 E2: Exp)`
+- Com := `Nop` | `Eenter` | `Eexit` | `Asgn(l: Location, v: Exp)` | `Seq(c1 c2: Com)` | `If(b: Exp, c1 c2: Com)` | `While(b: Exp, c: Com)`
+- Procedure := `Com`
+- Accessible := `listof(Location)`
+- State := `Mode * Memory * Accessible`
 
 Branch, loop, and assignment are modeled, as well as the TEE context switches.
 Semantics are modeled as relationships.
