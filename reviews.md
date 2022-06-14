@@ -2,6 +2,33 @@
 
 Previous reviews of Wenhao's paper
 
+
+# TL;DR
+
+## Differences Between PoBF and Liveries
+
+- Not an CFI-based solution -> no instrumentation and its overhead
+- Machine-checked proof
+- Not designed only for SGX
+
+## Weakness of Liveries
+
+- Incomplete/informal verification
+- Potentially incorrect use of cryptography
+- Unexplained performance enhancement/degradation
+- The service/threat model and the motivation are not clear
+- Lack of experimentation on systems issues: **concurrency** and context switching
+- Where data is located and loaded is note clear
+- Side-channel
+- The proof is infomral
+- Compatibility to software and SGX2
+
+## Insights
+
+- Evaluation with reak world apps (e.g., ML)
+- Why this service model is useful
+- 
+
 # TDSC 2022
 
 ## Editor Comments
@@ -466,15 +493,172 @@ Besides these practical concerns, it's getting increasingly hard to ignore side-
 
  * Page 12: "gadgets in popular enclave binary" -- binaries
 
-## Questions for authors’ response
+### Questions for authors’ response
 
 If I'm targeting SGXv2, and I use the obvious optimisations of adding heap pages dynamically on first use rather than measuring them statically at enclave creation time, what performance benefit remains to recycling the enclave rather than creating a new one? (I realise that you can't answer this question directly without new experiments, which is not allowed, but I'd appreciate some insight into the scenarios where you still expect this technique to retain value.)
 
-## Concerns to be addressed during the revision/shepherding
+### Concerns to be addressed during the revision/shepherding
 
  * Fix bugs in assembly code (Figure 3).
  * Describe mitigations to ABI poisoning attacks.
  * Improve incorrect description of SGXv2 features (restricting use of EMODPE).
+
+## Review #72B
+
+### Overall merit
+
+1. Weak Accept
+
+### Reviewer expertise
+
+1. Knowledgeable
+
+### Paper summary
+
+The paper presents Liveries -- an approach to allow sequential processing of tasks from different users in SGX enclaves bypassing the need for complete re-initializing of the enclave between tasks. The initialization steps in SGX is an expensive process; performing this initialization when running a large number of small tasks introduces very large overheads. Instead Liveries seeks to allow each task to leave some persistent data behind after execution that cannot be accessed by the next running task. Liveries does this by
+
+(1) imposing restrictions on executing code to ensure that each task cannot leverage privileged instructions to access other user's data
+
+(2) ensuring that a task does not leave behind user input or temporary data in memory which the next task can access
+
+These restrictions in turn are powered by three key insights
+
+(1) Running of privileged instructions such as those to retrieve keys, only inside of sblocks -- code blocks which have a known entry and exit instruction.
+These sblocks use the (typically unused) register, gs, as a dedicated register to store flags to at the beginning of the code, which are checked at the end of the code, preventing use of ROP gadgets in the security monitor. This is combined with binary rewriting to eliminate code gadgets that inadvertently produce the bytes for privileged instructions or use of the gs register.
+
+(2) Providing a runtime that configures enclave setup and mediates any interactions may modify the configurations of the enclave. The runtime is also responsible for tasks such as providing memory spaces (for temporary data, user input data, and measured fixed input data), as well as clearing, checking, or restoring memory spaces as appropriate between tasks. The use of this runtime is demonstrated through evaluations where the code of several machine learning tasks are modified to use this runtime.
+
+(3) Correct design and handling of signals, exceptions and interrupts to ensure these do not break the abstractions introduced for security.
+
+Additional important contributions are the design for safe use of multi-threading in SGX2 with Liveries and verified implementations and models of runtimes.
+
+### Strengths
+
+- Clear explanations of a relatively novel use case with compelling performance numbers
+
+- Clever and simple design of the ESC through sblock chains that provides simple important security invariants.
+
+- Implementations that are verified using model checking and other approaches.
+
+### Weaknesses
+
+- Analysis of related work and the positioning of Liveries against alternate designs is incorrect and limited.
+
+- Some of the writing makes it hard to follow the design in places and some of the claims are too broad (more details below)
+
+### Comments for author
+
+This was an interesting paper and design. I think the presented design has many strengths which are compelling, in particular the relatively compact and elegant design. For the rest, of this summary, I will thus focus this discussion on a couple of important aspects that should be addressed before publishing.
+
+1) Comparison with SFI and related work -- I was surprised to see this already raised in the prior reviews.  I actually believe when comparing Liveries to SFI, this paper includes claims about SFI that are simply not true and must be corrected for a more accurate comparison. To be clear, I believe Liveries offers a compelling alternative design point, but this should be demonstrated by comparing accurately against related work. Here are some specific details
+
+- "SFI ... requires heavy code analysis to find all valid control flow destinations" -- This is not true for most SFI schemes and as written applies to CFI (control flow integrity schemes). SFI schemes like Native Client do not have such requirements, while SFI schemes such as WebAssembly simply use tables as an intermediate step for indirect function calls -- a process that explicitly does not require "heavy analysis"
+
+- "SFI requires ... large TCB for verifying SFI compliance, including the disassembler and binary analyzer (about 100K LoCs)". While I am not familiar with this work, as it looks quite new and is yet to appear, the state of the art techniques for verifying SFI compliance do not require a 100k LoC disassembler or binary analyzer.
+[Rocksalt](https://6826.csail.mit.edu/2017/papers/rocksalt.pdf) builds a verifier for Native client in 80 lines of C code (See [here](https://www.seas.harvard.edu/news/2012/07/nacl-give-way-rocksalt)).
+Perhaps the SFI verifier compliance used in this domain requires additional verification that actually results in a 100k LoC verifier, but in this case, you need to clarify why a standard SFI verifier approach such as Rocksalt is not the correct comparison point.
+
+- Nit- "SFI is designed to sandbox concurrent tasks within an enclave" ==> "SFI can be used to ..."
+
+Optional suggestions on comparing to SFI:
+
+- An interesting point, you could choose to highlight, is that the use of transaction blocks (called sblocks here) and approaches to prevent stack vulnerabilities (in this paper, the verification does this) are techniques commonly used in SFI schemes. [Native
+Client](https://research.google/pubs/pub34913.pdf) uses bundles (which you can think of as fixed size sblocks) along with control flow restrictions to ensure security checks cannot be bypassed. WebAssembly uses
+[SafeStack](https://www.usenix.org/system/files/conference/osdi14/osdi14-paper-kuznetsov.pdf)
+to prevent stack vulnerabilities from affecting guarantees.
+
+- I also think there are other considerations which make your approach more compelling than SFI for this problem space including the maintenance burden of maintaining an SFI compiler toolchain, runtime and verifier, etc.
+
+2) Presentation of Liveries -- there are several parts of the paper that I found hard to follow, which makes it challenging to assess the security of the overall design.
+
+- I found it difficult to understand if the security checks in sblocks have to be tailored to the privileged instruction being protected. I think the answer is yes; however, I had a hard time finding a full list of all the privileged instructions being supported and the specific security checks or steps taken in the sblocks to secure each one. The current explanations are a bit scattered through the paper, which makes it challenging for me to get a global view of the security of the system. (For instance, I see some text in P3 in section 4.3, some text in Figure 4 etc.) A table here focussed on the security checks imposed would go a long way.
+
+- A couple of times you mention function pointers in the paper text, without really explaining what these function pointers are, and why they matter. Please clarify this.
+
+- The details in Section 6.2 need to be summarized or at least forward referenced much earlier. Much of the paper left me wondering precisely how one identifies/who identifies the secret data or whether all memory being operated on was considered a secret / needed to be checked for integrity etc.
+
+### Questions for authors’ response
+
+Apart from any clarifications you can provide to my request for changes in the summary, I also had a couple of minor questions
+
+- Section 5 indicates, for dynamic loading of code, you first load the code with the page on read+write permissions, perform the binary gadget check, and then change to read+execute. Is there a possibility of a parallel thread that changes the loaded code between the check (which is performed on a read-write page) and grant of execution permissions (which removes the write privilege)?
+
+- Reference to time sharing vs sequential scheduling in the abstract (I suspect this was a missed edit from your last draft. I am not sure the system as designed can be called a time-sharing system)
+
+
+## Review #72C
+
+### Overall merit
+
+1. Weak reject
+
+### Reviewer expertise
+
+3. Knowledgeable
+
+### Paper summary
+
+TEE security is based on the idea of an inductive security proof, where a TEE's initial state is strongly attested and so the user can guarantee that it must be in a state that is reachable from the initial state.  The paper asserts that startup costs are high for enclaves and therefore proposes a mechanism for resetting an enclave to its initial state.
+
+### Strengths
+
+### The paper presents a nontrivial engineering effort to implement techniques that allow an SGX enclave to be reset after creation.
+
+### Weaknesses
+
+The introduction repeatedly asserts that attestation requires communicating with the CPU vendor.  This has not been the case for SGX for a while and is not the case for other system.  Modern attestation flows bake the attestation quote into a certificate that is signed by the root of trust or quoting enclave.  The client needs only to check that the signing certificate has not been revoked, which can be done with a cached CRL or similar.
+
+My biggest problem with this paper is that it is *very* easy to build snapshot and restore functionality into a TEE design if you start with this as a goal.  This is rarely done, because it is hard to avoid replay attacks.  Identity binding is one of the hardest problems with TEEs: it is hard to differentiate between a pristine enclave that is ready to load some data and an enclave that started in that state and has now been moved to a specific later state.  The Intel SGX2 ConfigID register was added explicitly to address this.  The design of this work is to build a replay attack into the TCB and then try to secure the mechanism such that it will only replay from specific points.  The security evaluation looks solid but I may have missed something.  Building this functionality into something like SGX from the start would be trivial (SGX1 maintains a Merkel tree over the whole of enclave memory so a lightweight snapshotting mechanism would have a very lightweight lazy validation path using the existing hardware / microcode).
+
+Both the problems that are being addressed (enclave startup time is high) and the solutions are very specific to a single TEE technology.  The problem is not intrinsic to TEEs (the limit on TEE creation is the ability to compute a signature over the initial memory image, symmetric crypto can run at memory-speed and the asymmetric part runs only over the hash of the remainder and so the upper bound on performance here is a few cycles off the performance of an approach that requires memory resetting).  The solution is closely coupled with the SGX abstractions (for example, a single privilege domain within the enclave).  The same abstraction on Intel TDX or AMD SEV-SNP, for example, would boot a small OS image and create a zygote process, then create CoW copies of it for each request.  
+
+The techniques used here appear to be minor tweaks to those in *Nested Kernel: An Operating System Architecture for Intra-Kernel Privilege Separation* (ASPLOS '15), with a slightly different use case.
+
+### Comments for author
+
+The fact that your approach basically boils down to a replay attack on the attestation mechanism makes me incredibly nervous.  I think it is fine within your constraints but there are a lot of subtle interactions between parts of the security model that all have to be right for this to work.
+
+### Comments
+
+## Rebuttal Response by Wenhao Wang <wangwenhao@iie.ac.cn>
+
+Thank you for the comments.
+
+* To Review A and C (motivations, enclave creation/attestation flow):
+
+Besides heap allocation, an enclave may take time to initialize its hosting service. Considering KANN as an example, building the neural network data structure and loading parameters (with preallocated heap) take over 200 ms for a CNN model with 40 MB weights. Liveries avoids the overhead by resetting the enclave to the trusted state after the initialization (taking less than 10 ms). We can conduct more experiments to evaluate the service initialization time for other use cases.
+
+Also importantly, Liveries provides additional protection even when the time of enclave creation, attestation, and termination can be afforded for each user request. In the absence of the protection, the adversary can control the enclave through a malicious request that exploits vulnerable enclave code. As a result, he will be able to forge a “legal” enclave report for a malicious program outside the enclave (i.e., the man-in-the-middle attacks against remote attestation [19,48]). While the threat might be mitigated using a different enclave image for each user (so that the enclaves’ measurements would be different), it introduces the burden that the service providers may be reluctant to bear. 
+
+* To Review A (side channels):
+
+Liveries is meant to protect a user’s data from a malicious user of the same in-enclave service. It does not introduce *additional* side channels except in-enclave transient execution attacks. This threat can be mitigated by inserting serializing instructions after critical instructions, which prevents out-of-order execution (Section 8). We can provide a more thorough analysis in a new version.
+
+* To Review A (SGX2):
+
+We designed Liveries to support multi-threading on SGX2 (Sec. 5). We’ll discuss the hardware changes needed for secure multi-threading, e.g., GS could be stored into SECS on AEX and restored from SECS on ERESUME.
+
+* To Review B (SFI):
+
+We agree heavyweight code analysis may not be needed for SFI. Rocksalt is designed to support only a small subset of x86 instructions, and it assumes NaCl uses segment registers to enforce most of the SFI policy, which are not available in x64 enclave code. 
+
+* To Review B (dynamic code loading):
+
+To prevent TOCTTOU attack, dynamic code loading is allowed only when the enclave is single-threaded (by dynamically adjusting the number of TCS pages).
+
+* To Review C (replay attack):
+
+We appreciate the reviewer’s insightful comments on enclave snapshot and restoration. Liveries is carefully designed to secure such a mechanism so it will only replay from specific points, in which the previous user’s state is sanitized to prevent information leakage and the interactions with follow-up computations (Sec. 4).
+
+We are willing to provide more information to address the reviewers’  concerns about the current design of Liveries, such as ABI poisoning attacks, which can be mitigated through sanitizing processor extended state on enclave entry. Also, we will revise the paper according to other review comments, including fixing bugs in assembly code, correcting the description of SGXv2 (EMODPE), clarifying exhaustive model checking, comparison with _nested kernel_, and improving the presentation.
+
+### Comment @A1 by Reviewer A
+
+Dear authors, thank you for the rebuttal. The reviewers considered it, but we remain concerned that the added complexity and security risks of the proposed approach outweigh its performance advantages over creating a fresh enclave. In a future revision, you may wish to consider performing an evaluation against SGX2 enclave creation (with lazy heap/stack allocation).
+
+
+
+
 
 # Okland 21
 
