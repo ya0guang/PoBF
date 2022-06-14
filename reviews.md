@@ -21,13 +21,14 @@ Previous reviews of Wenhao's paper
 - Where data is located and loaded is note clear
 - Side-channel
 - The proof is infomral
-- Compatibility to software and SGX2
+- Compatibility to software and SGX2/other TEEs
+- Comparsion with other work, e.g., SFI/CFI
 
 ## Insights
 
 - Evaluation with reak world apps (e.g., ML)
 - Why this service model is useful
-- 
+- Low TCB is still preferred
 
 # TDSC 2022
 
