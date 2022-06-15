@@ -10,9 +10,15 @@
 
 * Implementation
 
+** DONE Typestate
+** DONE Basic Implementation
 ** TODO Zerorize heap (modify heap allocator)
 ** TODO Instrumentation (LLVM)
 ** WAITING Multi-threading
 ** SOMEDAY Attestation
+
+* WAITING Evaluation
+
+** Realworld Task (e.g., ML training & inference)
 
 * WAITING Paper Writing

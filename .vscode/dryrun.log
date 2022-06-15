@@ -1,0 +1,36 @@
+make --dry-run --always-make --keep-going --print-directory
+make: Entering directory '/home/ya0guang/Code/PoBF'
+/opt/intel/sgxsdk/bin/x64/sgx_edger8r  --trusted enclave/enclave.edl --search-path /common/inc --search-path /sgx_edl/edl --trusted-dir enclave
+/opt/intel/sgxsdk/bin/x64/sgx_edger8r  --untrusted enclave/enclave.edl --search-path /common/inc --search-path /sgx_edl/edl --untrusted-dir app
+echo "GEN => enclave/enclave_t.c enclave/enclave_t.h app/enclave_u.c app/enclave_u.h"
+/opt/intel/sgxsdk/bin/x64/sgx_edger8r  --trusted enclave/enclave.edl --search-path /common/inc --search-path /sgx_edl/edl --trusted-dir enclave
+/opt/intel/sgxsdk/bin/x64/sgx_edger8r  --untrusted enclave/enclave.edl --search-path /common/inc --search-path /sgx_edl/edl --untrusted-dir app
+echo "GEN => enclave/enclave_t.c enclave/enclave_t.h app/enclave_u.c app/enclave_u.h"
+/opt/intel/sgxsdk/bin/x64/sgx_edger8r  --trusted enclave/enclave.edl --search-path /common/inc --search-path /sgx_edl/edl --trusted-dir enclave
+/opt/intel/sgxsdk/bin/x64/sgx_edger8r  --untrusted enclave/enclave.edl --search-path /common/inc --search-path /sgx_edl/edl --untrusted-dir app
+echo "GEN => enclave/enclave_t.c enclave/enclave_t.h app/enclave_u.c app/enclave_u.h"
+/opt/intel/sgxsdk/bin/x64/sgx_edger8r  --trusted enclave/enclave.edl --search-path /common/inc --search-path /sgx_edl/edl --trusted-dir enclave
+/opt/intel/sgxsdk/bin/x64/sgx_edger8r  --untrusted enclave/enclave.edl --search-path /common/inc --search-path /sgx_edl/edl --untrusted-dir app
+echo "GEN => enclave/enclave_t.c enclave/enclave_t.h app/enclave_u.c app/enclave_u.h"
+cc  -fPIC -Wno-attributes -I ./app -I/opt/intel/sgxsdk/include -I/common/inc -I/sgx_edl/edl -c app/enclave_u.c -o app/enclave_u.o
+mkdir -p ./lib
+ar rcsD lib/libenclave_u.a app/enclave_u.o
+cd app && SGX_SDK=/opt/intel/sgxsdk cargo build --release
+mkdir -p ./bin
+cp ./app/target/release/app ./bin
+echo "LINK => bin/app"
+cc  -I/common/inc -I/common/inc/tlibc -I/sgx_edl/edl -c enclave/enclave_t.c -o enclave/enclave_t.o
+cd enclave && cargo build --release --features "sgx"
+mkdir -p ./lib
+mkdir -p ./bin
+cp ./enclave/target/release/libpobfref.a ./lib/libenclave.a
+g++ enclave/enclave_t.o -o bin/enclave.so -Wl,--no-undefined -nostdlib -nodefaultlibs -nostartfiles -Wl,--start-group -L./lib -lenclave -Wl,--end-group -Wl,--version-script=enclave/enclave.lds 
+echo "LINK => bin/enclave.so"
+/opt/intel/sgxsdk/bin/x64/sgx_sign sign -key enclave/private.pem -enclave ./bin/enclave.so -out bin/enclave.signed.so -config enclave/config.xml
+echo "SIGN => bin/enclave.signed.so"
+make: Leaving directory '/home/ya0guang/Code/PoBF'
+ 
+Makefile:25: incubator-teaclave-sgx-sdk/buildenv.mk: No such file or directory
+make: *** No rule to make target 'incubator-teaclave-sgx-sdk/buildenv.mk'.
+make: Failed to remake makefile 'incubator-teaclave-sgx-sdk/buildenv.mk'.
+
