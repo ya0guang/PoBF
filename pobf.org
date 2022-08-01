@@ -15,7 +15,12 @@
 ** TODO Zerorize heap (modify heap allocator)
 ** TODO Instrumentation (LLVM)
 ** WAITING Multi-threading
-** SOMEDAY Attestation
+** SOMEDAY Attestation (And Integrate with Typestate)
+
+* Verification
+
+** TODO Formally Verify our Implementation
+** TODO Mirai: modify taint analysis
 
 * WAITING Evaluation
 
