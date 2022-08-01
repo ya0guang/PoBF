@@ -1,0 +1,11 @@
+# Implementation
+## [TODO] Remote Attestation
+## [TODO] Integrate RA into typestate
+
+# Proof
+## [TODO] Multithreading
+## [TODO] Refinement
+
+# Verification
+## [TODO] Mirai: taint analysis
+## [TODO] Formally Verify our Implementation (aeneas/crust/etc.)
