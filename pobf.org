@@ -1,0 +1,24 @@
+* Proof
+
+** DONE Single-threaded
+
+** TODO Multi-threading
+
+*** DONE Talk with Coq expert
+*** NEXT [#A] Try proof with list
+*** TODO Try proof directly on multi-threaded enclave program
+
+* Implementation
+
+** DONE Typestate
+** DONE Basic Implementation
+** TODO Zerorize heap (modify heap allocator)
+** TODO Instrumentation (LLVM)
+** WAITING Multi-threading
+** SOMEDAY Attestation
+
+* WAITING Evaluation
+
+** Realworld Task (e.g., ML training & inference)
+
+* WAITING Paper Writing

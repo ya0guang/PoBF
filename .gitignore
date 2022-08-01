@@ -13,6 +13,7 @@ enclave_t.*
 
 # MISC
 Cargo.lock
+.vscode
 
 # Coq
 *.aux
