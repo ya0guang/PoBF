@@ -18,7 +18,7 @@ $ strings {Enclave.so} | grep SGX_TSTDC_VERSION gives empty information.
 everything goes very well except that the enclave is not signed either.</s> <- Simply because output is directed
 to `/dev/null`...
 
-If I invoke the app directly in the terminal by
+* [**SOLVED**] (Due to a bug in `Makefile`.) If I invoke the app directly in the terminal by (SIMULATION MODE)
 ```shell
 $ ./app cal ../key.bin ../data.enc
 ```
@@ -29,7 +29,15 @@ $ ./app cal ../key.bin ../data.enc
 
 It seems that the binary needs the `libsgx_urts.so` library but this library is nowhere to be found.
 
-* `incubator-teaclave-sgx-sdk/sgx_crypto/sgx_crypto_sys/tcrypto/ipp/sgx_sm2.cpp` contains a bug in line 527, 
+Solution:
+```makefile
+app:
+    @cd app && SGX_SDK=$(SGX_SDK) SGX_MODE=$(SGX_MODE) cargo build $(App_Rust_Flags)
+    # Add SGX_MODE env var; otherwise build.rs cannot read it and will link to so for hardware.
+```
+
+* `incubator-teaclave-sgx-sdk/sgx_crypto/sgx_crypto_sys/tcrypto/ipp/sgx_sm2.cpp` (commit sha256: 7e1b671cbad5cb8f62d628f562fad32dbfdb2a40)
+contains a bug in line 527, 
 which should be:
 ```cpp
     if (hash_drg == NULL || hash_drg_len <= 0 ||
