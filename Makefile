@@ -16,9 +16,9 @@
 # under the License.
 
 ######## SGX SDK Settings ########
-
+# Local settings for Kali-Linux.
 SGX_SDK ?= /opt/intel/sgxsdk
-SGX_MODE ?= HW
+SGX_MODE ?= SIM
 SGX_ARCH ?= x64
 
 TOP_DIR := ./incubator-teaclave-sgx-sdk
@@ -156,7 +156,7 @@ $(RustEnclave_Signed_Name): $(RustEnclave_Name) enclave/config.xml
 
 .PHONY: app
 app:
-	@cd app && SGX_SDK=$(SGX_SDK) cargo build $(App_Rust_Flags)
+	@cd app && SGX_SDK=$(SGX_SDK) SGX_MODE=$(SGX_MODE) cargo build $(App_Rust_Flags)
 
 ######## Build Enclave ########
 
