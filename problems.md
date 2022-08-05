@@ -51,7 +51,7 @@ which should be:
 ```
 Otherwise, the project won't compile.
 
-* The binary cannot be executed if built in simulation mode.
+* [**SOLVED**] The binary cannot be executed if built in simulation mode.
 ```shell
 $ export SGX_MODE=SIM && make -C .. run && ./app
   zsh: illegal hardware instruction ./app
@@ -65,3 +65,8 @@ final binary will report the `ModeIncompatible` error.
 [-] Init Enclave Failed, reason: "ModeIncompatible"!
 ```
 Not sure if this is due to OS incompatibility (I am using Kali Linux) or incorrect Intel SDK version?
+
+I have written sample enclave in C++ to test if the SDK works, and it correctly outputs expected results.
+
+Solution: Although the Rust SGX SDK won't produce the string `SGX_TSTDC_VERSION`, we can use the new version of `sgx_sign`
+but with slight modification to bypass version check (I think the SDK *should* produce the symbol, though).
