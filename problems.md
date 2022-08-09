@@ -16,7 +16,7 @@ $ strings {Enclave.so} | grep SGX_TSTDC_VERSION gives empty information.
 ```
 **When SDK version reaches 2.9.1 or higher**, the sign tool will check if `enclave.so` contains the symbol `SGX_TSTDC_VERSION`.
 The third-party repo for incubator-teaclave-sgx-sdk is just too old so that it will not produce this symbol when building the 
-enclave...
+enclave... [**Update**] This is due to old version of Rust SDK and incompatibility of (not fully uninstalled) Intel SGX SDK.
 
 <s>However, when I run the script `./enclave/demo_verify.sh` (which later invokes `./verfier/pobf-verify.py`),
 everything goes very well except that the enclave is not signed either.</s> <- Simply because output is directed
@@ -64,9 +64,30 @@ final binary will report the `ModeIncompatible` error.
 [+] Trying to init enclave...
 [-] Init Enclave Failed, reason: "ModeIncompatible"!
 ```
-Not sure if this is due to OS incompatibility (I am using Kali Linux) or incorrect Intel SDK version?
+<s>Not sure if this is due to OS incompatibility (I am using Kali Linux) or incorrect Intel SDK version?</s>
 
 I have written sample enclave in C++ to test if the SDK works, and it correctly outputs expected results.
 
 Solution: Although the Rust SGX SDK won't produce the string `SGX_TSTDC_VERSION`, we can use the new version of `sgx_sign`
 but with slight modification to bypass version check (I think the SDK *should* produce the symbol, though).
+
+* Modification on global heap allocator for Rust `collections` and `Box` types. When the crate `sgx_no_tstd` is imported
+to the project, it will override the global allocator to `System` which binds to enclave `libc`'s API for memory allocation. We
+cannot implement a custom allocator once this crate is imported. <u>I applied `system.patch` on `sgx_alloc/src/system.rs`.</u>
+
+* Stack and register cleanups: maybe we need to manually perform LLVM pass on functions at Machine Code level to ensure all 
+sensitive data on the stack can be erased (like some `X86StackZeroizePass.cpp`). However, if there is IR optimization, some unexpected results may occur (do we
+need to consider this?):
+
+  * Assembler will temporarily spill register onto stacks due to register pressure (very likely). <- cannot be avoided at
+    a high level. This also happens when calling a function (caller-saved or callee-saved registers on stack).
+  * Extended registers.
+  
+  Maybe useful external crates:
+    * `llvm-ir` for IR parsing and modification.
+    * `llvm-sys` for C API binding to LLVM.
+  
+  Possible solution: obtain the stack pointer and then calculate the size of current stack frame. Finally, pad zeros to
+  with the pointer (e.g., `memset_s`), but can be optimized away accidentally by the compiler...
+  
+  Consider writing a pass on code generation and rebuild LLVM for specific usage(?
