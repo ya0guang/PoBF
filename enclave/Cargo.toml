@@ -34,8 +34,12 @@ sgx_types = { path = "../incubator-teaclave-sgx-sdk/sgx_types" }
 sgx_crypto = { path = "../incubator-teaclave-sgx-sdk/sgx_crypto" }
 sgx_no_tstd = { path = "../incubator-teaclave-sgx-sdk/sgx_no_tstd", optional = true }
 sgx_libc = { path = "../incubator-teaclave-sgx-sdk/sgx_libc", default-features = false }
-mirai-annotations = { path = "../../MIRAI/annotations" }
 # sgx_tstd = { path = "../incubator-teaclave-sgx-sdk/sgx_tstd", default-features = false, optional = true }
 sgx_trts = { path = "../incubator-teaclave-sgx-sdk/sgx_trts", optional = true }
 sgx_rand = { path = "../incubator-teaclave-sgx-sdk/sgx_rand", optional = true }
 sgx_tseal = { path = "../incubator-teaclave-sgx-sdk/sgx_tseal", optional = true }
+sgx_alloc = { path = "../incubator-teaclave-sgx-sdk/sgx_alloc"}
+# External dependencies
+zeroize = "1.5.7"
+mirai-annotations = { path = "../../MIRAI/annotations" }
+clear_on_drop = { path = "../clear_on_drop" }
