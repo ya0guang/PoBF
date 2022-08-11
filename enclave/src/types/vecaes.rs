@@ -13,6 +13,12 @@ pub struct VecAESData {
     inner: Vec<u8>,
 }
 
+impl Zeroize for VecAESData {
+    fn zeroize(&mut self) {
+        self.inner.zeroize();
+    }
+}
+
 impl From<Vec<u8>> for VecAESData {
     fn from(v: Vec<u8>) -> Self {
         VecAESData { inner: v }
@@ -54,6 +60,13 @@ impl Default for AES128Key {
             buffer: vec![],
             inner: [0u8; 16],
         }
+    }
+}
+
+impl Zeroize for AES128Key {
+    fn zeroize(&mut self) {
+        self.inner.zeroize();
+        self.buffer.zeroize();
     }
 }
 
