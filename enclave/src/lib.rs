@@ -3,7 +3,6 @@
 #![cfg_attr(feature = "sgx", no_std)]
 #![feature(vec_into_raw_parts)]
 #![feature(allocator_api)]
-#![feature(asm)]
 
 extern crate alloc;
 #[cfg(feature = "sgx")]
@@ -25,7 +24,10 @@ use alloc::slice;
 use ocall::*;
 use pobf::*;
 use sgx_types::error::SgxStatus;
-use clear_on_drop::{clear_stack_on_return, clear_stack_on_return_fnonce};
+use clear_on_drop::clear_stack_on_return_fnonce;
+
+static DEFAULT_PAGE_SIZE_ENTRY: usize = 0x4;
+static DEFAULT_PAGE_SIZE_LEAF : usize = 0x1;
 
 #[no_mangle]
 pub extern "C" fn private_computing_entry(
@@ -45,8 +47,9 @@ pub extern "C" fn private_computing_entry(
       unsafe { slice::from_raw_parts_mut(encrypted_input_ptr, encrypted_input_size as usize) };
 
   let f = || pobf_private_computing(encrypted_input, sealed_key);
+  let res = clear_stack_on_return_fnonce(DEFAULT_PAGE_SIZE_ENTRY, f, true);
 
-  let encrypted_output = match clear_stack_on_return_fnonce(1, f, true) {
+  let encrypted_output = match res {
     Ok(x) => x,
     Err(e) => {
       println!("Error occurs when invoking pobf_sample_task_aaes");

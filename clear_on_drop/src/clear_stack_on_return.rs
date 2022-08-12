@@ -10,6 +10,11 @@ use crate::hide::{hide_mem, hide_ptr};
 #[inline]
 fn clean_registers() {
   unsafe {
+    // Is there any need to clear RBP / RSP?
+    // asm!("xor rbp, rbp /* {0} */", out(reg) _);
+    // asm!("xor rsp, rsp /* {0} */", out(reg) _);
+
+    asm!("xor rax, rax /* {0} */", out(reg) _);
     asm!("xor rbx, rbx /* {0} */", out(reg) _);
     asm!("xor rcx, rcx /* {0} */", out(reg) _);
     asm!("xor rdx, rdx /* {0} */", out(reg) _);
