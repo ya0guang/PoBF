@@ -18,7 +18,6 @@ mod pobf_verifier;
 mod types;
 mod userfunc;
 mod utils;
-mod cleaner;
 
 use alloc::slice;
 use ocall::*;
