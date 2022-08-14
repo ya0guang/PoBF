@@ -20,7 +20,7 @@ mod userfunc;
 mod utils;
 
 use alloc::slice;
-use clear_on_drop::clear_stack_on_return_fnonce;
+use clear_on_drop::clear_stack_and_regs_on_return;
 use ocall::*;
 use pobf::*;
 use sgx_types::error::SgxStatus;
@@ -46,7 +46,7 @@ pub extern "C" fn private_computing_entry(
         unsafe { slice::from_raw_parts_mut(encrypted_input_ptr, encrypted_input_size as usize) };
 
     let f = || pobf_private_computing(encrypted_input, sealed_key);
-    let res = clear_stack_on_return_fnonce(DEFAULT_PAGE_SIZE_ENTRY, f, true);
+    let res = clear_stack_and_regs_on_return(DEFAULT_PAGE_SIZE_ENTRY, f);
 
     let encrypted_output = match res {
         Ok(x) => x,

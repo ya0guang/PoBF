@@ -5,7 +5,7 @@ use crate::types::*;
 use crate::userfunc::vec_inc;
 use crate::{ocall_log, verified_log};
 use alloc::vec::Vec;
-use clear_on_drop::clear_stack_on_return_fnonce;
+use clear_on_drop::clear_stack_and_regs_on_return;
 use sgx_types::error::SgxResult;
 use zeroize::Zeroize;
 
@@ -45,7 +45,7 @@ pub fn pobf_private_computing(
     let computation_task = &private_vec_compute;
     let f = || pobf_workflow(data, input_key, output_key, computation_task);
 
-    clear_stack_on_return_fnonce(crate::DEFAULT_PAGE_SIZE_LEAF, f, true)
+    clear_stack_and_regs_on_return(crate::DEFAULT_PAGE_SIZE_LEAF, f)
 }
 
 pub fn private_vec_compute<T>(input: T) -> T

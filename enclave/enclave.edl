@@ -1,15 +1,4 @@
 enclave {
-        from "sgx_thread.edl" import *;
-        from "sgx_mem.edl" import *;
-        from "sgx_msbuf.edl" import *;
-        from "sgx_fs.edl" import *;
-        from "sgx_net.edl" import *;
-        from "sgx_pipe.edl" import *;
-        from "sgx_cpuid.edl" import *;
-        from "sgx_process.edl" import *;
-        from "sgx_backtrace.edl" import *;
-        from "sgx_tstd.edl" import *;
-        from "sgx_tprotected_fs.edl" import *;
 
     untrusted {
         uint32_t u_log_ocall(

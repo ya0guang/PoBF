@@ -16,6 +16,7 @@
 # under the License.
 
 ######## SGX SDK Settings ########
+
 SGX_SDK ?= /opt/intel/sgxsdk
 SGX_MODE ?= HW
 SGX_ARCH ?= x64
@@ -144,7 +145,7 @@ $(RustEnclave_Name): enclave/enclave_t.o enclave
 	@mkdir -p $(CUSTOM_LIBRARY_PATH)
 	@mkdir -p $(CUSTOM_BIN_PATH)
 	@cp $(RustEnclave_Lib_Name) $(CUSTOM_LIBRARY_PATH)/libenclave.a
-	@$(CC) enclave/enclave_t.o -o $@ $(RustEnclave_Link_Flags)
+	@$(CXX) enclave/enclave_t.o -o $@ $(RustEnclave_Link_Flags)
 	@echo "LINK => $@"
 
 $(RustEnclave_Signed_Name): $(RustEnclave_Name) enclave/config.xml
@@ -155,7 +156,7 @@ $(RustEnclave_Signed_Name): $(RustEnclave_Name) enclave/config.xml
 
 .PHONY: app
 app:
-	@cd app && SGX_SDK=$(SGX_SDK) SGX_MODE=$(SGX_MODE) cargo build $(App_Rust_Flags)
+	@cd app && SGX_SDK=$(SGX_SDK) cargo build $(App_Rust_Flags)
 
 ######## Build Enclave ########
 

@@ -4,3 +4,6 @@
 [submodule "clear_on_drop"]
 	path = clear_on_drop
 	url = git@github.com:hiroki-chen/clear_on_drop.git
+[submodule "MIRAI"]
+	path = MIRAI
+	url = https://github.com/facebookexperimental/MIRAI
