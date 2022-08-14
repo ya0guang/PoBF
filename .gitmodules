@@ -1,6 +1,0 @@
-[submodule "incubator-teaclave-sgx-sdk"]
-	path = incubator-teaclave-sgx-sdk
-	url = https://github.com/apache/incubator-teaclave-sgx-sdk
-[submodule "clear_on_drop"]
-	path = clear_on_drop
-	url = git@github.com:hiroki-chen/clear_on_drop.git
