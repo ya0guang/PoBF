@@ -1,0 +1,1 @@
+{"rustc":3566964376903696672,"features":"","target":0,"profile":0,"path":0,"deps":[[7081106715254084602,"build_script_build",false,11657194181121378014]],"local":[{"RerunIfChanged":{"output":"debug/build/sgx_types-69d5dcf3e4c8aa11/output","paths":["build.rs"]}},{"RerunIfEnvChanged":{"var":"SGX_MODE","val":null}}],"rustflags":[],"metadata":0,"config":0,"compile_kind":0}

@@ -1,0 +1,12 @@
+[package]
+name = "leakage"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+mirai = "*"
+mirai-annotations = "1.6.1"
+sgx_types = { path = "../../incubator-teaclave-sgx-sdk/sgx_types"}
+sgx_urts = { path = "../../incubator-teaclave-sgx-sdk/sgx_urts"}

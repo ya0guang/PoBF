@@ -1,0 +1,2 @@
+cargo:rerun-if-env-changed=SGX_MODE
+cargo:rerun-if-changed=build.rs

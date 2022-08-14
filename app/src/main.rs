@@ -1,5 +1,6 @@
 extern crate sgx_types;
 extern crate sgx_urts;
+extern crate termcolor;
 
 mod ocall;
 
