@@ -15,7 +15,7 @@ pub fn pobf_private_computing(
 ) -> SgxResult<VecAESData> {
     verified_log!("PoBF sample task AES started...");
     // initialize data from buffer
-    let input_key =  AES128Key::from_sealed_buffer(sealed_key_buffer)?;
+    let input_key = AES128Key::from_sealed_buffer(sealed_key_buffer)?;
     let output_key = AES128Key::from_sealed_buffer(sealed_key_buffer)?;
     let data = VecAESData::from(data_buffer);
 
@@ -64,8 +64,8 @@ pub fn pobf_workflow<D: EncDec<K>, K: Default>(
     output_key: K,
     computation_task: &dyn Fn(D) -> D,
 ) -> SgxResult<D>
-    where
-        K: Zeroize
+where
+    K: Zeroize,
 {
     let enc_in: ProtectedAssets<Encrypted, Input, D, K> =
         ProtectedAssets::new(input_sealed, input_key, output_key);

@@ -208,7 +208,9 @@ pub struct Key<K, S> {
 }
 
 impl<K> Zeroize for Key<K, Sealed>
-where K: Default + Zeroize {
+where
+    K: Default + Zeroize,
+{
     fn zeroize(&mut self) {
         self.raw.zeroize();
     }

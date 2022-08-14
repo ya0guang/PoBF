@@ -5,10 +5,10 @@
 #![feature(allocator_api)]
 
 extern crate alloc;
+extern crate clear_on_drop;
 #[cfg(feature = "sgx")]
 extern crate sgx_no_tstd;
 extern crate sgx_types;
-extern crate clear_on_drop;
 
 #[cfg(not(feature = "sgx"))]
 mod bogus;
@@ -20,55 +20,55 @@ mod userfunc;
 mod utils;
 
 use alloc::slice;
+use clear_on_drop::clear_stack_on_return_fnonce;
 use ocall::*;
 use pobf::*;
 use sgx_types::error::SgxStatus;
-use clear_on_drop::clear_stack_on_return_fnonce;
 
 static DEFAULT_PAGE_SIZE_ENTRY: usize = 0x4;
-static DEFAULT_PAGE_SIZE_LEAF : usize = 0x1;
+static DEFAULT_PAGE_SIZE_LEAF: usize = 0x1;
 
 #[no_mangle]
 pub extern "C" fn private_computing_entry(
-  sealed_key_ptr: *mut u8,
-  sealed_key_size: u32,
-  encrypted_input_ptr: *mut u8,
-  encrypted_input_size: u32,
-  encrypted_output_buffer_ptr: *mut u8,
-  encrypted_output_buffer_size: u32,
-  encrypted_output_size: *mut u32,
+    sealed_key_ptr: *mut u8,
+    sealed_key_size: u32,
+    encrypted_input_ptr: *mut u8,
+    encrypted_input_size: u32,
+    encrypted_output_buffer_ptr: *mut u8,
+    encrypted_output_buffer_size: u32,
+    encrypted_output_size: *mut u32,
 ) -> SgxStatus {
-  ocall_log!("[+] private_computing_entry");
+    ocall_log!("[+] private_computing_entry");
 
-  let sealed_key = unsafe { slice::from_raw_parts_mut(sealed_key_ptr, sealed_key_size as usize) };
+    let sealed_key = unsafe { slice::from_raw_parts_mut(sealed_key_ptr, sealed_key_size as usize) };
 
-  let encrypted_input =
-      unsafe { slice::from_raw_parts_mut(encrypted_input_ptr, encrypted_input_size as usize) };
+    let encrypted_input =
+        unsafe { slice::from_raw_parts_mut(encrypted_input_ptr, encrypted_input_size as usize) };
 
-  let f = || pobf_private_computing(encrypted_input, sealed_key);
-  let res = clear_stack_on_return_fnonce(DEFAULT_PAGE_SIZE_ENTRY, f, true);
+    let f = || pobf_private_computing(encrypted_input, sealed_key);
+    let res = clear_stack_on_return_fnonce(DEFAULT_PAGE_SIZE_ENTRY, f, true);
 
-  let encrypted_output = match res {
-    Ok(x) => x,
-    Err(e) => {
-      println!("Error occurs when invoking pobf_sample_task_aaes");
-      return e;
+    let encrypted_output = match res {
+        Ok(x) => x,
+        Err(e) => {
+            println!("Error occurs when invoking pobf_sample_task_aaes");
+            return e;
+        }
+    };
+
+    let encrypted_output_buffer_size = encrypted_output_buffer_size as usize;
+    let encrypted_output_slice = encrypted_output.as_ref();
+    let encrypted_output_length = encrypted_output_slice.len();
+    unsafe {
+        core::ptr::write(encrypted_output_size, encrypted_output_length as u32);
     }
-  };
+    if encrypted_output_length > encrypted_output_buffer_size {
+        return SgxStatus::Unexpected;
+    }
 
-  let encrypted_output_buffer_size = encrypted_output_buffer_size as usize;
-  let encrypted_output_slice = encrypted_output.as_ref();
-  let encrypted_output_length = encrypted_output_slice.len();
-  unsafe {
-    core::ptr::write(encrypted_output_size, encrypted_output_length as u32);
-  }
-  if encrypted_output_length > encrypted_output_buffer_size {
-    return SgxStatus::Unexpected;
-  }
-
-  let encrypted_output_buffer = unsafe {
-    slice::from_raw_parts_mut(encrypted_output_buffer_ptr, encrypted_output_buffer_size)
-  };
-  encrypted_output_buffer[..encrypted_output_length].copy_from_slice(encrypted_output_slice);
-  SgxStatus::Success
+    let encrypted_output_buffer = unsafe {
+        slice::from_raw_parts_mut(encrypted_output_buffer_ptr, encrypted_output_buffer_size)
+    };
+    encrypted_output_buffer[..encrypted_output_length].copy_from_slice(encrypted_output_slice);
+    SgxStatus::Success
 }
