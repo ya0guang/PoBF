@@ -16,9 +16,8 @@
 # under the License.
 
 ######## SGX SDK Settings ########
-# Local settings for Kali-Linux.
 SGX_SDK ?= /opt/intel/sgxsdk
-SGX_MODE ?= SIM
+SGX_MODE ?= HW
 SGX_ARCH ?= x64
 
 TOP_DIR := ./incubator-teaclave-sgx-sdk
