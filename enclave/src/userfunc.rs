@@ -21,7 +21,7 @@ pub fn vec_inc(input: Vec<u8>) -> Vec<u8> {
     // leakage violation: cannot log the secret data
     // captured by: MIRAI warnning
     #[cfg(feature = "leak_log")]
-    {   
+    {
         #[cfg(mirai)]
         verify!(output[0] == 1);
         println!("after increasing, the 0th data is {}", output[0]);

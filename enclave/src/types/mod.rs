@@ -8,6 +8,7 @@ pub use vecaes::*;
 
 use core::marker::PhantomData;
 use sgx_types::error::SgxResult;
+use zeroize::Zeroize;
 
 pub const BUFFER_SIZE: usize = 1024;
 pub const SEALED_DATA_SIZE: usize = 16;
@@ -102,7 +103,7 @@ where
 #[allow(private_in_public)]
 trait Decryption<K>
 where
-    Self: Sized,
+    Self: Sized + Zeroize,
 {
     fn decrypt(self, key: &K) -> SgxResult<Self>;
 }
@@ -110,7 +111,7 @@ where
 #[allow(private_in_public)]
 trait Encryption<K>
 where
-    Self: Sized,
+    Self: Sized + Zeroize,
 {
     fn encrypt(self, key: &K) -> SgxResult<Self>;
 }
@@ -153,9 +154,10 @@ where
 impl<D, K> Data<Encrypted, Input, D, K>
 where
     D: EncDec<K>,
-    K: Default,
+    K: Default + Zeroize,
 {
     pub fn decrypt(self, key: &Key<K, Sealed>) -> SgxResult<Data<Decrypted, Input, D, K>> {
+        // Moved. No need to zeroize it.
         let raw = self.raw.decrypt(key.raw_ref())?;
 
         Ok(Data {
@@ -185,9 +187,10 @@ where
 impl<D, K> Data<Decrypted, Output, D, K>
 where
     D: EncDec<K>,
-    K: Default,
+    K: Default + Zeroize,
 {
     pub fn encrypt(self, key: &Key<K, Sealed>) -> SgxResult<Data<Encrypted, Output, D, K>> {
+        // TODO: zeroize previous raw data.
         let raw = self.raw.encrypt(key.raw_ref())?;
         Ok(Data {
             raw,
@@ -204,9 +207,18 @@ pub struct Key<K, S> {
     _key_state: S,
 }
 
+impl<K> Zeroize for Key<K, Sealed>
+where
+    K: Default + Zeroize,
+{
+    fn zeroize(&mut self) {
+        self.raw.zeroize();
+    }
+}
+
 impl<K> Key<K, Sealed>
 where
-    K: Default,
+    K: Default + Zeroize,
 {
     pub fn new(raw: K) -> Key<K, Sealed> {
         Key {
@@ -220,7 +232,8 @@ where
     }
 
     // zone allocator will zerorize(consume) self!
-    pub fn zeroize(self) -> Key<K, Invalid> {
+    pub fn _zeroize(&mut self) -> Key<K, Invalid> {
+        self.zeroize();
         Key {
             raw: K::default(),
             _key_state: Invalid,
@@ -228,6 +241,7 @@ where
     }
 }
 
+// Main definition for Typestate.
 pub struct ProtectedAssets<S, T, D, K>
 where
     Data<S, T, D, K>: InputKeyState,
@@ -244,13 +258,13 @@ where
 impl<D, K> ProtectedAssets<Encrypted, Input, D, K>
 where
     D: EncDec<K>,
-    K: Default,
+    K: Default + Zeroize,
 {
-    pub fn decrypt(self) -> SgxResult<ProtectedAssets<Decrypted, Input, D, K>> {
+    pub fn decrypt(mut self) -> SgxResult<ProtectedAssets<Decrypted, Input, D, K>> {
         let data = self.data.decrypt(&self.input_key)?;
         Ok(ProtectedAssets {
             data,
-            input_key: self.input_key.zeroize(),
+            input_key: self.input_key._zeroize(),
             output_key: self.output_key,
         })
     }
@@ -285,15 +299,15 @@ where
 impl<D, K> ProtectedAssets<Decrypted, Output, D, K>
 where
     D: EncDec<K>,
-    K: Default,
+    K: Default + Zeroize,
 {
-    pub fn encrypt(self) -> SgxResult<ProtectedAssets<Encrypted, Output, D, K>> {
+    pub fn encrypt(mut self) -> SgxResult<ProtectedAssets<Encrypted, Output, D, K>> {
         let data = self.data.encrypt(&self.output_key)?;
 
         Ok(ProtectedAssets {
             data,
             input_key: self.input_key,
-            output_key: self.output_key.zeroize(),
+            output_key: self.output_key._zeroize(),
         })
     }
 }
