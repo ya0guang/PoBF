@@ -72,7 +72,16 @@ Usable version is `b74ed28a0d8b946c67fb85f56edbeb81346aabd9` with `nightly-2022-
 Run
 
 ```shell
-PRUSTI_NO_VERIFY_DEPS=true [/path/to/cargo-prusti] # Treat local dependencies as external crates so that prusti will not make attemps to verify them.
+PRUSTI_NO_VERIFY_DEPS=true [/path/to/cargo-prusti]
+# Treat local dependencies as external crates so that prusti will not make attemps to verify them.
+# Also remember to enable features.
+```
+
+Prusti cannot verify function pointers, and if we mark all functions involving function pointers, Prusti will panic...?
+Maybe function pointers are runtime-object so that it cannot analyze it at compiler time; but our project relied heavily on that thing... **Current Rust verifier only supports relatively a small subset of Rust traits.**
+
+```sh
+thread 'rustc' panicked at 'not implemented: ty=Closure(DefId(0:275 ~ pobfref[c8aa]::pobf::pobf_private_computing::{closure#0}), [i32, extern "rust-call" fn(()) -> core::result::Result<types::vecaes::VecAESData, sgx_types::error::SgxStatus>, (types::vecaes::VecAESData, types::vecaes::AES128Key, types::vecaes::AES128Key, &fn(types::vecaes::VecAESData) -> types::vecaes::VecAESData {pobf::private_vec_compute::<types::vecaes::VecAESData>})])', analysis/src/mir_utils.rs:141:17
 ```
 
 Make configurations so that some code is not compiled during Prusti check.
