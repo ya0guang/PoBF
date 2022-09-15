@@ -1,5 +1,6 @@
 use core::marker::PhantomData;
 
+use crate::types::*;
 use prusti_contracts::*;
 use sgx_types::error::SgxResult;
 /// A bogus computation_task for Prusti verification since Prusti does not support higher-order
@@ -18,6 +19,7 @@ impl<T: Sized> ComputationTask<T> {
         data_in
     }
 
+    #[trusted]
     pub fn new() -> Self {
         Self {
             _inner: PhantomData,
@@ -25,23 +27,58 @@ impl<T: Sized> ComputationTask<T> {
     }
 }
 
+// Some helper pure functions ofr `SgxResult` type...
+// HACK: These seem to be the only way to let Prusti correctly verify the result...
 #[cfg(feature = "use_prusti")]
-#[extern_spec]
-impl<T> SgxResult<T> {
-    /// A pure logical function for verification. Rust will desugar the precondition statement
-    ///   ```rust
-    ///   #[ensures(result.is_ok())]
-    ///   ```
-    /// to a non-pure function, which will make Prusti reject the code.
-    #[pure]
-    #[ensures(matches!(*self, Ok(_)) == result)]
-    #[allow(unused_must_use)]
-    #[allow(unused)]
-    pub fn is_ok(&self) -> bool;
+#[pure]
+#[allow(unused)]
+pub fn is_ok_generic<T>(input: &SgxResult<T>) -> bool {
+    if let Ok(_) = input {
+        true
+    } else {
+        false
+    }
+}
 
-    /// A pure logical function that calls `unwrap` method on `Result` type.
-    #[pure]
-    #[requires(self.is_ok())]
-    #[allow(unused)]
-    pub fn unwrap(self) -> T;
+#[cfg(feature = "use_prusti")]
+#[pure]
+#[allow(unused)]
+pub fn is_err_generic<T>(input: &SgxResult<T>) -> bool {
+	!is_ok_generic(input)
+}
+
+#[cfg(feature = "use_prusti")]
+#[pure]
+#[allow(unused)]
+pub fn is_ok<D: EncDec<K>, K: Default>(input: &SgxResult<D>) -> bool {
+    if let Ok(_) = input {
+        true
+    } else {
+        false
+    }
+}
+
+#[cfg(feature = "use_prusti")]
+#[pure]
+#[allow(unused)]
+pub fn is_err<D: EncDec<K>, K: Default>(input: &SgxResult<D>) -> bool {
+    !is_ok(input)
+}
+
+#[cfg(feature = "use_prusti")]
+#[pure]
+#[allow(unused)]
+pub fn is_ok_aes(input: &SgxResult<VecAESData>) -> bool {
+    if let Ok(_) = input {
+        true
+    } else {
+        false
+    }
+}
+
+#[cfg(feature = "use_prusti")]
+#[pure]
+#[allow(unused)]
+pub fn is_err_aes(input: &SgxResult<VecAESData>) -> bool {
+    !is_ok(input)
 }

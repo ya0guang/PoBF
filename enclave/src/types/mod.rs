@@ -190,7 +190,7 @@ where
     }
 
     #[cfg(feature = "use_prusti")]
-	#[trusted]
+    #[trusted]
     pub fn invoke(self, fun: &ComputationTask<D>) -> SgxResult<Data<Decrypted, Output, D, K>> {
         let raw = fun.do_compute(self.raw);
 
@@ -276,6 +276,20 @@ where
     data: Data<S, T, D, K>,
     input_key: Key<K, <Data<S, T, D, K> as InputKeyState>::KeyState>,
     output_key: Key<K, <Data<S, T, D, K> as OutputKeyState>::KeyState>,
+    tag: bool, // sensitive?
+}
+
+impl<S, T, D, K> ProtectedAssets<S, T, D, K>
+where
+    Data<S, T, D, K>: InputKeyState,
+    Data<S, T, D, K>: OutputKeyState,
+    S: EncryptionState,
+    T: IOState,
+    D: EncDec<K>,
+{
+    pub fn is_sensitive(&self) -> bool {
+        self.tag
+    }
 }
 
 impl<D, K> ProtectedAssets<Encrypted, Input, D, K>
@@ -290,6 +304,7 @@ where
             data,
             input_key: self.input_key._zeroize(),
             output_key: self.output_key,
+            tag: !self.tag, // The initial tag is non-sensitive.
         })
     }
 
@@ -299,6 +314,7 @@ where
             data: Data::new(raw),
             input_key: Key::new(input_key),
             output_key: Key::new(output_key),
+			tag: false,
         }
     }
 }
@@ -318,6 +334,7 @@ where
             data,
             input_key: self.input_key,
             output_key: self.output_key,
+			tag: self.tag,
         })
     }
 
@@ -333,6 +350,7 @@ where
             data,
             input_key: self.input_key,
             output_key: self.output_key,
+			tag: self.tag, // unchanged.
         })
     }
 }
@@ -350,6 +368,7 @@ where
             data,
             input_key: self.input_key,
             output_key: self.output_key._zeroize(),
+			tag: !self.tag,
         })
     }
 }

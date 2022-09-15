@@ -44,7 +44,6 @@ pub extern "C" fn private_computing_entry(
     encrypted_output_buffer_size: u32,
     encrypted_output_size: *mut u32,
 ) -> SgxStatus {
-    #[cfg(not(feature = "use_prusti"))]
     ocall_log!("[+] private_computing_entry");
 
     let sealed_key = unsafe { slice::from_raw_parts_mut(sealed_key_ptr, sealed_key_size as usize) };

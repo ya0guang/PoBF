@@ -85,3 +85,5 @@ thread 'rustc' panicked at 'not implemented: ty=Closure(DefId(0:275 ~ pobfref[c8
 ```
 
 Make configurations so that some code is not compiled during Prusti check.
+
+**CURRENT VERSION (02-11) OF PRUSTI WILL PANIC ON GENERIC TYPES.**

@@ -35,6 +35,9 @@ macro_rules! ocall {
         $ (
             #[cfg(not(feature = "sgx"))]
             mirai_annotations::verify!($invar == $arg);
+
+            #[cfg(feature = "use_prusti")]
+            // Should not have secret tag here.
         )*
         $func($($arg),*);
     };
