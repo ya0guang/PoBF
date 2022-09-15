@@ -9,6 +9,8 @@ use alloc::vec::Vec;
 use sgx_crypto::aes::gcm::*;
 use sgx_types::error::*;
 
+use prusti_contracts::*;
+
 pub struct VecAESData {
     inner: Vec<u8>,
 }
@@ -44,6 +46,7 @@ impl Into<Vec<u8>> for VecAESData {
 }
 
 impl AsRef<[u8]> for VecAESData {
+    #[trusted]
     fn as_ref(&self) -> &[u8] {
         &self.inner[..]
     }
@@ -71,6 +74,7 @@ impl Zeroize for AES128Key {
 }
 
 impl AES128Key {
+    #[trusted]
     pub fn from_sealed_buffer(sealed_buffer: &[u8]) -> SgxResult<Self> {
         assert!(sealed_buffer.len() <= BUFFER_SIZE);
         let buffer = sealed_buffer.to_vec();
@@ -81,11 +85,13 @@ impl AES128Key {
         Ok(key)
     }
 
+    #[trusted]
     fn unseal(&self) -> SgxResult<Self> {
         let opt = from_sealed_log_for_fixed::<[u8; SEALED_DATA_SIZE]>(&self.buffer);
         let sealed_data = match opt {
             Some(x) => x,
             _ => {
+                #[cfg(not(feature = "use_prusti"))]
                 verified_log!("Failed to create sealed data");
                 return Err(SgxStatus::NotSgxFile);
             }
@@ -100,6 +106,7 @@ impl AES128Key {
 }
 
 impl Encryption<AES128Key> for VecAESData {
+    #[trusted]
     fn encrypt(self, key: &AES128Key) -> SgxResult<Self> {
         let key = key.unseal()?;
         let aad_array: [u8; 0] = [0; 0];
@@ -119,6 +126,7 @@ impl Encryption<AES128Key> for VecAESData {
 }
 
 impl Decryption<AES128Key> for VecAESData {
+    #[trusted]
     fn decrypt(self, key: &AES128Key) -> SgxResult<Self> {
         let key = key.unseal()?;
         let aad_array: [u8; 0] = [0; 0];

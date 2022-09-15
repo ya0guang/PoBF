@@ -59,7 +59,7 @@ extern location for creusot_contracts does not exist: /home/kali/PoBF/bin/play/t
   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ```
 
-5. Newer version of `creusot` is incompatible with the SDK's toolchain.
+5. Newer version of `creusot` is incompatible with the SDK's toolchain; also it cannot verify function pointers (will yield impossible preconditions.)
 
 ## Run
 

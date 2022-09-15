@@ -6,9 +6,13 @@ pub mod vecaes;
 // pub use state::*;
 pub use vecaes::*;
 
+#[cfg(feature = "use_prusti")]
+use crate::verify_utils::ComputationTask;
 use core::marker::PhantomData;
 use sgx_types::error::SgxResult;
 use zeroize::Zeroize;
+
+use prusti_contracts::*;
 
 pub const BUFFER_SIZE: usize = 1024;
 pub const SEALED_DATA_SIZE: usize = 16;
@@ -156,6 +160,7 @@ where
     D: EncDec<K>,
     K: Default + Zeroize,
 {
+    #[trusted]
     pub fn decrypt(self, key: &Key<K, Sealed>) -> SgxResult<Data<Decrypted, Input, D, K>> {
         // Moved. No need to zeroize it.
         let raw = self.raw.decrypt(key.raw_ref())?;
@@ -173,8 +178,22 @@ impl<D, K> Data<Decrypted, Input, D, K>
 where
     D: EncDec<K>,
 {
+    #[cfg(not(feature = "use_prusti"))]
     pub fn invoke(self, fun: &dyn Fn(D) -> D) -> SgxResult<Data<Decrypted, Output, D, K>> {
         let raw = fun(self.raw);
+        Ok(Data {
+            raw,
+            _encryption_state: Decrypted,
+            _io_state: Output,
+            _key_type: PhantomData,
+        })
+    }
+
+    #[cfg(feature = "use_prusti")]
+	#[trusted]
+    pub fn invoke(self, fun: &ComputationTask<D>) -> SgxResult<Data<Decrypted, Output, D, K>> {
+        let raw = fun.do_compute(self.raw);
+
         Ok(Data {
             raw,
             _encryption_state: Decrypted,
@@ -189,8 +208,8 @@ where
     D: EncDec<K>,
     K: Default + Zeroize,
 {
+    #[trusted]
     pub fn encrypt(self, key: &Key<K, Sealed>) -> SgxResult<Data<Encrypted, Output, D, K>> {
-        // TODO: zeroize previous raw data.
         let raw = self.raw.encrypt(key.raw_ref())?;
         Ok(Data {
             raw,
@@ -211,6 +230,7 @@ impl<K> Zeroize for Key<K, Sealed>
 where
     K: Default + Zeroize,
 {
+    #[trusted]
     fn zeroize(&mut self) {
         self.raw.zeroize();
     }
@@ -220,6 +240,7 @@ impl<K> Key<K, Sealed>
 where
     K: Default + Zeroize,
 {
+    #[trusted]
     pub fn new(raw: K) -> Key<K, Sealed> {
         Key {
             raw: raw,
@@ -227,11 +248,13 @@ where
         }
     }
 
+    #[trusted]
     fn raw_ref(&self) -> &K {
         &self.raw
     }
 
     // zone allocator will zerorize(consume) self!
+    #[trusted]
     pub fn _zeroize(&mut self) -> Key<K, Invalid> {
         self.zeroize();
         Key {
@@ -260,6 +283,7 @@ where
     D: EncDec<K>,
     K: Default + Zeroize,
 {
+    #[trusted]
     pub fn decrypt(mut self) -> SgxResult<ProtectedAssets<Decrypted, Input, D, K>> {
         let data = self.data.decrypt(&self.input_key)?;
         Ok(ProtectedAssets {
@@ -269,6 +293,7 @@ where
         })
     }
 
+    #[trusted]
     pub fn new(raw: D, input_key: K, output_key: K) -> Self {
         ProtectedAssets {
             data: Data::new(raw),
@@ -282,9 +307,25 @@ impl<D, K> ProtectedAssets<Decrypted, Input, D, K>
 where
     D: EncDec<K>,
 {
+    #[cfg(not(feature = "use_prusti"))]
     pub fn invoke(
         self,
         fun: &dyn Fn(D) -> D,
+    ) -> SgxResult<ProtectedAssets<Decrypted, Output, D, K>> {
+        let data = self.data.invoke(fun)?;
+
+        Ok(ProtectedAssets {
+            data,
+            input_key: self.input_key,
+            output_key: self.output_key,
+        })
+    }
+
+    #[cfg(feature = "use_prusti")]
+    #[trusted]
+    pub fn invoke(
+        self,
+        fun: &ComputationTask<D>,
     ) -> SgxResult<ProtectedAssets<Decrypted, Output, D, K>> {
         let data = self.data.invoke(fun)?;
 
@@ -301,6 +342,7 @@ where
     D: EncDec<K>,
     K: Default + Zeroize,
 {
+    #[trusted]
     pub fn encrypt(mut self) -> SgxResult<ProtectedAssets<Encrypted, Output, D, K>> {
         let data = self.data.encrypt(&self.output_key)?;
 
@@ -316,6 +358,7 @@ impl<D, K> ProtectedAssets<Encrypted, Output, D, K>
 where
     D: EncDec<K>,
 {
+    #[trusted]
     pub fn take(self) -> D {
         self.data.raw
     }

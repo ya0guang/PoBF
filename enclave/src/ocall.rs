@@ -7,6 +7,8 @@ use libc::{c_char, ssize_t};
 use sgx_libc as libc;
 use sgx_types::error::SgxStatus;
 
+use prusti_contracts::*;
+
 extern "C" {
     fn u_log_ocall(
         result: *mut u32,
@@ -16,6 +18,7 @@ extern "C" {
     ) -> SgxStatus;
 }
 
+#[trusted]
 pub fn log(s: String) -> SgxStatus {
     let mut rv: u32 = 0;
     let (string_ptr, len, cap) = s.into_raw_parts();
