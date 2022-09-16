@@ -1,0 +1,4 @@
+check_overflows = true
+check_panics = true
+skip_unsupported_features = true
+no_verify_deps = true

@@ -58,15 +58,20 @@ pub fn vec_inc(input: Vec<u8>) -> Vec<u8> {
     output
 }
 
-/// A sample user function that increment each element in the given vector.
+/// A sample user function that copy each element in the given vector.
 /// This is an equivalent version used to verify the above function's correctness.
 #[cfg(feature = "use_prusti")]
+// Prevent verification failure on overflow.
+#[requires(forall(
+	|i: usize| 0 <= i && i < input.len() ==>
+		0 <= *input.lookup(i) && *input.lookup(i) + step <= u8::MAX
+))]
 #[ensures(input.len() == result.len())]
 #[ensures(forall(
 	|i: usize| (0 <= i && i < input.len()) ==>
-		*input.lookup(i)== *result.lookup(i)
+		*input.lookup(i) + step == *result.lookup(i)
 ))]
-pub fn vec_play(input: &VecWrapperU8) -> VecWrapperU8 {
+pub fn vec_play(input: &VecWrapperU8, step: u8) -> VecWrapperU8 {
     let mut output = VecWrapperU8::new();
 
     let mut i = 0usize;
@@ -74,13 +79,13 @@ pub fn vec_play(input: &VecWrapperU8) -> VecWrapperU8 {
         body_invariant!(0 <= i && i < input.len());
         body_invariant!(output.len() == i);
         body_invariant!(output.len() <= input.len());
-
+		body_invariant!(*input.lookup(i) + step <= u8::MAX);
         body_invariant!(forall (
             |j: usize| (0 <= j && j < output.len()) ==>
-                *input.lookup(j)== *output.lookup(j)
+                *input.lookup(j) + step == *output.lookup(j)
         ));
 
-        output.push(*input.index(i));
+        output.push(*input.index(i) + step);
         i += 1;
     }
 
