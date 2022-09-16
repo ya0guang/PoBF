@@ -5,9 +5,9 @@ use crate::verify_utils::*;
 
 use crate::ocall::*;
 use crate::types::*;
-use crate::userfunc::vec_inc;
+use crate::userfunc::*;
 use crate::{ocall_log, verified_log};
-use alloc::vec::Vec;
+use alloc::vec::*;
 use clear_on_drop::clear_stack_and_regs_on_return;
 use sgx_types::error::SgxResult;
 use zeroize::Zeroize;
@@ -23,8 +23,10 @@ pub fn pobf_private_computing(
     verified_log!("PoBF sample task AES started...");
 
     // initialize data from buffer
-    let input_key = AES128Key::from_sealed_buffer(sealed_key_buffer).expect("Cannot parse sealed input key!");
-    let output_key = AES128Key::from_sealed_buffer(sealed_key_buffer).expect("Cannot parse sealed output key!");
+    let input_key =
+        AES128Key::from_sealed_buffer(sealed_key_buffer).expect("Cannot parse sealed input key!");
+    let output_key =
+        AES128Key::from_sealed_buffer(sealed_key_buffer).expect("Cannot parse sealed output key!");
     let data = VecAESData::from(data_buffer);
 
     // privacy violation: cannot call decrypt directly on the data
@@ -126,9 +128,12 @@ where
     let enc_in: ProtectedAssets<Encrypted, Input, D, K> =
         ProtectedAssets::new(input_sealed, input_key, output_key);
 
-    let dec_in: ProtectedAssets<Decrypted, Input, D, K> = enc_in.decrypt().expect("Decryption failed.");
-    let dec_out: ProtectedAssets<Decrypted, Output, D, K> = dec_in.invoke(computation_task).expect("Invocation failed");
-    let en_out: ProtectedAssets<Encrypted, Output, D, K> = dec_out.encrypt().expect("Encryption failed");
+    let dec_in: ProtectedAssets<Decrypted, Input, D, K> =
+        enc_in.decrypt().expect("Decryption failed.");
+    let dec_out: ProtectedAssets<Decrypted, Output, D, K> =
+        dec_in.invoke(computation_task).expect("Invocation failed");
+    let en_out: ProtectedAssets<Encrypted, Output, D, K> =
+        dec_out.encrypt().expect("Encryption failed");
 
     Ok(en_out.take())
 }

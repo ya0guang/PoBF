@@ -314,7 +314,7 @@ where
             data: Data::new(raw),
             input_key: Key::new(input_key),
             output_key: Key::new(output_key),
-			tag: false,
+            tag: false,
         }
     }
 }
@@ -334,7 +334,7 @@ where
             data,
             input_key: self.input_key,
             output_key: self.output_key,
-			tag: self.tag,
+            tag: self.tag,
         })
     }
 
@@ -350,7 +350,7 @@ where
             data,
             input_key: self.input_key,
             output_key: self.output_key,
-			tag: self.tag, // unchanged.
+            tag: self.tag, // unchanged.
         })
     }
 }
@@ -368,7 +368,7 @@ where
             data,
             input_key: self.input_key,
             output_key: self.output_key._zeroize(),
-			tag: !self.tag,
+            tag: !self.tag,
         })
     }
 }

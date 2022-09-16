@@ -3,6 +3,7 @@
 use super::*;
 use crate::ocall::*;
 use crate::utils::*;
+#[cfg(feature = "use_prusti")]
 use crate::verify_utils::*;
 use crate::{ocall_log, verified_log};
 use alloc::vec;
@@ -18,7 +19,7 @@ pub struct VecAESData {
 
 // No need for verification on external dependencies.
 impl Zeroize for VecAESData {
-	#[trusted]
+    #[trusted]
     fn zeroize(&mut self) {
         self.inner.zeroize();
     }
@@ -26,14 +27,14 @@ impl Zeroize for VecAESData {
 
 // No need for verification on external dependencies.
 impl From<Vec<u8>> for VecAESData {
-	#[trusted]
+    #[trusted]
     fn from(v: Vec<u8>) -> Self {
         VecAESData { inner: v }
     }
 }
 
 impl From<&[u8]> for VecAESData {
-	#[trusted]
+    #[trusted]
     fn from(raw: &[u8]) -> Self {
         // validity check
         assert!(raw.len() >= 32);
@@ -46,7 +47,7 @@ impl From<&[u8]> for VecAESData {
 }
 
 impl Into<Vec<u8>> for VecAESData {
-	#[trusted]
+    #[trusted]
     fn into(self) -> Vec<u8> {
         self.inner
     }
@@ -65,7 +66,7 @@ pub struct AES128Key {
 }
 
 impl Default for AES128Key {
-	#[trusted]
+    #[trusted]
     fn default() -> Self {
         AES128Key {
             buffer: vec![],
@@ -75,7 +76,7 @@ impl Default for AES128Key {
 }
 
 impl Zeroize for AES128Key {
-	#[trusted]
+    #[trusted]
     fn zeroize(&mut self) {
         self.inner.zeroize();
         self.buffer.zeroize();
@@ -84,7 +85,7 @@ impl Zeroize for AES128Key {
 
 impl AES128Key {
     #[trusted]
-	#[ensures(is_ok_generic(&result))]
+    #[ensures(is_ok_generic(&result))]
     pub fn from_sealed_buffer(sealed_buffer: &[u8]) -> SgxResult<Self> {
         assert!(sealed_buffer.len() <= BUFFER_SIZE);
         let buffer = sealed_buffer.to_vec();
