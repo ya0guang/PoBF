@@ -79,7 +79,7 @@ pub fn vec_play(input: &VecWrapperU8, step: u8) -> VecWrapperU8 {
         body_invariant!(0 <= i && i < input.len());
         body_invariant!(output.len() == i);
         body_invariant!(output.len() <= input.len());
-		body_invariant!(*input.lookup(i) + step <= u8::MAX);
+        body_invariant!(*input.lookup(i) + step <= u8::MAX);
         body_invariant!(forall (
             |j: usize| (0 <= j && j < output.len()) ==>
                 *input.lookup(j) + step == *output.lookup(j)

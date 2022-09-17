@@ -7,7 +7,7 @@ pub mod vecaes;
 pub use vecaes::*;
 
 #[cfg(feature = "use_prusti")]
-use crate::verify_utils::ComputationTask;
+use crate::verify_utils::*;
 use core::marker::PhantomData;
 use sgx_types::error::SgxResult;
 use zeroize::Zeroize;
@@ -109,6 +109,7 @@ trait Decryption<K>
 where
     Self: Sized + Zeroize,
 {
+    #[trusted]
     fn decrypt(self, key: &K) -> SgxResult<Self>;
 }
 
@@ -287,6 +288,9 @@ where
     T: IOState,
     D: EncDec<K>,
 {
+    #[pure]
+    #[ensures(result == self.tag)]
+    #[allow(unused)]
     pub fn is_sensitive(&self) -> bool {
         self.tag
     }
@@ -297,18 +301,35 @@ where
     D: EncDec<K>,
     K: Default + Zeroize,
 {
-    #[trusted]
+    #[cfg(not(feature = "use_prusti"))]
     pub fn decrypt(mut self) -> SgxResult<ProtectedAssets<Decrypted, Input, D, K>> {
         let data = self.data.decrypt(&self.input_key)?;
+
         Ok(ProtectedAssets {
             data,
             input_key: self.input_key._zeroize(),
             output_key: self.output_key,
-            tag: !self.tag, // The initial tag is non-sensitive.
+            tag: true, // The initial tag is non-sensitive.
         })
     }
 
+    #[cfg(feature = "use_prusti")]
     #[trusted]
+    #[requires(!(&self).is_sensitive())]
+    #[ensures((&result).is_sensitive())]
+    pub fn decrypt(mut self) -> ProtectedAssets<Decrypted, Input, D, K> {
+        let data = self.data.decrypt(&self.input_key).expect("Decryption fail");
+
+        ProtectedAssets {
+            data,
+            input_key: self.input_key._zeroize(),
+            output_key: self.output_key,
+            tag: true, // The initial tag is non-sensitive.
+        }
+    }
+
+    #[trusted]
+    #[ensures(!(&result).is_sensitive())]
     pub fn new(raw: D, input_key: K, output_key: K) -> Self {
         ProtectedAssets {
             data: Data::new(raw),
@@ -340,18 +361,17 @@ where
 
     #[cfg(feature = "use_prusti")]
     #[trusted]
-    pub fn invoke(
-        self,
-        fun: &ComputationTask<D>,
-    ) -> SgxResult<ProtectedAssets<Decrypted, Output, D, K>> {
-        let data = self.data.invoke(fun)?;
+    #[requires((&self).is_sensitive())]
+    #[ensures((&result).is_sensitive())]
+    pub fn invoke(self, fun: &ComputationTask<D>) -> ProtectedAssets<Decrypted, Output, D, K> {
+        let data = self.data.invoke(fun).expect("Invocation fail.");
 
-        Ok(ProtectedAssets {
+        ProtectedAssets {
             data,
             input_key: self.input_key,
             output_key: self.output_key,
             tag: self.tag, // unchanged.
-        })
+        }
     }
 }
 
@@ -360,7 +380,7 @@ where
     D: EncDec<K>,
     K: Default + Zeroize,
 {
-    #[trusted]
+    #[cfg(not(feature = "use_prusti"))]
     pub fn encrypt(mut self) -> SgxResult<ProtectedAssets<Encrypted, Output, D, K>> {
         let data = self.data.encrypt(&self.output_key)?;
 
@@ -370,6 +390,24 @@ where
             output_key: self.output_key._zeroize(),
             tag: !self.tag,
         })
+    }
+
+    #[cfg(feature = "use_prusti")]
+    #[trusted]
+    #[requires((&self).is_sensitive())]
+    #[ensures(!(&result).is_sensitive())]
+    pub fn encrypt(mut self) -> ProtectedAssets<Encrypted, Output, D, K> {
+        let data = self
+            .data
+            .encrypt(&self.output_key)
+            .expect("Encryption fail.");
+
+        ProtectedAssets {
+            data,
+            input_key: self.input_key,
+            output_key: self.output_key._zeroize(),
+            tag: !self.tag,
+        }
     }
 }
 

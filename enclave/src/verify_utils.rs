@@ -3,7 +3,8 @@ use core::marker::PhantomData;
 use crate::types::*;
 use alloc::vec::Vec;
 use prusti_contracts::*;
-use sgx_types::error::SgxResult;
+use sgx_types::error::{SgxResult, SgxStatus};
+use zeroize::*;
 /// A bogus computation_task for Prusti verification since Prusti does not support higher-order
 /// functions. So we currently verify the framework and the computation_task separately.
 pub struct ComputationTask<T: Sized> {
@@ -96,7 +97,7 @@ impl VecWrapperU8 {
 }
 
 // Some helper pure functions ofr `SgxResult` type...
-// HACK: These seem to be the only way to let Prusti correctly verify the result...
+// HACK: These seem to be the only way to let Prusti correctly verify the result... Prusti has error supporting generic types.
 #[cfg(feature = "use_prusti")]
 #[pure]
 #[allow(unused)]
@@ -111,26 +112,12 @@ pub fn is_ok_generic<T>(input: &SgxResult<T>) -> bool {
 #[cfg(feature = "use_prusti")]
 #[pure]
 #[allow(unused)]
-pub fn is_err_generic<T>(input: &SgxResult<T>) -> bool {
-    !is_ok_generic(input)
-}
-
-#[cfg(feature = "use_prusti")]
-#[pure]
-#[allow(unused)]
-pub fn is_ok<D: EncDec<K>, K: Default>(input: &SgxResult<D>) -> bool {
+pub fn is_ok_default<D: EncDec<K>, K: Default>(input: &SgxResult<D>) -> bool {
     if let Ok(_) = input {
         true
     } else {
         false
     }
-}
-
-#[cfg(feature = "use_prusti")]
-#[pure]
-#[allow(unused)]
-pub fn is_err<D: EncDec<K>, K: Default>(input: &SgxResult<D>) -> bool {
-    !is_ok(input)
 }
 
 #[cfg(feature = "use_prusti")]
@@ -148,5 +135,5 @@ pub fn is_ok_aes(input: &SgxResult<VecAESData>) -> bool {
 #[pure]
 #[allow(unused)]
 pub fn is_err_aes(input: &SgxResult<VecAESData>) -> bool {
-    !is_ok(input)
+    !is_ok_aes(input)
 }

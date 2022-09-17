@@ -115,7 +115,7 @@ where
 
 #[cfg(feature = "use_prusti")]
 // Aborts when error occurs, so we always get OK (by design).
-#[ensures(is_ok(&result))]
+#[ensures(is_ok_default(&result))]
 pub fn pobf_workflow<D: EncDec<K>, K: Default>(
     input_sealed: D,
     input_key: K,
@@ -128,12 +128,10 @@ where
     let enc_in: ProtectedAssets<Encrypted, Input, D, K> =
         ProtectedAssets::new(input_sealed, input_key, output_key);
 
-    let dec_in: ProtectedAssets<Decrypted, Input, D, K> =
-        enc_in.decrypt().expect("Decryption failed.");
-    let dec_out: ProtectedAssets<Decrypted, Output, D, K> =
-        dec_in.invoke(computation_task).expect("Invocation failed");
-    let en_out: ProtectedAssets<Encrypted, Output, D, K> =
-        dec_out.encrypt().expect("Encryption failed");
+    let dec_in: ProtectedAssets<Decrypted, Input, D, K> = enc_in.decrypt();
+
+    let dec_out: ProtectedAssets<Decrypted, Output, D, K> = dec_in.invoke(computation_task);
+    let en_out: ProtectedAssets<Encrypted, Output, D, K> = dec_out.encrypt();
 
     Ok(en_out.take())
 }

@@ -19,7 +19,7 @@ Approach: Only verify functions that deal with type transfer, and that other fun
 
 Maybe MIRAI?...
 
-Or we can use `PhantomData` and then verify it -> ugly.
+I used a tag...
 
 ## Verification of Consistency with the Theoretical PoBF Model - No Residue
 
@@ -87,3 +87,57 @@ thread 'rustc' panicked at 'not implemented: ty=Closure(DefId(0:275 ~ pobfref[c8
 Make configurations so that some code is not compiled during Prusti check.
 
 **CURRENT VERSION (02-11) OF PRUSTI WILL PANIC ON GENERIC TYPES.**
+
+### Some very tricky problems
+
+* Prusti will easily panic when there are nested generic types.
+
+```rust
+#[pure]
+#[ensures(...)]
+pub fn some_generic<D, K>(
+    input: &ProtectedAssets<Encrypted, Output, D, K>)
+  -> bool 
+where
+  D: EncDec<K>,
+  K: Default
+{
+  ...
+}
+```
+The above example will make Prusti die.
+
+* Prusti cannot properly work with `Result`, so we avoid using it, and because our security scheme stipulates that the program aborts when error occurs, so we do not handle errors explicitly. We just let the program crash; so the return values are the inner values. Otherwise we need to verify the inner value via
+
+```rust
+#[pure]
+#[ensures((&input).as_ref().unwrap().call_methods() == false)]
+pub fn some_func<T>(input: &SgxResult<T>) -> bool {
+  ...
+}
+
+// Along with external specifications.
+#[extern_spec]
+impl<T> SgxResult<T> {
+  #[pure]
+  #[requires((&self).is_ok())]
+  fn unwrap(self) -> T;
+
+  #[pure]
+  #[ensures(result == match self {
+    Ok(_) => true,
+    Err(_) => false,
+  })]
+  fn is_ok(&self) -> bool;
+
+  #[pure]
+  // This will cause problems.
+  fn as_ref(&self) -> Result<&T, &SgxStatus>;
+}
+```
+
+The above code cannot compile due to `parameter is not Copy`; but the reason for that is mainly because Prusti cannot handle with deeply-nested generic types, and the ownership cannot be properly figured out, either.
+
+A trick would be to define specific version for generic types, but sometimes it won't work, either :( Also, I do not think resort to `creusot` is a good idea because the it supports fewer traits of Rust language, plus its verification grammar is verbose, which lacks documentation, making the verification even hard to get around.
+
+Maybe the latest build of Prusti can solve the problem, but we need to wait for the upcoming upgrade of Teaclave-SGX-SDK. I hope they will update to the newest toolchain.
