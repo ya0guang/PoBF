@@ -1,6 +1,5 @@
 #![forbid(unsafe_code)]
 
-#[cfg(feature = "use_prusti")]
 use crate::verify_utils::*;
 
 use crate::ocall::*;
@@ -79,14 +78,15 @@ where
 }
 
 #[cfg(not(feature = "use_prusti"))]
-pub fn pobf_workflow<D: EncDec<K>, K: Default>(
+pub fn pobf_workflow<D, K>(
     input_sealed: D,
     input_key: K,
     output_key: K,
     computation_task: &dyn Fn(D) -> D,
 ) -> SgxResult<D>
 where
-    K: Zeroize,
+    D: EncDec<K> + From<VecWrapperU8> + Into<VecWrapperU8>,
+    K: Default + Zeroize,
 {
     let enc_in: ProtectedAssets<Encrypted, Input, D, K> =
         ProtectedAssets::new(input_sealed, input_key, output_key);
@@ -116,14 +116,15 @@ where
 #[cfg(feature = "use_prusti")]
 // Aborts when error occurs, so we always get OK (by design).
 #[ensures(is_ok_default(&result))]
-pub fn pobf_workflow<D: EncDec<K>, K: Default>(
+pub fn pobf_workflow<D, K>(
     input_sealed: D,
     input_key: K,
     output_key: K,
-    computation_task: &ComputationTask<D>,
+    computation_task: &ComputationTask<D, K>,
 ) -> SgxResult<D>
 where
-    K: Zeroize,
+    D: EncDec<K> + From<VecWrapperU8> + Into<VecWrapperU8>,
+    K: Default + Zeroize,
 {
     let enc_in: ProtectedAssets<Encrypted, Input, D, K> =
         ProtectedAssets::new(input_sealed, input_key, output_key);
@@ -135,3 +136,4 @@ where
 
     Ok(en_out.take())
 }
+

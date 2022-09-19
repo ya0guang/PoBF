@@ -13,7 +13,6 @@ extern crate sgx_types;
 
 #[cfg(not(feature = "sgx"))]
 mod bogus;
-#[cfg(feature = "use_prusti")]
 mod verify_utils;
 
 mod ocall;

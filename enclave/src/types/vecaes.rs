@@ -53,6 +53,20 @@ impl Into<Vec<u8>> for VecAESData {
     }
 }
 
+impl From<VecWrapperU8> for VecAESData {
+    fn from(raw: VecWrapperU8) -> Self {
+        Self {
+            inner: raw.take().0,
+        }
+    }
+}
+
+impl Into<VecWrapperU8> for VecAESData {
+    fn into(self) -> VecWrapperU8 {
+        VecWrapperU8::from_raw(self.inner, true)
+    }
+}
+
 impl AsRef<[u8]> for VecAESData {
     #[trusted]
     fn as_ref(&self) -> &[u8] {

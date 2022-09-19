@@ -1,7 +1,6 @@
 #![forbid(unsafe_code)]
 
 use crate::pobf_verifier::*;
-#[cfg(feature = "use_prusti")]
 use crate::verify_utils::*;
 use alloc::vec::Vec;
 use prusti_contracts::*;
@@ -87,7 +86,7 @@ pub fn vec_play(input: &VecWrapperU8, step: u8) -> VecWrapperU8 {
             |j: usize| (0 <= j && j < output.len()) ==>
                 *input.lookup(j) + step == *output.lookup(j)
         ));
-        body_invariant!((&input).tainted() && (&output).tainted());
+        body_invariant!((&output).tainted() && (&input).tainted());
 
         output.push(*input.index(i) + step);
         i += 1;
@@ -102,7 +101,7 @@ pub fn vec_play(input: &VecWrapperU8, step: u8) -> VecWrapperU8 {
     //        val_ref)) might not hold.
     #[cfg(feature = "leak_log")]
     {
-        input.log_index(0);
+        // input.log_index(0);
     }
 
     output

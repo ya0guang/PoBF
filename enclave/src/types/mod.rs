@@ -6,7 +6,6 @@ pub mod vecaes;
 // pub use state::*;
 pub use vecaes::*;
 
-#[cfg(feature = "use_prusti")]
 use crate::verify_utils::*;
 use core::marker::PhantomData;
 use sgx_types::error::SgxResult;
@@ -144,7 +143,7 @@ where
 
 impl<D, K> Data<Encrypted, Input, D, K>
 where
-    D: EncDec<K>,
+    D: EncDec<K> + From<VecWrapperU8> + Into<VecWrapperU8>,
 {
     pub fn new(raw: D) -> Self {
         Self {
@@ -158,7 +157,7 @@ where
 
 impl<D, K> Data<Encrypted, Input, D, K>
 where
-    D: EncDec<K>,
+    D: EncDec<K> + From<VecWrapperU8> + Into<VecWrapperU8>,
     K: Default + Zeroize,
 {
     #[trusted]
@@ -177,7 +176,8 @@ where
 
 impl<D, K> Data<Decrypted, Input, D, K>
 where
-    D: EncDec<K>,
+    D: EncDec<K> + From<VecWrapperU8> + Into<VecWrapperU8>,
+    K: Default + Zeroize,
 {
     #[cfg(not(feature = "use_prusti"))]
     pub fn invoke(self, fun: &dyn Fn(D) -> D) -> SgxResult<Data<Decrypted, Output, D, K>> {
@@ -192,7 +192,7 @@ where
 
     #[cfg(feature = "use_prusti")]
     #[trusted]
-    pub fn invoke(self, fun: &ComputationTask<D>) -> SgxResult<Data<Decrypted, Output, D, K>> {
+    pub fn invoke(self, fun: &ComputationTask<D, K>) -> SgxResult<Data<Decrypted, Output, D, K>> {
         let raw = fun.do_compute(self.raw);
 
         Ok(Data {
@@ -206,7 +206,7 @@ where
 
 impl<D, K> Data<Decrypted, Output, D, K>
 where
-    D: EncDec<K>,
+    D: EncDec<K> + From<VecWrapperU8> + Into<VecWrapperU8>,
     K: Default + Zeroize,
 {
     #[trusted]
@@ -298,7 +298,7 @@ where
 
 impl<D, K> ProtectedAssets<Encrypted, Input, D, K>
 where
-    D: EncDec<K>,
+    D: EncDec<K> + From<VecWrapperU8> + Into<VecWrapperU8>,
     K: Default + Zeroize,
 {
     #[cfg(not(feature = "use_prusti"))]
@@ -342,7 +342,8 @@ where
 
 impl<D, K> ProtectedAssets<Decrypted, Input, D, K>
 where
-    D: EncDec<K>,
+    D: EncDec<K> + From<VecWrapperU8> + Into<VecWrapperU8>,
+    K: Default + Zeroize,
 {
     #[cfg(not(feature = "use_prusti"))]
     pub fn invoke(
@@ -363,7 +364,7 @@ where
     #[trusted]
     #[requires((&self).is_sensitive())]
     #[ensures((&result).is_sensitive())]
-    pub fn invoke(self, fun: &ComputationTask<D>) -> ProtectedAssets<Decrypted, Output, D, K> {
+    pub fn invoke(self, fun: &ComputationTask<D, K>) -> ProtectedAssets<Decrypted, Output, D, K> {
         let data = self.data.invoke(fun).expect("Invocation fail.");
 
         ProtectedAssets {
@@ -377,7 +378,7 @@ where
 
 impl<D, K> ProtectedAssets<Decrypted, Output, D, K>
 where
-    D: EncDec<K>,
+    D: EncDec<K> + From<VecWrapperU8> + Into<VecWrapperU8>,
     K: Default + Zeroize,
 {
     #[cfg(not(feature = "use_prusti"))]
@@ -413,7 +414,7 @@ where
 
 impl<D, K> ProtectedAssets<Encrypted, Output, D, K>
 where
-    D: EncDec<K>,
+    D: EncDec<K> + From<VecWrapperU8> + Into<VecWrapperU8>,
 {
     #[trusted]
     #[requires(!(&self).is_sensitive())]
