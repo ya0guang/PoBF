@@ -18,6 +18,15 @@ Approach: Only verify functions that deal with type transfer, and that other fun
 ## Verification of Consistency with the Theoretical PoBF Model - No Leakage
 
 Maybe MIRAI?...
+MIRAI can be used when the secret tag is propagating to children, but it cannot verify if a secret tag is propagated from child to parent. E.g., if `s[0]` in `s: Vec<i32>` is secret tainted, then MIRAI won't complain about unsatisfied precondition `has_tag!(&s, SecretTaint)`.
+
+```rust
+    let mut v = Vec::new();
+    v.push(1);
+    add_tag!(&v[0], SecretTaint);
+    // ~ Possible false verification?
+    verify!(has_tag!(&v[0], SecretTaint));
+```
 
 I used a tag...
 

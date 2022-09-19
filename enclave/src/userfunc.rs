@@ -61,6 +61,7 @@ pub fn vec_inc(input: Vec<u8>) -> Vec<u8> {
 /// A sample user function that copy each element in the given vector.
 /// This is an equivalent version used to verify the above function's correctness.
 #[cfg(feature = "use_prusti")]
+#[requires((&input).tainted())]
 // Prevent verification failure on overflow.
 #[requires(forall(
 	|i: usize| 0 <= i && i < input.len() ==>
@@ -71,6 +72,8 @@ pub fn vec_inc(input: Vec<u8>) -> Vec<u8> {
 	|i: usize| (0 <= i && i < input.len()) ==>
 		*input.lookup(i) + step == *result.lookup(i)
 ))]
+#[ensures((&result).tainted())]
+#[allow(unused)]
 pub fn vec_play(input: &VecWrapperU8, step: u8) -> VecWrapperU8 {
     let mut output = VecWrapperU8::new();
 
@@ -84,9 +87,22 @@ pub fn vec_play(input: &VecWrapperU8, step: u8) -> VecWrapperU8 {
             |j: usize| (0 <= j && j < output.len()) ==>
                 *input.lookup(j) + step == *output.lookup(j)
         ));
+        body_invariant!((&input).tainted() && (&output).tainted());
 
         output.push(*input.index(i) + step);
         i += 1;
+    }
+
+    // Leak log.
+    // The function tries to log a sensitive data to the outside.
+    // Captured by Prusti verification failure.
+    // ~[Prusti internal error] unhandled verification error:
+    //    GenericExpression [assert.failed:assertion.false] Assert might fail.
+    //      Assertion !m_tainted__$TY$__(snap$__$TY$__Snap$struct$m_VecWrapperU8$(_58.
+    //        val_ref)) might not hold.
+    #[cfg(feature = "leak_log")]
+    {
+        input.log_index(0);
     }
 
     output

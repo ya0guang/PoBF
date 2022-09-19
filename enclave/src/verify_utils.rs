@@ -1,10 +1,12 @@
+#[cfg(feature = "use_prusti")]
 use core::marker::PhantomData;
 
-use crate::types::*;
+use crate::{ocall::*, ocall_log};
+use crate::{ocall_print, types::*};
 use alloc::vec::Vec;
 use prusti_contracts::*;
-use sgx_types::error::{SgxResult, SgxStatus};
-use zeroize::*;
+use sgx_types::error::*;
+
 /// A bogus computation_task for Prusti verification since Prusti does not support higher-order
 /// functions. So we currently verify the framework and the computation_task separately.
 pub struct ComputationTask<T: Sized> {
@@ -41,13 +43,48 @@ impl<T: Sized> ComputationTask<T> {
 /// ```
 pub struct VecWrapperU8 {
     inner: Vec<u8>,
+    secret_tainted: bool,
 }
 
 impl VecWrapperU8 {
     #[trusted]
     #[ensures(result.len() == 0)]
+    #[ensures((&result).tainted())]
     pub fn new() -> Self {
-        Self { inner: Vec::new() }
+        Self {
+            inner: Vec::new(),
+            secret_tainted: true,
+        }
+    }
+
+    #[requires(!(&self).tainted())]
+    pub fn log(&self) {
+        let mut i = 0usize;
+
+        while i < self.inner.len() {
+            ocall_log!("{}: {}.", i, self.inner[i]);
+            i += 1;
+        }
+    }
+
+    #[requires(!(&self).tainted())]
+    pub fn log_index(&self, index: usize) {
+        ocall_log!("{}: {}", index, self.inner[index]);
+    }
+
+    // Cannot reverse a tainted vec.
+    #[requires(!(&self).tainted())]
+    #[ensures(old(&self).tainted() != (&self).tainted())]
+    pub fn reverse_tag(&mut self) {
+        self.secret_tainted = !self.secret_tainted;
+    }
+
+    #[trusted]
+    #[pure]
+    #[ensures(result == (&self).secret_tainted)]
+    #[allow(unused)]
+    pub fn tainted(&self) -> bool {
+        self.secret_tainted
     }
 
     #[trusted]
@@ -62,6 +99,7 @@ impl VecWrapperU8 {
 		|i : usize| (0 <= i && i < old(self.len()) ==> *self.lookup(i) == *(old(&self).lookup(i)))
 	))]
     #[ensures(*self.lookup(self.len() - 1) == value)]
+    #[ensures(old(&self).tainted() == (&self).tainted())]
     pub fn push(&mut self, value: u8) {
         self.inner.push(value);
     }
@@ -78,6 +116,7 @@ impl VecWrapperU8 {
     /// ```
     #[trusted]
     #[pure]
+    #[allow(unused)]
     pub fn lookup(&self, index: usize) -> &u8 {
         &self.inner[index]
     }
@@ -91,14 +130,14 @@ impl VecWrapperU8 {
 
     #[trusted]
     #[ensures(*self.lookup(index) == new_value)]
+    #[allow(unused)]
     pub fn modify(&mut self, index: usize, new_value: u8) {
         self.inner[index] = new_value;
     }
 }
 
 // Some helper pure functions ofr `SgxResult` type...
-// HACK: These seem to be the only way to let Prusti correctly verify the result... Prusti has error supporting generic types.
-#[cfg(feature = "use_prusti")]
+
 #[pure]
 #[allow(unused)]
 pub fn is_ok_generic<T>(input: &SgxResult<T>) -> bool {
@@ -109,7 +148,6 @@ pub fn is_ok_generic<T>(input: &SgxResult<T>) -> bool {
     }
 }
 
-#[cfg(feature = "use_prusti")]
 #[pure]
 #[allow(unused)]
 pub fn is_ok_default<D: EncDec<K>, K: Default>(input: &SgxResult<D>) -> bool {
@@ -120,7 +158,6 @@ pub fn is_ok_default<D: EncDec<K>, K: Default>(input: &SgxResult<D>) -> bool {
     }
 }
 
-#[cfg(feature = "use_prusti")]
 #[pure]
 #[allow(unused)]
 pub fn is_ok_aes(input: &SgxResult<VecAESData>) -> bool {
@@ -131,7 +168,6 @@ pub fn is_ok_aes(input: &SgxResult<VecAESData>) -> bool {
     }
 }
 
-#[cfg(feature = "use_prusti")]
 #[pure]
 #[allow(unused)]
 pub fn is_err_aes(input: &SgxResult<VecAESData>) -> bool {

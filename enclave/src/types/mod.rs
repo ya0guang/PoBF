@@ -416,6 +416,7 @@ where
     D: EncDec<K>,
 {
     #[trusted]
+    #[requires(!(&self).is_sensitive())]
     pub fn take(self) -> D {
         self.data.raw
     }
