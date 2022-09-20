@@ -192,6 +192,7 @@ where
 
     #[cfg(feature = "use_prusti")]
     #[trusted]
+    #[ensures(matches!(&result, Ok(_)))]
     pub fn invoke(self, fun: &ComputationTask<D, K>) -> SgxResult<Data<Decrypted, Output, D, K>> {
         let raw = fun.do_compute(self.raw);
 
@@ -244,7 +245,7 @@ where
     #[trusted]
     pub fn new(raw: K) -> Key<K, Sealed> {
         Key {
-            raw: raw,
+            raw,
             _key_state: Sealed,
         }
     }
@@ -280,6 +281,7 @@ where
     tag: bool, // sensitive?
 }
 
+#[cfg(feature = "use_prusti")]
 impl<S, T, D, K> ProtectedAssets<S, T, D, K>
 where
     Data<S, T, D, K>: InputKeyState,
@@ -317,6 +319,7 @@ where
     #[trusted]
     #[requires(!(&self).is_sensitive())]
     #[ensures((&result).is_sensitive())]
+    // result.as_ref().unwrap().is_sensitive().
     pub fn decrypt(mut self) -> ProtectedAssets<Decrypted, Input, D, K> {
         let data = self.data.decrypt(&self.input_key).expect("Decryption fail");
 
@@ -324,7 +327,7 @@ where
             data,
             input_key: self.input_key._zeroize(),
             output_key: self.output_key,
-            tag: true, // The initial tag is non-sensitive.
+            tag: !self.tag, // The initial tag is non-sensitive.
         }
     }
 

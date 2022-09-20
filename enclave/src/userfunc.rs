@@ -1,8 +1,9 @@
 #![forbid(unsafe_code)]
-
-use crate::pobf_verifier::*;
-use crate::verify_utils::*;
+#[allow(unused_imports)]
+#[cfg(feature = "use_prusti")]
+use crate::{pobf_verifier::*, verify_utils::*};
 use alloc::vec::Vec;
+#[cfg(feature = "use_prusti")]
 use prusti_contracts::*;
 
 #[cfg(not(feature = "use_prusti"))]
@@ -60,7 +61,7 @@ pub fn vec_inc(input: Vec<u8>) -> Vec<u8> {
 /// A sample user function that copy each element in the given vector.
 /// This is an equivalent version used to verify the above function's correctness.
 #[cfg(feature = "use_prusti")]
-#[requires((&input).tainted())]
+#[requires(input.tainted())]
 // Prevent verification failure on overflow.
 #[requires(forall(
 	|i: usize| 0 <= i && i < input.len() ==>
@@ -92,16 +93,31 @@ pub fn vec_play(input: &VecWrapperU8, step: u8) -> VecWrapperU8 {
         i += 1;
     }
 
-    // Leak log.
+    // Safety violation: Leak log.
     // The function tries to log a sensitive data to the outside.
     // Captured by Prusti verification failure.
-    // ~[Prusti internal error] unhandled verification error:
-    //    GenericExpression [assert.failed:assertion.false] Assert might fail.
-    //      Assertion !m_tainted__$TY$__(snap$__$TY$__Snap$struct$m_VecWrapperU8$(_58.
-    //        val_ref)) might not hold.
+    // note: the failing assertion is here
+    //    --> src/verify_utils.rs:113:16
+    //    |
+    // 113 |     #[requires(!(&self).tainted())]
+    //    |                ^^^^^^^^^^^^^^^^^^
     #[cfg(feature = "leak_log")]
     {
-        // input.log_index(0);
+        input.log_index(0);
+    }
+
+    // Safety violation: cannot leak out secret data through network stream write
+    // captured by: compiler error
+    #[cfg(feature = "leak_net")]
+    {
+        input.send_to_network("localhost:10086");
+    }
+    
+    // Safety violation: cannot leak out secret data through network stream write
+    // captured by: compiler error
+    #[cfg(feature = "leak_file")]
+    {
+        input.write_to_file("./leaked.txt");
     }
 
     output

@@ -86,6 +86,12 @@ PRUSTI_NO_VERIFY_DEPS=true [/path/to/cargo-prusti]
 # Also remember to enable features.
 ```
 
+Or run the following command under `PoBF/enclave`.
+
+```shell
+../prusti-verify.sh
+```
+
 Prusti cannot verify function pointers, and if we mark all functions involving function pointers, Prusti will panic...?
 Maybe function pointers are runtime-object so that it cannot analyze it at compiler time; but our project relied heavily on that thing... **Current Rust verifier only supports relatively a small subset of Rust traits.**
 
