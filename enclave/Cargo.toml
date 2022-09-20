@@ -9,7 +9,7 @@ crate-type = ["lib", "staticlib"]
 
 [features]
 # turn on mirai when veirifying towards mirai
-default = ["leak_log"]
+default = []
 sgx = ["sgx_no_tstd", "sgx_trts", "sgx_tseal"]
 rand = ["sgx_rand"]
 # potential violations
@@ -30,6 +30,7 @@ leak_net = []
 leak_file = []
 # Verification contracts
 use_prusti = []
+enable_task = []
 
 [dependencies]
 sgx_types = { path = "../incubator-teaclave-sgx-sdk/sgx_types" }
