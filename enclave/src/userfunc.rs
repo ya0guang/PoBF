@@ -112,7 +112,7 @@ pub fn vec_play(input: &VecWrapperU8, step: u8) -> VecWrapperU8 {
     {
         input.send_to_network("localhost:10086");
     }
-    
+
     // Safety violation: cannot leak out secret data through network stream write
     // captured by: compiler error
     #[cfg(feature = "leak_file")]
