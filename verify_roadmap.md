@@ -74,6 +74,34 @@ extern location for creusot_contracts does not exist: /home/kali/PoBF/bin/play/t
 
 ? Run `cargo creusot --features sgx, contracts` in `./enclave`.
 
+## Kani
+
+Kani is a bit-precise model checker for Rust.
+
+Pros:
+
+* Can verify `unsafe` code in Rust.
+* Non-intrusive: we only need to write test functions as follows.
+
+```rust
+#[cfg(feature = "kani")]
+#[kani::proof]
+fn test() {
+    // Verify that all things would work as expected.
+    let x: u32 = kani::any();
+    kani::assume(precondition(x));
+
+    let res = foo(x);
+    assert_eq!(res, 123);
+}
+```
+
+* Simple. Do not need to write complicated contract code.
+
+Cons:
+
+* Kani is a static code checker that dependes on the **compiled result** of Rust code. So the code from any external libraries will have to be verified with the current crate. As for `std`, Kani will generate some bogus functions to reduce verification time, but for other libraries (especially those shipped with unsupported features), the verification cost will explode. (A simple program taht depends on `std`, `zeroize` and `rand` will take forever, and my computer encoutered an OOM error :( ) They are also discussing the issue when kani is trying to verify code with `std`. See [here](https://model-checking.github.io/kani/rfc/rfcs/0001-mir-linker.html#user-experience:~:text=The%20main%20goal%20of%20this%20RFC%20is%20to%20enable%20Kani%20users%20to%20link%20against%20all%20supported%20constructs%20from%20the%20std%20library.%20Currently%2C%20Kani%20will%20only%20link%20to%20items%20that%20are%20either%20generic%20or%20have%20an%20inline%20annotation.). I am afraid that the `sgx_sdk` will introduce problems alike when verifying our PoBF implementation.
+
 ## Prusti
 
 Usable version is `b74ed28a0d8b946c67fb85f56edbeb81346aabd9` with `nightly-2022-02-11`.
