@@ -465,3 +465,61 @@ Proof with eauto.
     eapply IHc1. exact Hc1... assumption.
 Qed.
     
+Fixpoint residue_secret' (me: memory): bool :=
+  match me with
+  | [] => false
+  | (l, c)::tl => match c with
+                | EncMem _ (_, Secret) => true
+                | AppMem (_, Secret) => true
+                | _ => residue_secret' tl
+                end
+  end.
+
+Fixpoint zeroize' (me: memory) : memory :=
+  match me with
+  | [] => me
+  | (l, c)::tl => match c with
+                | EncMem ZoneMem _ =>
+                    (* Zeroize the entire Zone *)
+                    (l, EncMem ZoneMem (Cleared, Notsecret))::(zeroize' tl)
+                | _ => (l, c)::(zeroize' tl)
+                end
+  end.
+
+Fixpoint residue_secret (me: memory) : bool :=
+  match me with
+  | [] => false
+  | (l, c)::tl => match l with
+                | RV => residue_secret tl
+                | _ => match c with
+                      | EncMem _ (_, Secret) => true
+                      | AppMem (_, Secret) => true
+                      | _ => residue_secret tl
+                      end
+                end
+  end.
+
+Fixpoint zeroize (me: memory) : memory :=
+  match me with
+  | [] => me
+  | (l, c)::tl => match l with
+                | RV => (l, c)::(zeroize tl)
+                | _ => match c with
+                      | EncMem ZoneMem _ =>
+                          (l, EncMem ZoneMem (Cleared, Notsecret))::(zeroize tl)
+                      | _ => zeroize tl
+                      end
+                end
+  end.
+
+(* Zeroized memory contains no secret residue if not leaked *)
+Theorem zeroize_sound: forall me,
+    leaked me = false -> residue_secret (zeroize me) = false.
+Proof.
+  induction me; intros.
+  - reflexivity.
+  - simpl. destruct a. inversion H. destruct (leaked_cell c). inversion H1.
+    destruct l eqn: eql; destruct c eqn: eqc;
+      rewrite H1; try destruct z; try apply IHme; try auto.
+Qed.
+    
