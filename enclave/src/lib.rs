@@ -15,6 +15,8 @@ extern crate sgx_types;
 mod bogus;
 mod verify_utils;
 
+#[cfg(feature = "mirai")]
+mod mirai_defs;
 mod ocall;
 mod pobf;
 mod pobf_verifier;

@@ -115,6 +115,16 @@ impl VecWrapperU8 {
         let mut i = 0usize;
 
         while i < self.inner.len() {
+            // Check if MIRAI can detect it?
+            #[cfg(feature = "mirai")]
+            {
+                use crate::mirai_defs;
+                mirai_annotations::verify!(mirai_annotations::does_not_have_tag!(
+                    &self.inner[i],
+                    mirai_defs::SecretTaint
+                ));
+            }
+
             ocall_log!("{}: {}.", i, self.inner[i]);
             i += 1;
         }
@@ -123,6 +133,16 @@ impl VecWrapperU8 {
     #[requires(!(&self).tainted())]
     #[allow(unused)]
     pub fn log_index(&self, index: usize) {
+        // Check if MIRAI can detect it?
+        #[cfg(feature = "mirai")]
+        {
+            use crate::mirai_defs;
+            mirai_annotations::verify!(mirai_annotations::does_not_have_tag!(
+                &self.inner[index],
+                mirai_defs::SecretTaint
+            ));
+        }
+
         ocall_log!("{}: {}", index, self.inner[index]);
     }
 
@@ -130,6 +150,16 @@ impl VecWrapperU8 {
     #[requires(!(&self).tainted())]
     #[allow(unused)]
     pub fn send_to_network(&self, addr: &str) {
+        // Check if MIRAI can detect it?
+        #[cfg(feature = "mirai")]
+        {
+            use crate::mirai_defs;
+            mirai_annotations::verify!(mirai_annotations::does_not_have_tag!(
+                &self,
+                mirai_defs::SecretTaint
+            ));
+        }
+
         use std::net::TcpStream;
         match TcpStream::connect(addr) {
             Ok(mut stream) => stream.write(&self.inner).unwrap(),
@@ -141,6 +171,16 @@ impl VecWrapperU8 {
     #[requires(!(&self).tainted())]
     #[allow(unused)]
     pub fn write_to_file(&self, path: &str) {
+        // Check if MIRAI can detect it?
+        #[cfg(feature = "mirai")]
+        {
+            use crate::mirai_defs;
+            mirai_annotations::verify!(mirai_annotations::does_not_have_tag!(
+                &self,
+                mirai_defs::SecretTaint
+            ));
+        }
+
         use std::fs::File;
         let mut f = File::create(path).unwrap();
         f.write_all(&self.inner).unwrap();

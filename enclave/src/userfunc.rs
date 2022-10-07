@@ -75,6 +75,16 @@ pub fn vec_inc(input: Vec<u8>) -> Vec<u8> {
 #[ensures((&result).tainted())]
 #[allow(unused)]
 pub fn vec_play(input: &VecWrapperU8, step: u8) -> VecWrapperU8 {
+    // Verify if MIRAI can detect the secret tag.
+    #[cfg(feature = "mirai")]
+    {
+        use crate::mirai_defs;
+        mirai_annotations::verify!(mirai_annotations::has_tag!(
+            &dec_in,
+            mirai_defs::SecretTaint
+        ));
+    }
+
     let mut output = VecWrapperU8::new();
 
     let mut i = 0usize;

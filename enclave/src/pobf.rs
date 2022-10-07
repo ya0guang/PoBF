@@ -131,6 +131,12 @@ where
 
     let dec_in: ProtectedAssets<Decrypted, Input, D, K> = enc_in.decrypt();
 
+    #[cfg(feature = "mirai")]
+    {
+        use crate::mirai_defs;
+        mirai_annotations::add_tag!(&dec_in, mirai_defs::SecretTaint);
+    }
+
     let dec_out: ProtectedAssets<Decrypted, Output, D, K> = dec_in.invoke(computation_task);
     let en_out: ProtectedAssets<Encrypted, Output, D, K> = dec_out.encrypt();
 
