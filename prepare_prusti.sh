@@ -18,6 +18,8 @@
 git clone https://github.com/viperproject/prusti-dev.git $HOME
 
 pushd $HOME/prusti-dev
+git checkout b74ed28a0d8b946c67fb85f56edbeb81346aabd9
 rustup override set nightly-2022-02-11
 rustup component --toolchain nightly-2022-02-11 rust-src rustc-dev llvm-tools-preview rustfmt rust-analysis
 ./x.py setup && ./x.py buil;d --release
+popd
