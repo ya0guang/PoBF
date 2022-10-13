@@ -11,6 +11,7 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::io::Result;
 use std::io::{BufReader, BufWriter};
+use std::mem::size_of;
 use std::net::TcpListener;
 use std::os::unix::prelude::AsRawFd;
 
@@ -34,6 +35,17 @@ extern "C" {
         eid: EnclaveId,
         retval: *mut SgxStatus,
         socket_fd: i32,
+        ti: *mut TargetInfo,
+        ti_len: u32,
+    ) -> SgxStatus;
+
+    fn generate_quote(
+        eid: EnclaveId,
+        retval: *mut SgxStatus,
+        ti: *const TargetInfo,
+        ti_len: u32,
+        sigrl: *const u8,
+        sigrl_len: u32,
     ) -> SgxStatus;
 }
 
@@ -136,11 +148,12 @@ fn server_start(
 
             // Expose the raw socket fd.
             let socket_fd = socket.as_raw_fd();
+            let mut ti = TargetInfo::default();
 
             // Create the buffer.
-            let socket_clone = socket.try_clone().unwrap();
+            // let socket_clone = socket.try_clone().unwrap();
             let mut reader = BufReader::new(socket);
-            let mut writer = BufWriter::new(socket_clone);
+            // let mut writer = BufWriter::new(socket_clone);
             loop {
                 // Command explanations:
                 // 1: Do RA.
@@ -162,12 +175,10 @@ fn server_start(
                     '1' => {
                         println!("[+] Performing remote attestation!");
 
-                        match exec_remote_attestation(&enclave, socket_fd) {
+                        match exec_remote_attestation(&enclave, socket_fd, &mut ti) {
                             SgxStatus::Success => ra_done = true,
-                            _ => panic!("[-] Remote attestation failed."),
+                            _ => panic!("[-] Remote attestation intial state failed."),
                         }
-
-                        println!("[+] Remote attestation successfully done!");
                     }
 
                     '2' => {
@@ -186,9 +197,23 @@ fn server_start(
                         }
                     }
                     '3' => {
-                        println!("Receiving SigRL from the SP!");
+                        println!("[+] Receiving SigRL from the SP!");
+                        // Read SigRL's length.
+                        let mut s = String::with_capacity(OUTPUT_BUFFER_SIZE);
+                        reader.read_line(&mut s).unwrap();
+                        let length = s[..s.len() - 1].parse::<usize>().unwrap();
+                        println!("[+] SigRL length = {}.", length);
 
-                        // TODO: We should encode and decode the information. using serde?
+                        // Read SigRL.
+                        let mut sigrl = Vec::with_capacity(length);
+                        reader.read(&mut sigrl).unwrap();
+                        println!("[+] SigRl is {:?}", sigrl);
+
+                        // Generate quote.
+                        match exec_generate_quote(&enclave, socket_fd, &sigrl, &ti) {
+                            SgxStatus::Success => println!("[+] Successfully generated quote!"),
+                            _ => panic!("[-] Remote attestation quote generation failed."),
+                        }
                     }
 
                     // Throw away.
@@ -205,12 +230,44 @@ fn server_start(
     }
 }
 
-fn exec_remote_attestation(enclave: &SgxEnclave, socket_fd: c_int) -> SgxStatus {
+fn exec_remote_attestation(
+    enclave: &SgxEnclave,
+    socket_fd: c_int,
+    ti: &mut TargetInfo,
+) -> SgxStatus {
+    let mut retval = SgxStatus::Success;
+    let len = std::mem::size_of::<TargetInfo>();
+    unsafe {
+        start_remote_attestation(
+            enclave.eid(),
+            &mut retval,
+            socket_fd,
+            ti as *mut _,
+            len as u32,
+        );
+    }
+
+    retval
+}
+
+fn exec_generate_quote(
+    enclave: &SgxEnclave,
+    socket_fd: c_int,
+    sigrl: &Vec<u8>,
+    ti: &TargetInfo,
+) -> SgxStatus {
     let mut retval = SgxStatus::Success;
 
     unsafe {
-        start_remote_attestation(enclave.eid(), &mut retval, socket_fd);
-    }
+        generate_quote(
+            enclave.eid(),
+            &mut retval,
+            ti,
+            size_of::<TargetInfo>() as u32,
+            sigrl.as_slice().as_ptr(),
+            sigrl.len() as u32,
+        )
+    };
 
     retval
 }

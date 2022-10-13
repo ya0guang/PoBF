@@ -8,6 +8,7 @@ extern crate alloc;
 extern crate clear_on_drop;
 #[cfg(feature = "sgx")]
 extern crate sgx_no_tstd;
+extern crate sgx_tse;
 extern crate sgx_types;
 
 #[cfg(not(feature = "sgx"))]
@@ -23,10 +24,9 @@ use alloc::slice;
 use clear_on_drop::clear_stack_and_regs_on_return;
 use ocall::*;
 use pobf::*;
-use sgx_types::{
-    error::SgxStatus,
-    types::{EpidGroupId, TargetInfo},
-};
+use sgx_crypto::ecc::EcKeyPair;
+use sgx_tse::*;
+use sgx_types::{error::SgxStatus, types::*};
 
 static DEFAULT_PAGE_SIZE_ENTRY: usize = 0x4;
 static DEFAULT_PAGE_SIZE_LEAF: usize = 0x1;
@@ -77,14 +77,17 @@ pub extern "C" fn private_computing_entry(
 }
 
 #[no_mangle]
-pub extern "C" fn start_remote_attestation(socket_fd: i32) -> SgxStatus {
+pub extern "C" fn start_remote_attestation(
+    socket_fd: i32,
+    ti: *mut TargetInfo,
+    ti_len: *mut u32,
+) -> SgxStatus {
     ocall_log!("[+] Start to perform remote attestation!");
 
     // Step 1: Ocall to get the target information and the EPID.
-    let mut ti = TargetInfo::default();
     let mut eg = EpidGroupId::default();
     let mut ret = SgxStatus::Success;
-    let mut res = unsafe { ocall_sgx_init_quote(&mut ret, &mut ti, &mut eg) };
+    let mut res = unsafe { ocall_sgx_init_quote(&mut ret, ti, &mut eg) };
 
     if res != SgxStatus::Success {
         return res;
@@ -96,6 +99,41 @@ pub extern "C" fn start_remote_attestation(socket_fd: i32) -> SgxStatus {
     if res != SgxStatus::Success {
         return res;
     }
+
+    SgxStatus::Success
+}
+
+#[no_mangle]
+pub extern "C" fn generate_quote(
+    ti: *const TargetInfo,
+    ti_len: u32,
+    sigrl: *const u8,
+    sigrl_len: u32,
+) -> SgxStatus {
+    ocall_log!("[+] Start to perform quote generation!");
+
+    // Step 3: We get the report from the enclave, which is then used to generate the quote.
+    //
+    // Convert sigrl from u8 array to Rust slice.
+    let sigrl_vec = unsafe { slice::from_raw_parts(sigrl, sigrl_len as usize) };
+
+    // Open the ECC context and sample a key pair.
+    let ecc_handle = EcKeyPair::create().unwrap();
+    let prv_k = ecc_handle.private_key();
+    let pub_k = ecc_handle.public_key();
+
+    // Fill ecc256 public key into report_data. This is the attestation key.
+    let mut report_data = ReportData::default();
+    let mut pub_k_gx = pub_k.public_key().gx.clone();
+    pub_k_gx.reverse();
+    let mut pub_k_gy = pub_k.public_key().gy.clone();
+    pub_k_gy.reverse();
+    report_data.d[..32].clone_from_slice(&pub_k_gx);
+    report_data.d[32..].clone_from_slice(&pub_k_gy);
+
+    // Get the report.
+    let report = unsafe { Report::for_target(&*ti, &report_data).unwrap() };
+    ocall_log!("[+] Report generated: {:?}", report);
 
     SgxStatus::Success
 }

@@ -43,7 +43,7 @@ pub unsafe extern "C" fn ocall_get_sigrl_from_intel(
     writer.flush().unwrap();
     // Do NOT implicitly destroy this stream; otherwise this stream will be closed
     // accidentally, thus resulting in a corrupted state.
-    mem::forget(socket_fd);
+    mem::forget(writer);
 
     SgxStatus::Success
 }

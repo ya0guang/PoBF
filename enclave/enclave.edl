@@ -57,6 +57,15 @@ enclave {
             uint32_t* encrypted_output_size);
 
         // Initialize the remote attestation components inside the enclave.
-        public sgx_status_t start_remote_attestation(int32_t socket_fd);
+        public sgx_status_t start_remote_attestation(int32_t socket_fd,
+                                                     [out, size = ti_len]sgx_target_info_t* ti,
+                                                     uint32_t ti_len);
+
+        // Let the enclave generate the report.
+        public sgx_status_t generate_quote([in, size = ti_len] sgx_target_info_t* ti,
+                                           uint32_t ti_len,
+                                           [in, size = sigrl_len] uint8_t* sigrl,
+                                           uint32_t sigrl_len
+                                           );
     };
 };

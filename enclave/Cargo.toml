@@ -32,6 +32,7 @@ leak_file = []
 [dependencies]
 sgx_types = { path = "../incubator-teaclave-sgx-sdk/sgx_types" }
 sgx_crypto = { path = "../incubator-teaclave-sgx-sdk/sgx_crypto" }
+sgx_tse = { path = "../incubator-teaclave-sgx-sdk/sgx_tse" }
 sgx_no_tstd = { path = "../incubator-teaclave-sgx-sdk/sgx_no_tstd", optional = true }
 sgx_libc = { path = "../incubator-teaclave-sgx-sdk/sgx_libc", default-features = false }
 # sgx_tstd = { path = "../incubator-teaclave-sgx-sdk/sgx_tstd", default-features = false, optional = true }
