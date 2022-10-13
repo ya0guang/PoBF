@@ -5,7 +5,7 @@ use mirai_annotations::*;
 use alloc::string::String;
 use libc::{c_char, ssize_t};
 use sgx_libc as libc;
-use sgx_types::error::SgxStatus;
+use sgx_types::{error::SgxStatus, types::*};
 
 extern "C" {
     fn u_log_ocall(
@@ -13,6 +13,32 @@ extern "C" {
         string_ptr: *mut u8,
         string_len: u32,
         string_capacity: u32,
+    ) -> SgxStatus;
+
+    pub fn ocall_sgx_init_quote(
+        ret_val: *mut SgxStatus,
+        ret_ti: *mut TargetInfo,
+        ret_gid: *mut EpidGroupId,
+    ) -> SgxStatus;
+
+    pub fn ocall_get_sigrl_from_intel(
+        ret_val: *mut SgxStatus,
+        epid: *const EpidGroupId,
+        epid_len: usize,
+    ) -> SgxStatus;
+
+    pub fn ocall_get_quote(
+        ret_val: *mut SgxStatus,
+        p_sigrl: *const u8,
+        sigrl_len: u32,
+        p_report: *const Report,
+        quote_type: QuoteSignType,
+        p_spid: *const Spid,
+        p_nonce: *const QuoteNonce,
+        p_qe_report: *mut Report,
+        p_quote: *mut u8,
+        maxlen: u32,
+        p_quote_len: *mut u32,
     ) -> SgxStatus;
 }
 

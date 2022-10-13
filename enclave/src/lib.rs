@@ -23,7 +23,10 @@ use alloc::slice;
 use clear_on_drop::clear_stack_and_regs_on_return;
 use ocall::*;
 use pobf::*;
-use sgx_types::error::SgxStatus;
+use sgx_types::{
+    error::SgxStatus,
+    types::{EpidGroupId, TargetInfo},
+};
 
 static DEFAULT_PAGE_SIZE_ENTRY: usize = 0x4;
 static DEFAULT_PAGE_SIZE_LEAF: usize = 0x1;
@@ -70,5 +73,29 @@ pub extern "C" fn private_computing_entry(
         slice::from_raw_parts_mut(encrypted_output_buffer_ptr, encrypted_output_buffer_size)
     };
     encrypted_output_buffer[..encrypted_output_length].copy_from_slice(encrypted_output_slice);
+    SgxStatus::Success
+}
+
+#[no_mangle]
+pub extern "C" fn start_remote_attestation() -> SgxStatus {
+    ocall_log!("[+] Start to perform remote attestation!");
+
+    // Step 1: Ocall to get the target information and the EPID.
+    let mut ti = TargetInfo::default();
+    let mut eg = EpidGroupId::default();
+    let mut ret = SgxStatus::Success;
+    let mut res = unsafe { ocall_sgx_init_quote(&mut ret, &mut ti, &mut eg) };
+
+    if res != SgxStatus::Success {
+        return res;
+    }
+
+    // Step 2: Forward this information to the application which later forwards to service provider who later verifies the information with the help of the IAS.
+    res = unsafe { ocall_get_sigrl_from_intel(&mut ret, &eg, eg.len()) };
+
+    if res != SgxStatus::Success {
+        return res;
+    }
+
     SgxStatus::Success
 }

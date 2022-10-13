@@ -1,10 +1,46 @@
 enclave {
+    from "sgx_tstdc.edl" import *;
+
+    include "sgx_quote.h"
 
     untrusted {
         uint32_t u_log_ocall(
             [in, size = string_capacity]
             uint8_t* string_ptr, uint32_t string_len, uint32_t string_capacity
         );
+
+        /* Interfaces for performing remote attestation. */
+        /* These interfaces are written as OCalls because they will be linked against
+           the `sgx_uae_service` library, which is done by the `build.rs` script on the 
+           application side.
+         */
+
+        // Initialize the quote.
+        // Returns the target platform information and the corresponding extended group id.
+        sgx_status_t ocall_sgx_init_quote([out] sgx_target_info_t* ret_ti,
+					                                [out] sgx_epid_group_id_t* ret_gid);
+        
+        // Invokes the `sgx_get_quote` to convert from the report to quote.
+        // Returns a quote secured by the attestation key.
+        sgx_status_t ocall_get_quote([in, size = sigrl_len] uint8_t* p_sigrl,
+                                     uint32_t sigrl_len,
+                                     [in] sgx_report_t* report,
+                                     sgx_quote_sign_type_t quote_type,
+                                     [in] sgx_spid_t* p_spid,
+                                     [in] sgx_quote_nonce_t* p_nonce,
+                                     [out] sgx_report_t* p_qe_report,
+                                     [out, size = maxlen] sgx_quote_t* p_quote,
+                                     uint32_t maxlen,
+                                     [out] uint32_t* p_quote_len);
+
+	      sgx_status_t ocall_get_update_info([in] sgx_platform_info_t* platformBlob,
+					                                 int32_t enclaveTrusted,
+					                                 [out] sgx_update_info_bit_t* update_info);
+
+        // Forward the information to the outside world and let it forward the information
+        // to the service provider (SP). Then SP will request for the IAS for sigrl.
+        sgx_status_t ocall_get_sigrl_from_intel([in, size = epid_len] sgx_epid_group_id_t* epid,
+                                                uint32_t epid_len);
     };
 
     trusted {
@@ -19,6 +55,7 @@ enclave {
             [out]
             uint32_t* encrypted_output_size);
 
-        
+        // Initialize the remote attestation components inside the enclave.
+        public sgx_status_t start_remote_attestation();
     };
 };

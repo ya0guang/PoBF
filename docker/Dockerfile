@@ -4,7 +4,7 @@ ARG SGX_SDK_VERSION=2.17.100.3
 ARG PRUSTI_GIT_REPO=https://github.com/viperproject/prusti-dev.git
 ARG PRUSTI_COMMIT=b74ed28a0d8b946c67fb85f56edbeb81346aabd9
 ARG RUST_COMP="rust-src rustc-dev llvm-tools-preview rustfmt rust-analysis"
-ARG RUST_TOOLCHAIN
+ARG RUST_TOOLCHAIN=nightly-2022-02-11
 
 SHELL ["/bin/bash", "-c"] 
 
