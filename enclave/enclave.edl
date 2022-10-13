@@ -40,7 +40,8 @@ enclave {
         // Forward the information to the outside world and let it forward the information
         // to the service provider (SP). Then SP will request for the IAS for sigrl.
         sgx_status_t ocall_get_sigrl_from_intel([in, size = epid_len] sgx_epid_group_id_t* epid,
-                                                uint32_t epid_len);
+                                                uint32_t epid_len,
+                                                int32_t socket_fd);
     };
 
     trusted {
@@ -56,6 +57,6 @@ enclave {
             uint32_t* encrypted_output_size);
 
         // Initialize the remote attestation components inside the enclave.
-        public sgx_status_t start_remote_attestation();
+        public sgx_status_t start_remote_attestation(int32_t socket_fd);
     };
 };

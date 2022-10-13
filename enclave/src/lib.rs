@@ -77,7 +77,7 @@ pub extern "C" fn private_computing_entry(
 }
 
 #[no_mangle]
-pub extern "C" fn start_remote_attestation() -> SgxStatus {
+pub extern "C" fn start_remote_attestation(socket_fd: i32) -> SgxStatus {
     ocall_log!("[+] Start to perform remote attestation!");
 
     // Step 1: Ocall to get the target information and the EPID.
@@ -91,7 +91,7 @@ pub extern "C" fn start_remote_attestation() -> SgxStatus {
     }
 
     // Step 2: Forward this information to the application which later forwards to service provider who later verifies the information with the help of the IAS.
-    res = unsafe { ocall_get_sigrl_from_intel(&mut ret, &eg, eg.len()) };
+    res = unsafe { ocall_get_sigrl_from_intel(&mut ret, &eg, eg.len(), socket_fd) };
 
     if res != SgxStatus::Success {
         return res;

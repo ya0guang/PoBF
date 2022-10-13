@@ -1,3 +1,9 @@
+use std::io::BufWriter;
+use std::io::Write;
+use std::mem;
+use std::net::TcpStream;
+use std::os::unix::prelude::FromRawFd;
+
 use sgx_types::error::*;
 use sgx_types::function::*;
 use sgx_types::types::*;
@@ -18,9 +24,26 @@ pub unsafe extern "C" fn u_log_ocall(
 pub unsafe extern "C" fn ocall_get_sigrl_from_intel(
     epid: *const EpidGroupId,
     epid_len: usize,
+    socket_fd: i32,
 ) -> SgxStatus {
-    println!("[+] Performing ocall_get_sigrl_from_intel...");
+    println!(
+        "[+] Performing ocall_get_sigrl_from_intel... The EPID is {:?}",
+        *epid
+    );
     // Forward this request to the SP.
+    // Wrap a new tcp stream from the raw socket fd.
+    let socket = TcpStream::from_raw_fd(socket_fd);
+    let mut writer = BufWriter::new(socket);
+
+    // Send EPID and its length first.
+    writer.write(b"EPID:\n").unwrap();
+    writer.write(epid_len.to_string().as_bytes()).unwrap();
+    writer.write(b"\n").unwrap();
+    writer.write(&*epid).unwrap();
+    writer.flush().unwrap();
+    // Do NOT implicitly destroy this stream; otherwise this stream will be closed
+    // accidentally, thus resulting in a corrupted state.
+    mem::forget(socket_fd);
 
     SgxStatus::Success
 }

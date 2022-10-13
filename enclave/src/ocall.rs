@@ -25,6 +25,7 @@ extern "C" {
         ret_val: *mut SgxStatus,
         epid: *const EpidGroupId,
         epid_len: usize,
+        socket_fd: i32,
     ) -> SgxStatus;
 
     pub fn ocall_get_quote(

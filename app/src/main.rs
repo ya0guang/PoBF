@@ -12,6 +12,7 @@ use std::io::prelude::*;
 use std::io::Result;
 use std::io::{BufReader, BufWriter};
 use std::net::TcpListener;
+use std::os::unix::prelude::AsRawFd;
 
 static ENCLAVE_FILE: &'static str = "enclave.signed.so";
 const OUTPUT_BUFFER_SIZE: usize = 2048;
@@ -29,7 +30,11 @@ extern "C" {
         encrypted_output_size: *mut u32,
     ) -> SgxStatus;
 
-    fn start_remote_attestation(eid: EnclaveId, retval: *mut SgxStatus) -> SgxStatus;
+    fn start_remote_attestation(
+        eid: EnclaveId,
+        retval: *mut SgxStatus,
+        socket_fd: i32,
+    ) -> SgxStatus;
 }
 
 #[derive(Parser)]
@@ -129,6 +134,10 @@ fn server_start(
         Ok((socket, addr)) => {
             println!("[+] Got connection from {:?}", addr);
 
+            // Expose the raw socket fd.
+            let socket_fd = socket.as_raw_fd();
+
+            // Create the buffer.
             let socket_clone = socket.try_clone().unwrap();
             let mut reader = BufReader::new(socket);
             let mut writer = BufWriter::new(socket_clone);
@@ -153,7 +162,7 @@ fn server_start(
                     '1' => {
                         println!("[+] Performing remote attestation!");
 
-                        match exec_remote_attestation(&enclave) {
+                        match exec_remote_attestation(&enclave, socket_fd) {
                             SgxStatus::Success => ra_done = true,
                             _ => panic!("[-] Remote attestation failed."),
                         }
@@ -196,11 +205,11 @@ fn server_start(
     }
 }
 
-fn exec_remote_attestation(enclave: &SgxEnclave) -> SgxStatus {
+fn exec_remote_attestation(enclave: &SgxEnclave, socket_fd: c_int) -> SgxStatus {
     let mut retval = SgxStatus::Success;
 
     unsafe {
-        start_remote_attestation(enclave.eid(), &mut retval);
+        start_remote_attestation(enclave.eid(), &mut retval, socket_fd);
     }
 
     retval

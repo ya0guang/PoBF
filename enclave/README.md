@@ -123,3 +123,10 @@ This may potetially leak secrets through OCALL.
 - leak through network traffic (`leak_net`)
 - file I/O (`leak_file`)
 - logging (`leak_log`)
+
+#### Run the App.
+
+```shell
+$ cd bin
+$ ./app cal [key_path] [data_path] [app_addr] [app_port]
+```
