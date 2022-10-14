@@ -1,6 +1,7 @@
 extern crate base64;
 extern crate clap;
 extern crate curl;
+extern crate serde;
 
 mod handlers;
 
@@ -31,6 +32,7 @@ static IAS_BASE_URL: &'static str = "https://api.trustedservices.intel.com";
 // Use the newest APIs. (v3 is decprecated.)
 static IAS_BASE_REQUEST: &'static str = "/sgx/dev/attestation/v4/";
 static IAS_KEY_HEADER: &'static str = "Ocp-Apim-Subscription-Key";
+static IAS_CONTENT_TYPE_HEADER: &'static str = "Content-Type";
 
 fn main() {
     let args = Args::parse();
@@ -54,7 +56,7 @@ fn main() {
             send_sigrl(&mut writer, sigrl).unwrap();
 
             // Handle quote.
-            
+            handle_quote(&mut reader, &mut writer, &key).unwrap();
 
             // Quite.
             writer.write(b"q\n").unwrap();

@@ -50,6 +50,15 @@ extern "C" {
         socket_fd: c_int,
         quote_buf: *const u8,
         quote_len: u32,
+        quote_report: *mut u8,
+        quote_report_buf_len: u32,
+        quote_report_len: *mut u32,
+        sig: *mut u8,
+        sig_buf_len: u32,
+        sig_len: *mut u32,
+        cert: *mut u8,
+        cert_buf_len: u32,
+        cert_len: *mut u32,
     ) -> SgxStatus;
 }
 

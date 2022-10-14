@@ -17,39 +17,53 @@ enclave {
 
         // Initialize the quote.
         // Returns the target platform information and the corresponding extended group id.
-        sgx_status_t ocall_sgx_init_quote([out] sgx_target_info_t* ret_ti,
-					                                [out] sgx_epid_group_id_t* ret_gid);
+        sgx_status_t ocall_sgx_init_quote(
+          [out] sgx_target_info_t* ret_ti,
+				  [out] sgx_epid_group_id_t* ret_gid);
         
         // Invokes the `sgx_get_quote` to convert from the report to quote.
         // Returns a quote secured by the attestation key.
-        sgx_status_t ocall_get_quote([in, size = sigrl_len] uint8_t* p_sigrl,
-                                     uint32_t sigrl_len,
-                                     [in] sgx_report_t* report,
-                                     sgx_quote_sign_type_t quote_type,
-                                     [in] sgx_spid_t* p_spid,
-                                     [in] sgx_quote_nonce_t* p_nonce,
-                                     [out] sgx_report_t* p_qe_report,
-                                     [out, size = maxlen] sgx_quote_t* p_quote,
-                                     uint32_t maxlen,
-                                     [out] uint32_t* p_quote_len);
+        sgx_status_t ocall_get_quote(
+          [in, size = sigrl_len] uint8_t* p_sigrl,
+          uint32_t sigrl_len,
+          [in] sgx_report_t* report,
+          sgx_quote_sign_type_t quote_type,
+          [in] sgx_spid_t* p_spid,
+          [in] sgx_quote_nonce_t* p_nonce,
+          [out] sgx_report_t* p_qe_report,
+          [out, size = maxlen] sgx_quote_t* p_quote,
+          uint32_t maxlen,
+          [out] uint32_t* p_quote_len);
 
-	      sgx_status_t ocall_get_update_info([in] sgx_platform_info_t* platformBlob,
-					                                 int32_t enclaveTrusted,
-					                                 [out] sgx_update_info_bit_t* update_info);
+	      sgx_status_t ocall_get_update_info(
+          [in] sgx_platform_info_t* platformBlob,
+          int32_t enclaveTrusted,
+          [out] sgx_update_info_bit_t* update_info);
 
         // Forward the information to the outside world and let it forward the information
         // to the service provider (SP). Then SP will request for the IAS for sigrl.
-        sgx_status_t ocall_get_sigrl_from_intel([in, size = epid_len] sgx_epid_group_id_t* epid,
-                                                uint32_t epid_len,
-                                                int32_t socket_fd,
-                                                [out, size = len] uint8_t* sigrl,
-                                                uint32_t len,
-                                                [out] uint32_t* sigrl_len);
+        sgx_status_t ocall_get_sigrl_from_intel(
+          [in, size = epid_len] sgx_epid_group_id_t* epid,
+          uint32_t epid_len,
+          int32_t socket_fd,
+          [out, size = len] uint8_t* sigrl,
+          uint32_t len,
+          [out] uint32_t* sigrl_len);
 
         // Forward the information to the outside world and get the quote report from Intel.
-        sgx_status_t ocall_get_quote_report_from_intel(int32_t socket_fd,
-                                                       [in, size = quote_len] uint8_t* quote_buf,
-                                                       uint32_t quote_len);
+        sgx_status_t ocall_get_quote_report_from_intel(
+          int32_t socket_fd,
+          [in, size = quote_len] uint8_t* quote_buf,
+          uint32_t quote_len,
+          [out, size = quote_report_buf_len] uint8_t* quote_report,
+          uint32_t quote_report_buf_len,
+          [out] uint32_t* quote_report_len,
+          [out, size = sig_buf_len] uint8_t* sig,
+          uint32_t sig_buf_len,
+          [out] uint32_t* sig_len,
+          [out, size = cert_buf_len] uint8_t* cert,
+          uint32_t cert_buf_len,
+          [out] uint32_t* cert_len);
     };
 
     trusted {
@@ -65,9 +79,10 @@ enclave {
             uint32_t* encrypted_output_size);
 
         // Perform the remote attestation components inside the enclave.
-        public sgx_status_t start_remote_attestation(int32_t socket_fd,
-                                                     [in, size = spid_len] sgx_spid_t* spid,
-                                                     uint32_t spid_len);
+        public sgx_status_t start_remote_attestation(
+          int32_t socket_fd,
+          [in, size = spid_len] sgx_spid_t* spid,
+          uint32_t spid_len);
 
     };
 };

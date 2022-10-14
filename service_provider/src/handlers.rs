@@ -1,10 +1,15 @@
-use crate::{IAS_BASE_REQUEST, IAS_BASE_URL, IAS_KEY_HEADER};
+use crate::{IAS_BASE_REQUEST, IAS_BASE_URL, IAS_CONTENT_TYPE_HEADER, IAS_KEY_HEADER};
 
 use curl::easy::{Easy, List};
+use serde::*;
 
 use std::io::*;
 use std::mem;
 use std::net::TcpStream;
+
+#[derive(Serialize, Deserialize)]
+// Explanation: (report, sig, cert).
+pub struct IasQuoteReport(String, String, String);
 
 pub fn send_sigrl(writer: &mut BufWriter<TcpStream>, sigrl: Vec<u8>) -> Result<()> {
     writer.write(sigrl.len().to_string().as_bytes()).unwrap();
@@ -53,6 +58,8 @@ pub fn get_sigrl(ias_key: &String, epid: &[u8; 4]) -> Result<Vec<u8>> {
     easy.http_headers(header).unwrap();
 
     {
+        // Open a temporary context for this callback.
+        // We need to return the ownership of sig_rl.
         let mut transfer = easy.transfer();
         transfer
             .write_function(|data| {
@@ -81,6 +88,34 @@ pub fn get_sigrl(ias_key: &String, epid: &[u8; 4]) -> Result<Vec<u8>> {
     } else {
         Ok(sigrl)
     }
+}
+
+/// Returns a serde serialized three-tuple in bytes: (quote_report, sig, cert).
+pub fn get_quote_report(ias_key: &String) -> Result<Vec<u8>> {
+    let mut easy = Easy::new();
+    let full_url = get_full_url("report");
+    let mut response_header = vec![0u8; 4096];
+
+    // Set the headers.
+    let mut header = List::new();
+    let key_header = format!("{}: {}", IAS_KEY_HEADER, ias_key);
+    let content_type_header = format!("{}: {}", IAS_CONTENT_TYPE_HEADER, "application/json");
+
+    println!(
+        "[+] Requesting {}\n[+] HTTP header:\n\t{}\n\t{}",
+        full_url, key_header, content_type_header,
+    );
+
+    header.append(&content_type_header).unwrap();
+    header.append(&key_header).unwrap();
+    easy.http_headers(header).unwrap();
+
+    // Set the post body.
+
+    // We need to send a POST request to the server.
+    easy.post(true).unwrap();
+
+    Ok(Vec::new())
 }
 
 pub fn connect(address: &String, port: &u16) -> Result<TcpStream> {
@@ -148,7 +183,7 @@ pub fn parse_sigrl(sigrl: &Vec<u8>) -> Result<Vec<u8>> {
 pub fn handle_quote(
     reader: &mut BufReader<TcpStream>,
     writer: &mut BufWriter<TcpStream>,
-    key: &String,
+    ias_key: &String,
 ) -> Result<()> {
     let mut s = String::with_capacity(128);
     reader.read_line(&mut s).unwrap();
@@ -158,7 +193,9 @@ pub fn handle_quote(
     }
 
     // Get quote length.
+    s.clear();
     reader.read_line(&mut s).unwrap();
+
     let quote_len = s[..s.len() - 1]
         .parse::<usize>()
         .expect("[-] Not a valid length!");
@@ -166,7 +203,12 @@ pub fn handle_quote(
     println!("[+] Read quote length: {}.", quote_len);
     let mut quote_buf = vec![0u8; quote_len];
 
-    // Read Quote.
+    // Read quote.
     reader.read_exact(&mut quote_buf).unwrap();
+
+    // Get quote report from Intel.
+    let quote_report_byte = get_quote_report(ias_key).unwrap();
+    println!("[+] Got quote report: {:02x?}", quote_report_byte);
+
     Ok(())
 }

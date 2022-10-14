@@ -144,6 +144,7 @@ pub extern "C" fn start_remote_attestation(socket_fd: i32, spid: *const Spid) ->
     ocall_log!("[+] The integrity of this quote is ok.");
 
     // Step 8: This quote is valid. Forward this quote to IAS.
+    ocall_log!("[+] Start to get quote report from Intel!");
     let res = get_quote_report_from_intel(&qw, socket_fd);
     if let Err(e) = res {
         return e;

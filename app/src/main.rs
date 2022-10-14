@@ -1,3 +1,6 @@
+extern crate clap;
+extern crate serde;
+extern crate base64;
 extern crate sgx_types;
 extern crate sgx_urts;
 
@@ -12,7 +15,6 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::io::Result;
 use std::io::{BufReader, BufWriter};
-use std::mem::size_of;
 use std::net::TcpListener;
 use std::os::unix::prelude::AsRawFd;
 
