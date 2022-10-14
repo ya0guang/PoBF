@@ -1,6 +1,7 @@
 extern crate sgx_types;
 extern crate sgx_urts;
 
+mod hex;
 mod ocall;
 
 use clap::{Parser, Subcommand};
@@ -35,17 +36,8 @@ extern "C" {
         eid: EnclaveId,
         retval: *mut SgxStatus,
         socket_fd: i32,
-        ti: *mut TargetInfo,
-        ti_len: u32,
-    ) -> SgxStatus;
-
-    fn generate_quote(
-        eid: EnclaveId,
-        retval: *mut SgxStatus,
-        ti: *const TargetInfo,
-        ti_len: u32,
-        sigrl: *const u8,
-        sigrl_len: u32,
+        spid: *const Spid,
+        spid_len: u32,
     ) -> SgxStatus;
 }
 
@@ -115,11 +107,7 @@ fn main() {
 
 fn listen(address: &String, port: &u16) -> Result<TcpListener> {
     // Create the full address for the server.
-    let mut full_address = String::new();
-    full_address.push_str(address);
-    full_address.push_str(":");
-    full_address.push_str(&port.to_string());
-
+    let full_address = format!("{}:{}", address, port);
     println!("[+] Listening to {}", full_address);
 
     TcpListener::bind(&full_address)
@@ -148,14 +136,15 @@ fn server_start(
 
             // Expose the raw socket fd.
             let socket_fd = socket.as_raw_fd();
-            let mut ti = TargetInfo::default();
 
             // Create the buffer.
             // let socket_clone = socket.try_clone().unwrap();
             let mut reader = BufReader::new(socket);
+            let mut spid = vec![0u8; 33];
             // let mut writer = BufWriter::new(socket_clone);
             loop {
                 // Command explanations:
+                // 0: Send Spid.
                 // 1: Do RA.
                 // 2: Execute private computing.
                 // 3: Read SigRL.
@@ -172,10 +161,18 @@ fn server_start(
                 println!("[+] Successfully read {} bytes from the client.", size);
 
                 match s.chars().next().unwrap() {
+                    '0' => {
+                        println!("[+] Receiving Spid from SP!");
+
+                        reader.read_exact(&mut spid).unwrap();
+                        spid.truncate(32);
+
+                        println!("[+] Spid received as {:?}", spid);
+                    }
                     '1' => {
                         println!("[+] Performing remote attestation!");
 
-                        match exec_remote_attestation(&enclave, socket_fd, &mut ti) {
+                        match exec_remote_attestation(&enclave, socket_fd, &spid) {
                             SgxStatus::Success => ra_done = true,
                             _ => panic!("[-] Remote attestation intial state failed."),
                         }
@@ -197,23 +194,23 @@ fn server_start(
                         }
                     }
                     '3' => {
-                        println!("[+] Receiving SigRL from the SP!");
-                        // Read SigRL's length.
-                        let mut s = String::with_capacity(OUTPUT_BUFFER_SIZE);
-                        reader.read_line(&mut s).unwrap();
-                        let length = s[..s.len() - 1].parse::<usize>().unwrap();
-                        println!("[+] SigRL length = {}.", length);
+                        // println!("[+] Receiving SigRL from the SP!");
+                        // // Read SigRL's length.
+                        // let mut s = String::with_capacity(OUTPUT_BUFFER_SIZE);
+                        // reader.read_line(&mut s).unwrap();
+                        // let length = s[..s.len() - 1].parse::<usize>().unwrap();
+                        // println!("[+] SigRL length = {}.", length);
 
-                        // Read SigRL.
-                        let mut sigrl = Vec::with_capacity(length);
-                        reader.read(&mut sigrl).unwrap();
-                        println!("[+] SigRl is {:?}", sigrl);
+                        // // Read SigRL.
+                        // let mut sigrl = Vec::with_capacity(length);
+                        // reader.read(&mut sigrl).unwrap();
+                        // println!("[+] SigRl is {:?}", sigrl);
 
-                        // Generate quote.
-                        match exec_generate_quote(&enclave, socket_fd, &sigrl, &ti) {
-                            SgxStatus::Success => println!("[+] Successfully generated quote!"),
-                            _ => panic!("[-] Remote attestation quote generation failed."),
-                        }
+                        // // Generate quote.
+                        // match exec_generate_quote(&enclave, socket_fd, &sigrl) {
+                        //     SgxStatus::Success => println!("[+] Successfully generated quote!"),
+                        //     _ => panic!("[-] Remote attestation quote generation failed."),
+                        // }
                     }
 
                     // Throw away.
@@ -233,41 +230,16 @@ fn server_start(
 fn exec_remote_attestation(
     enclave: &SgxEnclave,
     socket_fd: c_int,
-    ti: &mut TargetInfo,
+    spid_buf: &Vec<u8>,
 ) -> SgxStatus {
     let mut retval = SgxStatus::Success;
-    let len = std::mem::size_of::<TargetInfo>();
+
+    // Convert spid string to Spid type.
+    let spid_str = String::from_utf8(spid_buf.to_vec()).unwrap();
+    let spid = hex::decode_spid(&spid_str);
     unsafe {
-        start_remote_attestation(
-            enclave.eid(),
-            &mut retval,
-            socket_fd,
-            ti as *mut _,
-            len as u32,
-        );
+        start_remote_attestation(enclave.eid(), &mut retval, socket_fd, &spid, 16u32);
     }
-
-    retval
-}
-
-fn exec_generate_quote(
-    enclave: &SgxEnclave,
-    socket_fd: c_int,
-    sigrl: &Vec<u8>,
-    ti: &TargetInfo,
-) -> SgxStatus {
-    let mut retval = SgxStatus::Success;
-
-    unsafe {
-        generate_quote(
-            enclave.eid(),
-            &mut retval,
-            ti,
-            size_of::<TargetInfo>() as u32,
-            sigrl.as_slice().as_ptr(),
-            sigrl.len() as u32,
-        )
-    };
 
     retval
 }

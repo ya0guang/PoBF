@@ -46,9 +46,15 @@ fn main() {
             let mut reader = BufReader::new(socket);
             let mut writer = BufWriter::new(socket_clone);
 
+            // Send Spid to the application enclave.
+            send_spid(&mut writer, &spid).unwrap();
+
             let sigrl =
                 handle_epid(&mut reader, &mut writer, &key).expect("[-] EPID receiving failed.");
             send_sigrl(&mut writer, sigrl).unwrap();
+
+            // Handle quote.
+            
 
             // Quite.
             writer.write(b"q\n").unwrap();

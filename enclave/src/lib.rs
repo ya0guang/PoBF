@@ -8,6 +8,7 @@ extern crate alloc;
 extern crate clear_on_drop;
 #[cfg(feature = "sgx")]
 extern crate sgx_no_tstd;
+extern crate sgx_trts;
 extern crate sgx_tse;
 extern crate sgx_types;
 
@@ -16,6 +17,7 @@ mod bogus;
 mod ocall;
 mod pobf;
 mod pobf_verifier;
+mod ra_utils;
 mod types;
 mod userfunc;
 mod utils;
@@ -24,8 +26,8 @@ use alloc::slice;
 use clear_on_drop::clear_stack_and_regs_on_return;
 use ocall::*;
 use pobf::*;
-use sgx_crypto::ecc::EcKeyPair;
-use sgx_tse::*;
+use ra_utils::*;
+
 use sgx_types::{error::SgxStatus, types::*};
 
 static DEFAULT_PAGE_SIZE_ENTRY: usize = 0x4;
@@ -77,63 +79,75 @@ pub extern "C" fn private_computing_entry(
 }
 
 #[no_mangle]
-pub extern "C" fn start_remote_attestation(
-    socket_fd: i32,
-    ti: *mut TargetInfo,
-    ti_len: *mut u32,
-) -> SgxStatus {
+pub extern "C" fn start_remote_attestation(socket_fd: i32, spid: *const Spid) -> SgxStatus {
     ocall_log!("[+] Start to perform remote attestation!");
 
     // Step 1: Ocall to get the target information and the EPID.
-    let mut eg = EpidGroupId::default();
-    let mut ret = SgxStatus::Success;
-    let mut res = unsafe { ocall_sgx_init_quote(&mut ret, ti, &mut eg) };
-
-    if res != SgxStatus::Success {
-        return res;
+    let res = init_quote();
+    if let Err(e) = res {
+        return e;
     }
+
+    let ti = res.unwrap().0;
+    let eg = res.unwrap().1;
 
     // Step 2: Forward this information to the application which later forwards to service provider who later verifies the information with the help of the IAS.
-    res = unsafe { ocall_get_sigrl_from_intel(&mut ret, &eg, eg.len(), socket_fd) };
-
-    if res != SgxStatus::Success {
-        return res;
+    ocall_log!("[+] Start to get SigRL from Intel!");
+    let res = get_sigrl_from_intel(&eg, socket_fd);
+    if let Err(e) = res {
+        return e;
     }
 
-    SgxStatus::Success
-}
+    let sigrl_buf = res.unwrap();
 
-#[no_mangle]
-pub extern "C" fn generate_quote(
-    ti: *const TargetInfo,
-    ti_len: u32,
-    sigrl: *const u8,
-    sigrl_len: u32,
-) -> SgxStatus {
+    // Step 3: Generate the report and sample the key pair.
+    ocall_log!("[+] Start to perform report generation!");
+    let res = unsafe { get_report(&ti, &sigrl_buf, &*spid) };
+    if let Err(e) = res {
+        return e;
+    }
+
+    let report = res.unwrap();
+
+    // Step 4: Convert the report into a quote type.
     ocall_log!("[+] Start to perform quote generation!");
+    let res = unsafe { get_quote(&sigrl_buf, &report, &*spid) };
 
-    // Step 3: We get the report from the enclave, which is then used to generate the quote.
-    //
-    // Convert sigrl from u8 array to Rust slice.
-    let sigrl_vec = unsafe { slice::from_raw_parts(sigrl, sigrl_len as usize) };
+    if let Err(e) = res {
+        return e;
+    }
 
-    // Open the ECC context and sample a key pair.
-    let ecc_handle = EcKeyPair::create().unwrap();
-    let prv_k = ecc_handle.private_key();
-    let pub_k = ecc_handle.public_key();
+    let qw = res.unwrap();
+    let quote_nonce = &qw.quote_nonce;
+    let qe_report = &qw.qe_report;
 
-    // Fill ecc256 public key into report_data. This is the attestation key.
-    let mut report_data = ReportData::default();
-    let mut pub_k_gx = pub_k.public_key().gx.clone();
-    pub_k_gx.reverse();
-    let mut pub_k_gy = pub_k.public_key().gy.clone();
-    pub_k_gy.reverse();
-    report_data.d[..32].clone_from_slice(&pub_k_gx);
-    report_data.d[32..].clone_from_slice(&pub_k_gy);
+    // Step 5: Verify this quote.
+    let res = verify_report(qe_report, quote_nonce);
+    if let Err(e) = res {
+        return e;
+    }
 
-    // Get the report.
-    let report = unsafe { Report::for_target(&*ti, &report_data).unwrap() };
-    ocall_log!("[+] Report generated: {:?}", report);
+    // Step 6: Check if the qe_report is produced on the same platform.
+    if !same_platform(qe_report, &ti) {
+        ocall_log!("[-] This quote report does belong to this platform.");
+        return SgxStatus::UnrecognizedPlatform;
+    }
+
+    ocall_log!("[+] This quote is genuine for this platform.");
+
+    // Step 7: Check if this quote is replayed.
+    if !check_quote_integrity(&qw) {
+        ocall_log!("[-] This quote is tampered by malicious party. Abort.");
+        return SgxStatus::BadStatus;
+    }
+
+    ocall_log!("[+] The integrity of this quote is ok.");
+
+    // Step 8: This quote is valid. Forward this quote to IAS.
+    let res = get_quote_report_from_intel(&qw, socket_fd);
+    if let Err(e) = res {
+        return e;
+    }
 
     SgxStatus::Success
 }

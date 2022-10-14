@@ -7,11 +7,18 @@ use std::mem;
 use std::net::TcpStream;
 
 pub fn send_sigrl(writer: &mut BufWriter<TcpStream>, sigrl: Vec<u8>) -> Result<()> {
-    // Send command 3 and the message.
-    writer.write(b"3\n").unwrap();
     writer.write(sigrl.len().to_string().as_bytes()).unwrap();
     writer.write(b"\n").unwrap();
     writer.write(&sigrl).unwrap();
+    writer.write(b"\n").unwrap();
+    writer.flush().unwrap();
+
+    Ok(())
+}
+
+pub fn send_spid(writer: &mut BufWriter<TcpStream>, spid: &String) -> Result<()> {
+    writer.write(b"0\n").unwrap();
+    writer.write(spid.as_bytes()).unwrap();
     writer.write(b"\n").unwrap();
     writer.flush().unwrap();
 
@@ -136,4 +143,30 @@ pub fn parse_sigrl(sigrl: &Vec<u8>) -> Result<Vec<u8>> {
     } else {
         Ok(base64::decode(std::str::from_utf8(sigrl).unwrap()).unwrap())
     }
+}
+
+pub fn handle_quote(
+    reader: &mut BufReader<TcpStream>,
+    writer: &mut BufWriter<TcpStream>,
+    key: &String,
+) -> Result<()> {
+    let mut s = String::with_capacity(128);
+    reader.read_line(&mut s).unwrap();
+
+    if !s.starts_with("QUOTE") {
+        println!("[-] Expecting a quote, got {}", s);
+    }
+
+    // Get quote length.
+    reader.read_line(&mut s).unwrap();
+    let quote_len = s[..s.len() - 1]
+        .parse::<usize>()
+        .expect("[-] Not a valid length!");
+
+    println!("[+] Read quote length: {}.", quote_len);
+    let mut quote_buf = vec![0u8; quote_len];
+
+    // Read Quote.
+    reader.read_exact(&mut quote_buf).unwrap();
+    Ok(())
 }

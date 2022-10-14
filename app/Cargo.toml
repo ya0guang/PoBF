@@ -8,4 +8,5 @@ sgx_types = { path = "../incubator-teaclave-sgx-sdk/sgx_types"}
 sgx_urts = { path = "../incubator-teaclave-sgx-sdk/sgx_urts"}
 clap = { version = "3.1.5", features = ["derive"] }
 libc = "0.2.0"
+rustls = "0.20.6"
 # sgx_libc = { path = "../incubator-teaclave-sgx-sdk/sgx_libc", default-features = false }

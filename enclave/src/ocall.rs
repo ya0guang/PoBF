@@ -26,6 +26,9 @@ extern "C" {
         epid: *const EpidGroupId,
         epid_len: usize,
         socket_fd: i32,
+        sigrl: *mut u8,
+        len: u32,
+        sigrl_len: *mut u32,
     ) -> SgxStatus;
 
     pub fn ocall_get_quote(
@@ -40,6 +43,13 @@ extern "C" {
         p_quote: *mut u8,
         maxlen: u32,
         p_quote_len: *mut u32,
+    ) -> SgxStatus;
+
+    pub fn ocall_get_quote_report_from_intel(
+        ret_val: *mut SgxStatus,
+        socket_fd: c_int,
+        quote_buf: *const u8,
+        quote_len: u32,
     ) -> SgxStatus;
 }
 
