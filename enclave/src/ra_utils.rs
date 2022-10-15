@@ -204,9 +204,27 @@ pub fn verify_quote_report(quote_report: &Vec<u8>, sig: &Vec<u8>, cert: &Vec<u8>
     // a trusted Attestation Report Signing CA Certificate.
 
     // Construct a certificate object from cert_decoded.
-    // TODO.
+    // Need to find an SGX-compatible crate for signature verification.
+    // Alternatives:
+    //  * ring: not compatible with SGX; causes duplicate std symbols.
+    //  * webpki: not compatible with SGX since it is dependent on low-level implementations of ring.
+    //  * patched-ring: OK with SGX SDK v2.0.0.
+    let sig_cert = webpki::EndEntityCert::try_from(cert_decoded.as_slice())
+        .map_err(|e| {
+            ocall_log!("[-] Invalid certificate for IAS.");
+            return false;
+        })
+        .unwrap();
 
-    true
+    // An interesting fact about this is that if we do not use patched version of ring,
+    // then verification becomes an endless loop.
+    match sig_cert.verify_signature(&webpki::RSA_PKCS1_2048_8192_SHA256, quote_report, sig) {
+        Ok(()) => true,
+        Err(e) => {
+            ocall_log!("[+] The signature is invalid!");
+            false
+        }
+    }
 }
 
 pub fn same_platform(qe_report: &Report, ti: &TargetInfo) -> bool {

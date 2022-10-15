@@ -13,7 +13,7 @@ extern crate sgx_no_tstd;
 extern crate sgx_trts;
 extern crate sgx_tse;
 extern crate sgx_types;
-// extern crate ring;
+extern crate webpki;
 
 #[cfg(not(feature = "sgx"))]
 mod bogus;
