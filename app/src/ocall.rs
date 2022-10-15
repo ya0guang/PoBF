@@ -9,11 +9,16 @@ use sgx_types::error::*;
 use sgx_types::function::*;
 use sgx_types::types::*;
 
-use serde::*;
+use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize)]
-// Explanation: (report, sig, cert).
-pub struct IasQuoteReport(String, String, String);
+#[derive(Serialize, Deserialize, Debug)]
+pub struct IasQuoteReport {
+    quote_status: String,
+    quote_report: String,
+    quote_signature: String,
+    quote_certificate: String,
+    platform_info_blob: String,
+}
 
 #[no_mangle]
 pub unsafe extern "C" fn u_log_ocall(
@@ -113,7 +118,9 @@ pub unsafe extern "C" fn ocall_get_quote_report_from_intel(
 
     // Forward quote to the SP.
     writer.write(b"QUOTE\n").unwrap();
-    writer.write(quote_json.len().to_string().as_bytes()).unwrap();
+    writer
+        .write(quote_json.len().to_string().as_bytes())
+        .unwrap();
     writer.write(b"\n").unwrap();
     writer.write(quote_json.as_bytes()).unwrap();
     writer.write(b"\n").unwrap();
@@ -126,7 +133,18 @@ pub unsafe extern "C" fn ocall_get_quote_report_from_intel(
     // 2. The corresponding signature;
     // 3. The certificate for checking that this report is valid.
 
-    println!("[+] Successfully get quote report from Intel.");
+    // First, determine the length of the quote_report.
+    let mut s = String::with_capacity(128);
+    reader.read_line(&mut s).unwrap();
+    let length = s[..s.len() - 1].parse::<usize>().unwrap();
+    // Prepare a buffer.
+    let mut quote_report_buf = vec![0u8; length];
+    reader.read_exact(&mut quote_report_buf).unwrap();
+
+    // Parse into IasQuoteReport type.
+    let quote_report: IasQuoteReport = serde_json::from_slice(&quote_report_buf).unwrap();
+    println!("[+] Successfully get quote report as {:?}", quote_report);
+    check_status(&quote_report);
 
     // Forget resources not owned by Rust.
     mem::forget(reader);
@@ -208,4 +226,65 @@ pub unsafe extern "C" fn ocall_get_update_info(
     println!("[+] Performing sgx_report_attestation_status...");
 
     sgx_report_attestation_status(platform_blob, enclave_trusted, update_info)
+}
+
+/// Performs a check if the target TCB is too low to meet IAS's requirements.
+/// By invoking `sgx_report_attestation_status` for analysis, we can know how
+/// to fix this status code.
+fn check_status(isv_enclave_quote: &IasQuoteReport) {
+    if isv_enclave_quote.quote_status == "GROUP_OUT_OF_DATE"
+        || isv_enclave_quote.quote_status == "CONFIGURATION_NEEDED"
+    {
+        // Decode the platform info blob and inquiry the SGX why this would happen.
+        // This field is encoded by base16.
+        let platform_blob_decoded = base16::decode(&isv_enclave_quote.platform_info_blob)
+            .expect("[-] Base16 decode for PlatformInfoBlob failed.");
+        let mut platform_blob = PlatformInfo::default();
+
+        // TLV Header + TLV Payload (Platform Information Blob to be processed by SGX
+        // Platform SW.) = 4 + 101 = 105.
+        if platform_blob_decoded.len() != SGX_PLATFORM_INFO_SIZE + 4 {
+            panic!(
+                "[-] PlatformInfoBlob is corrupted or missing. Got {}",
+                platform_blob_decoded.len()
+            );
+        }
+
+        platform_blob
+            .platform_info
+            .copy_from_slice(&platform_blob_decoded[4..]);
+
+        // Call sgx_report_attestation_status.
+        let mut update_info = UpdateInfoBit::default();
+        let res = unsafe { sgx_report_attestation_status(&platform_blob, 1, &mut update_info) };
+        match res {
+            SgxStatus::UpdateNeeded => {
+                println!("[+] The TCB version is outdated. Please consider an update, but you can still trust this enclave if you do not think it is a problem.");
+                // Check more details.
+                //
+                // A security upgrade for your computing device is required for this
+                // application to continue to provide you with a high degree of security
+                // for this system.
+                //
+                // It the user's discretion whether to trust the enclave, but a hardware update
+                // that fixes potential vulnerabilities are definitely more welcomed.
+                println!("[+] Update details: {:?}", update_info);
+            }
+
+            SgxStatus::Success =>
+                // A strange case; maybe this should not happten?
+                println!("[+] IAS returned outdated status but inquiry to `sgx_report_attestation_status` returned success."),
+            _ =>
+                panic!(
+                    "[-] Failed to consult `sgx_report_attestation_status` due to {:?}",
+                    res
+                ),
+        }
+    } else if isv_enclave_quote.quote_status != "OK" {
+        // Just panic here.
+        panic!(
+            "[+] The status for quote report is not correct. Got {}.",
+            isv_enclave_quote.quote_status
+        );
+    }
 }

@@ -1,15 +1,12 @@
-use crate::{IAS_BASE_REQUEST, IAS_BASE_URL, IAS_CONTENT_TYPE_HEADER, IAS_KEY_HEADER};
+use crate::utils::*;
+use crate::{IAS_CONTENT_TYPE_HEADER, IAS_KEY_HEADER};
 
 use curl::easy::{Easy, List};
-use serde::*;
+
 
 use std::io::*;
 use std::mem;
 use std::net::TcpStream;
-
-#[derive(Serialize, Deserialize)]
-// Explanation: (report, sig, cert).
-pub struct IasQuoteReport(String, String, String);
 
 pub fn send_sigrl(writer: &mut BufWriter<TcpStream>, sigrl: Vec<u8>) -> Result<()> {
     writer.write(sigrl.len().to_string().as_bytes()).unwrap();
@@ -30,10 +27,6 @@ pub fn send_spid(writer: &mut BufWriter<TcpStream>, spid: &String) -> Result<()>
     Ok(())
 }
 
-pub fn get_full_url(request: &str) -> String {
-    format!("{}{}{}", IAS_BASE_URL, IAS_BASE_REQUEST, request)
-}
-
 pub fn get_sigrl(ias_key: &String, epid: &[u8; 4]) -> Result<Vec<u8>> {
     let mut easy = Easy::new();
     let mut sigrl = Vec::new();
@@ -50,7 +43,7 @@ pub fn get_sigrl(ias_key: &String, epid: &[u8; 4]) -> Result<Vec<u8>> {
     let header_str = format!("{}: {}", IAS_KEY_HEADER, ias_key);
 
     println!(
-        "[+] Requesting {}\n[+] HTTP header: {}",
+        "[+] Requesting {}\n[+] HTTP header:\n\t{}",
         full_url, header_str
     );
 
@@ -91,10 +84,11 @@ pub fn get_sigrl(ias_key: &String, epid: &[u8; 4]) -> Result<Vec<u8>> {
 }
 
 /// Returns a serde serialized three-tuple in bytes: (quote_report, sig, cert).
-pub fn get_quote_report(ias_key: &String) -> Result<Vec<u8>> {
+pub fn get_quote_report(ias_key: &String, report_json: &Vec<u8>) -> Result<Vec<u8>> {
     let mut easy = Easy::new();
     let full_url = get_full_url("report");
-    let mut response_header = vec![0u8; 4096];
+    let mut response_header = Vec::new();
+    let mut response_buf = Vec::new();
 
     // Set the headers.
     let mut header = List::new();
@@ -109,13 +103,46 @@ pub fn get_quote_report(ias_key: &String) -> Result<Vec<u8>> {
     header.append(&content_type_header).unwrap();
     header.append(&key_header).unwrap();
     easy.http_headers(header).unwrap();
-
-    // Set the post body.
-
+    easy.post_fields_copy(report_json.as_slice()).unwrap();
+    easy.url(&full_url).unwrap();
     // We need to send a POST request to the server.
     easy.post(true).unwrap();
 
-    Ok(Vec::new())
+    {
+        let mut transfer = easy.transfer();
+        transfer
+            .write_function(|data| {
+                response_buf.extend_from_slice(data);
+                Ok(data.len())
+            })
+            .unwrap();
+
+        transfer
+            .header_function(|data| {
+                response_header.extend_from_slice(&data);
+                true
+            })
+            .unwrap();
+
+        transfer.perform().unwrap();
+    }
+
+    let code = easy.response_code().unwrap();
+    println!("[+] Request sent. Got status code {}.", code);
+
+    println!(
+        "[+] Response body:\n{}\nResponse header:\n{}",
+        std::str::from_utf8(&response_buf).unwrap(),
+        std::str::from_utf8(&response_header).unwrap()
+    );
+
+    if code != 200 {
+        // Leave an error message and die.
+        Err(Error::from(ErrorKind::PermissionDenied))
+    } else {
+        // Parse the result.
+        parse_quote_report(response_header, response_buf)
+    }
 }
 
 pub fn connect(address: &String, port: &u16) -> Result<TcpStream> {
@@ -172,14 +199,6 @@ pub fn handle_epid(
     parse_sigrl(&sigrl)
 }
 
-pub fn parse_sigrl(sigrl: &Vec<u8>) -> Result<Vec<u8>> {
-    if sigrl.is_empty() {
-        Ok(Vec::new())
-    } else {
-        Ok(base64::decode(std::str::from_utf8(sigrl).unwrap()).unwrap())
-    }
-}
-
 pub fn handle_quote(
     reader: &mut BufReader<TcpStream>,
     writer: &mut BufWriter<TcpStream>,
@@ -205,10 +224,15 @@ pub fn handle_quote(
 
     // Read quote.
     reader.read_exact(&mut quote_buf).unwrap();
+    println!("content: {}", String::from_utf8(quote_buf.clone()).unwrap());
 
     // Get quote report from Intel.
-    let quote_report_byte = get_quote_report(ias_key).unwrap();
-    println!("[+] Got quote report: {:02x?}", quote_report_byte);
+    let quote_report = get_quote_report(ias_key, &quote_buf).unwrap();
+    // Send it to the application enclave.
+    writer.write(quote_report.len().to_string().as_bytes()).unwrap();
+    writer.write(b"\n").unwrap();
+    writer.write(&quote_report).unwrap();
+    writer.write(b"\n").unwrap();
 
     Ok(())
 }

@@ -1,9 +1,10 @@
 extern crate base64;
 extern crate clap;
 extern crate curl;
-extern crate serde;
+extern crate serde_json;
 
 mod handlers;
+mod utils;
 
 use clap::{Parser, Subcommand};
 use handlers::*;
@@ -33,6 +34,11 @@ static IAS_BASE_URL: &'static str = "https://api.trustedservices.intel.com";
 static IAS_BASE_REQUEST: &'static str = "/sgx/dev/attestation/v4/";
 static IAS_KEY_HEADER: &'static str = "Ocp-Apim-Subscription-Key";
 static IAS_CONTENT_TYPE_HEADER: &'static str = "Content-Type";
+static IAS_XIAS_SIGNCERT_HEADER: &'static str = "X-IASReport-Signing-Certificate";
+static IAS_XIAS_SIG_HEADER: &'static str = "X-IASReport-Signature";
+static ISV_ENCLAVE_QUOTE_STATUS: &'static str = "\"isvEnclaveQuoteStatus\"";
+static PLATFORM_INFO_BLOB: &'static str = "\"platformInfoBlob\"";
+static ISV_ENCLAVE_QUOTE_BODY: &'static str = "\"isvEnclaveQuoteBody\"";
 
 fn main() {
     let args = Args::parse();
