@@ -5,12 +5,15 @@
 #![feature(allocator_api)]
 
 extern crate alloc;
+extern crate base64;
 extern crate clear_on_drop;
+extern crate percent_encoding;
 #[cfg(feature = "sgx")]
 extern crate sgx_no_tstd;
 extern crate sgx_trts;
 extern crate sgx_tse;
 extern crate sgx_types;
+// extern crate ring;
 
 #[cfg(not(feature = "sgx"))]
 mod bogus;
@@ -107,7 +110,10 @@ pub extern "C" fn start_remote_attestation(socket_fd: i32, spid: *const Spid) ->
         return e;
     }
 
-    let report = res.unwrap();
+    let report_tuple = res.unwrap();
+    let report = report_tuple.0;
+    // This is needed in future TLS connection with the client. So we keep it.
+    let ecc_context = report_tuple.1;
 
     // Step 4: Convert the report into a quote type.
     ocall_log!("[+] Start to perform quote generation!");
@@ -149,6 +155,22 @@ pub extern "C" fn start_remote_attestation(socket_fd: i32, spid: *const Spid) ->
     if let Err(e) = res {
         return e;
     }
+
+    ocall_log!("[+] Successfully get quote report.");
+
+    // Step 9: Verify this quote report: is this genuinely issues by Intel?
+    ocall_log!("[+] Start to verify quote report!");
+    let quote_triple = res.unwrap();
+    let quote_report = quote_triple.0;
+    let sig = quote_triple.1;
+    let cert = quote_triple.2;
+
+    if !verify_quote_report(&quote_report, &sig, &cert) {
+        ocall_log!("[-] This quote report is tampered by malicious party. Abort.");
+        return SgxStatus::BadStatus;
+    }
+
+    ocall_log!("[+] Signature is valid!");
 
     SgxStatus::Success
 }

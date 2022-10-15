@@ -13,8 +13,11 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct IasQuoteReport {
+    quote_timestamp: String,
     quote_status: String,
-    quote_report: String,
+    // The whole response body.
+    quote_report_raw: String,
+    quote_body: String,
     quote_signature: String,
     quote_certificate: String,
     platform_info_blob: String,
@@ -87,17 +90,17 @@ pub unsafe extern "C" fn ocall_get_sigrl_from_intel(
 
 #[no_mangle]
 pub unsafe extern "C" fn ocall_get_quote_report_from_intel(
-    socket_fd: int32_t,
+    socket_fd: c_int,
     quote_buf: *const u8,
     quote_len: u32,
     quote_report: *mut u8,
-    quote_report_buf_len: u32,
+    _quote_report_buf_len: u32,
     quote_report_len: *mut u32,
     sig: *mut u8,
-    sig_buf_len: u32,
+    _sig_buf_len: u32,
     sig_len: *mut u32,
     cert: *mut u8,
-    cert_buf_len: u32,
+    _cert_buf_len: u32,
     cert_len: *mut u32,
 ) -> SgxStatus {
     println!("[+] Performing ocall_get_quote_report_from_intel...");
@@ -142,9 +145,38 @@ pub unsafe extern "C" fn ocall_get_quote_report_from_intel(
     reader.read_exact(&mut quote_report_buf).unwrap();
 
     // Parse into IasQuoteReport type.
-    let quote_report: IasQuoteReport = serde_json::from_slice(&quote_report_buf).unwrap();
-    println!("[+] Successfully get quote report as {:?}", quote_report);
-    check_status(&quote_report);
+    let ias_quote_report: IasQuoteReport = serde_json::from_slice(&quote_report_buf).unwrap();
+    println!(
+        "[+] Successfully get quote report as {:?}",
+        ias_quote_report
+    );
+
+    let res = check_status(&ias_quote_report);
+    if res != SgxStatus::Success {
+        return res;
+    }
+
+    // Copy from the quote report to the output pointers.
+    ptr::copy(
+        ias_quote_report.quote_report_raw.as_ptr(),
+        quote_report,
+        ias_quote_report.quote_report_raw.len(),
+    );
+    ptr::copy(
+        ias_quote_report.quote_signature.as_ptr(),
+        sig,
+        ias_quote_report.quote_signature.len(),
+    );
+    ptr::copy(
+        ias_quote_report.quote_certificate.as_ptr(),
+        cert,
+        ias_quote_report.quote_certificate.len(),
+    );
+
+    // Set return lengths.
+    *quote_report_len = ias_quote_report.quote_report_raw.len() as u32;
+    *sig_len = ias_quote_report.quote_signature.len() as u32;
+    *cert_len = ias_quote_report.quote_certificate.len() as u32;
 
     // Forget resources not owned by Rust.
     mem::forget(reader);
@@ -231,7 +263,9 @@ pub unsafe extern "C" fn ocall_get_update_info(
 /// Performs a check if the target TCB is too low to meet IAS's requirements.
 /// By invoking `sgx_report_attestation_status` for analysis, we can know how
 /// to fix this status code.
-fn check_status(isv_enclave_quote: &IasQuoteReport) {
+fn check_status(isv_enclave_quote: &IasQuoteReport) -> SgxStatus {
+    // We can also check the freshness of the quote report by adding an extra nonce.
+
     if isv_enclave_quote.quote_status == "GROUP_OUT_OF_DATE"
         || isv_enclave_quote.quote_status == "CONFIGURATION_NEEDED"
     {
@@ -271,20 +305,27 @@ fn check_status(isv_enclave_quote: &IasQuoteReport) {
                 println!("[+] Update details: {:?}", update_info);
             }
 
-            SgxStatus::Success =>
+            SgxStatus::Success => {
                 // A strange case; maybe this should not happten?
-                println!("[+] IAS returned outdated status but inquiry to `sgx_report_attestation_status` returned success."),
-            _ =>
-                panic!(
+                println!("[+] IAS returned outdated status but inquiry to `sgx_report_attestation_status` returned success.");
+            }
+
+            _ => {
+                println!(
                     "[-] Failed to consult `sgx_report_attestation_status` due to {:?}",
                     res
-                ),
+                );
+                return SgxStatus::Unexpected;
+            }
         }
     } else if isv_enclave_quote.quote_status != "OK" {
-        // Just panic here.
-        panic!(
-            "[+] The status for quote report is not correct. Got {}.",
+        println!(
+            "[-] The status for quote report is not correct. Got {}.",
             isv_enclave_quote.quote_status
         );
+
+        return SgxStatus::BadStatus;
     }
+
+    SgxStatus::Success
 }

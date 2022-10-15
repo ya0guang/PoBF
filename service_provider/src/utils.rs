@@ -1,6 +1,6 @@
 use crate::{
-    IAS_BASE_REQUEST, IAS_BASE_URL, IAS_XIAS_SIGNCERT_HEADER, IAS_XIAS_SIG_HEADER,
-    ISV_ENCLAVE_QUOTE_BODY, ISV_ENCLAVE_QUOTE_STATUS, PLATFORM_INFO_BLOB,
+    IAS_BASE_REQUEST, IAS_BASE_URL, IAS_QUOTE_TIMESTAMP, IAS_XIAS_SIGNCERT_HEADER,
+    IAS_XIAS_SIG_HEADER, ISV_ENCLAVE_QUOTE_BODY, ISV_ENCLAVE_QUOTE_STATUS, PLATFORM_INFO_BLOB,
 };
 
 use std::io::*;
@@ -9,8 +9,12 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
 pub struct IasQuoteReport {
+    quote_timestamp: String,
     quote_status: String,
-    quote_report: String,
+
+    // The whole response body.
+    quote_report_raw: String,
+    quote_body: String,
     quote_signature: String,
     quote_certificate: String,
 
@@ -56,14 +60,16 @@ pub fn parse_quote_report(raw_header: Vec<u8>, raw_response: Vec<u8>) -> Result<
 
     // Extract some necessary fields from response body.
     let mut quote_status = String::new();
-    let mut quote_report = String::new();
+    let mut quote_body = String::new();
     let mut platform_info_blob = String::new();
-    let response_str = String::from_utf8(raw_response).unwrap();
+    let mut quote_timestamp = String::new();
+
+    let response_str = String::from_utf8(raw_response.clone()).unwrap();
     let response_kv: Vec<&str> = response_str.split(",").collect();
     // Iterate over each key-value pair.
     for kv in response_kv.into_iter() {
         // Throw away extra quote signs.
-        if let Some((_, cur)) = kv.rsplit_once(":") {
+        if let Some((_, cur)) = kv.split_once(":") {
             if kv.starts_with(ISV_ENCLAVE_QUOTE_STATUS) {
                 let status = &cur[1..cur.len() - 1];
 
@@ -78,17 +84,21 @@ pub fn parse_quote_report(raw_header: Vec<u8>, raw_response: Vec<u8>) -> Result<
 
                 quote_status.push_str(status);
             } else if kv.starts_with(ISV_ENCLAVE_QUOTE_BODY) {
-                quote_report.push_str(&cur[1..cur.len() - 1]);
+                quote_body.push_str(&cur[1..cur.len() - 1]);
             } else if kv.starts_with(PLATFORM_INFO_BLOB) {
                 platform_info_blob.push_str(&cur[1..cur.len() - 1]);
+            } else if kv.starts_with(IAS_QUOTE_TIMESTAMP) {
+                quote_timestamp.push_str(&cur[1..cur.len() - 1]);
             }
         }
     }
 
     let quote_report = IasQuoteReport {
+        quote_timestamp,
         quote_status,
-        quote_report,
         quote_signature,
+        quote_report_raw: String::from_utf8(raw_response).unwrap(),
+        quote_body,
         quote_certificate,
         platform_info_blob,
     };

@@ -36,6 +36,7 @@ static IAS_KEY_HEADER: &'static str = "Ocp-Apim-Subscription-Key";
 static IAS_CONTENT_TYPE_HEADER: &'static str = "Content-Type";
 static IAS_XIAS_SIGNCERT_HEADER: &'static str = "X-IASReport-Signing-Certificate";
 static IAS_XIAS_SIG_HEADER: &'static str = "X-IASReport-Signature";
+static IAS_QUOTE_TIMESTAMP: &'static str = "\"timestamp\"";
 static ISV_ENCLAVE_QUOTE_STATUS: &'static str = "\"isvEnclaveQuoteStatus\"";
 static PLATFORM_INFO_BLOB: &'static str = "\"platformInfoBlob\"";
 static ISV_ENCLAVE_QUOTE_BODY: &'static str = "\"isvEnclaveQuoteBody\"";

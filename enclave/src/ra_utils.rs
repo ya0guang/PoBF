@@ -1,17 +1,31 @@
 use crate::ocall::*;
 use crate::ocall_log;
-use alloc::{vec, vec::*};
-use sgx_crypto::ecc::EcKeyPair;
+use alloc::{str, string::String, vec, vec::*};
+use sgx_crypto::ecc::{EcKeyPair, EcPrivateKey, EcPublicKey};
 use sgx_crypto::sha::Sha256;
 use sgx_tse::*;
 use sgx_types::error::*;
 use sgx_types::types::*;
+
+// A hardcoded certificate bytes from Intel CA Cert.
+// We reject reading certificate from the outside world to prevent forage.
+// Anyone can download this cert from Intel SGX developer zone.
+// Link: https://certificates.trustedservices.intel.com/Intel_SGX_Attestation_RootCA.cer or
+//       https://certificates.trustedservices.intel.com/Intel_SGX_Attestation_RootCA.pem
+pub const IAS_CA_CERT: &'static [u8] =
+    include_bytes!("/home/haobin/PoBF/enclave/Intel_SGX_Attestation_RootCA.pem");
 
 pub struct QuoteWrapper {
     pub qe_report: Report,
     pub quote_nonce: QuoteNonce,
     pub quote_len: u32,
     pub quote: Vec<u8>,
+}
+
+pub struct EccContext {
+    ecc_handle: EcKeyPair,
+    pub_k: EcPublicKey,
+    prv_k: EcPrivateKey,
 }
 
 pub fn init_quote() -> SgxResult<(TargetInfo, EpidGroupId)> {
@@ -54,7 +68,11 @@ pub fn get_sigrl_from_intel(eg: &EpidGroupId, socket_fd: c_int) -> SgxResult<Vec
     }
 }
 
-pub fn get_report(ti: &TargetInfo, sigrl_buf: &Vec<u8>, spid: &Spid) -> SgxResult<Report> {
+pub fn get_report(
+    ti: &TargetInfo,
+    sigrl_buf: &Vec<u8>,
+    spid: &Spid,
+) -> SgxResult<(Report, EccContext)> {
     let sigrl = sigrl_buf.as_slice();
     // Open the ECC context and sample a key pair.
     let ecc_handle = EcKeyPair::create().unwrap();
@@ -71,7 +89,18 @@ pub fn get_report(ti: &TargetInfo, sigrl_buf: &Vec<u8>, spid: &Spid) -> SgxResul
     report_data.d[32..].clone_from_slice(&pub_k_gy);
 
     // Get the report.
-    Report::for_target(ti, &report_data)
+    match Report::for_target(ti, &report_data) {
+        Ok(res) => Ok((
+            res,
+            EccContext {
+                ecc_handle,
+                pub_k,
+                prv_k,
+            },
+        )),
+
+        Err(e) => Err(e),
+    }
 }
 
 ///The identity of an ISV enclave and the validity of the platform can be verified using Attestation
@@ -148,6 +177,38 @@ pub fn verify_report(qe_report: &Report, quote_nonce: &QuoteNonce) -> SgxResult<
     }
 }
 
+/// Special characters are http-encoded, we want to remove these base64-unrecognizable tokens.
+/// Also, we do not need the CA cert here.
+pub fn process_raw_cert(cert_raw: &Vec<u8>) -> String {
+    let cert_removed = str::from_utf8(cert_raw).unwrap().replace("%0A", "");
+    // Decode %.
+    let cert = String::from(
+        percent_encoding::percent_decode_str(&cert_removed)
+            .decode_utf8()
+            .unwrap(),
+    );
+
+    let v: Vec<&str> = cert.split("-----").collect();
+
+    String::from(v[2])
+}
+
+/// Returns true if the quote report is genuinely issued by Intel.
+pub fn verify_quote_report(quote_report: &Vec<u8>, sig: &Vec<u8>, cert: &Vec<u8>) -> bool {
+    // Decode each data field.
+    let cert_processed = process_raw_cert(&cert);
+    let sig_decoded = base64::decode(&sig).unwrap();
+    let cert_decoded = base64::decode(&cert_processed).unwrap();
+
+    // Also erify that the chain is rooted in
+    // a trusted Attestation Report Signing CA Certificate.
+
+    // Construct a certificate object from cert_decoded.
+    // TODO.
+
+    true
+}
+
 pub fn same_platform(qe_report: &Report, ti: &TargetInfo) -> bool {
     ti.mr_enclave.m == qe_report.body.mr_enclave.m
         && ti.attributes.flags == qe_report.body.attributes.flags
@@ -180,13 +241,16 @@ pub fn check_quote_integrity(qw: &QuoteWrapper) -> bool {
     lhs_hash == rhs_hash.hash
 }
 
-pub fn get_quote_report_from_intel(qw: &QuoteWrapper, socket_fd: c_int) -> SgxResult<()> {
+pub fn get_quote_report_from_intel(
+    qw: &QuoteWrapper,
+    socket_fd: c_int,
+) -> SgxResult<(Vec<u8>, Vec<u8>, Vec<u8>)> {
     let mut retval = SgxStatus::Success;
 
     // Prepare three buffers.
     let mut quote_report = vec![0u8; 2048];
     let mut sig = vec![0u8; 2048];
-    let mut cert = vec![0u8; 2048];
+    let mut cert = vec![0u8; 4096];
     let mut quote_report_len = 0u32;
     let mut sig_len = 0u32;
     let mut cert_len = 0u32;
@@ -204,13 +268,20 @@ pub fn get_quote_report_from_intel(qw: &QuoteWrapper, socket_fd: c_int) -> SgxRe
             2048u32,
             &mut sig_len,
             cert.as_mut_ptr(),
-            2048u32,
+            4096u32,
             &mut cert_len,
         )
     };
 
     match res {
-        SgxStatus::Success => Ok(()),
+        SgxStatus::Success => {
+            // Truncate the vectors.
+            quote_report.truncate(quote_report_len as usize);
+            sig.truncate(sig_len as usize);
+            cert.truncate(cert_len as usize);
+
+            Ok((quote_report, sig, cert))
+        }
         _ => Err(res),
     }
 }
