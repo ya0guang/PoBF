@@ -11,6 +11,8 @@ use sgx_types::types::*;
 
 use serde::{Deserialize, Serialize};
 
+use crate::SGX_PLATFORM_HEADER_SIZE;
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct IasQuoteReport {
     quote_timestamp: String,
@@ -277,7 +279,7 @@ fn check_status(isv_enclave_quote: &IasQuoteReport) -> SgxStatus {
 
         // TLV Header + TLV Payload (Platform Information Blob to be processed by SGX
         // Platform SW.) = 4 + 101 = 105.
-        if platform_blob_decoded.len() != SGX_PLATFORM_INFO_SIZE + 4 {
+        if platform_blob_decoded.len() != SGX_PLATFORM_INFO_SIZE + SGX_PLATFORM_HEADER_SIZE {
             panic!(
                 "[-] PlatformInfoBlob is corrupted or missing. Got {}",
                 platform_blob_decoded.len()

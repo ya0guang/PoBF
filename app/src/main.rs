@@ -21,6 +21,7 @@ use std::net::TcpListener;
 use std::os::unix::prelude::AsRawFd;
 
 static ENCLAVE_FILE: &'static str = "enclave.signed.so";
+static SGX_PLATFORM_HEADER_SIZE: usize = 0x4;
 const OUTPUT_BUFFER_SIZE: usize = 2048;
 
 extern "C" {
