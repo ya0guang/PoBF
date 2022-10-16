@@ -13,7 +13,7 @@ use sgx_types::types::*;
 // Link: https://certificates.trustedservices.intel.com/Intel_SGX_Attestation_RootCA.cer or
 //       https://certificates.trustedservices.intel.com/Intel_SGX_Attestation_RootCA.pem
 pub const IAS_CA_CERT: &'static [u8] =
-    include_bytes!("/home/haobin/PoBF/enclave/Intel_SGX_Attestation_RootCA.cer");
+    include_bytes!("../Intel_SGX_Attestation_RootCA.cer");
 
 // For webpki trust anchor.
 type SignatureAlgorithms = &'static [&'static webpki::SignatureAlgorithm];
@@ -30,6 +30,7 @@ static SUPPORTED_SIG_ALGS: SignatureAlgorithms = &[
     &webpki::RSA_PKCS1_2048_8192_SHA512,
     &webpki::RSA_PKCS1_3072_8192_SHA384,
 ];
+
 pub struct QuoteWrapper {
     pub qe_report: Report,
     pub quote_nonce: QuoteNonce,
