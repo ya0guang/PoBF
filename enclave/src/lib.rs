@@ -12,6 +12,8 @@ extern crate percent_encoding;
 extern crate sgx_no_tstd;
 extern crate sgx_trts;
 extern crate sgx_tse;
+#[cfg(feature = "sgx")]
+extern crate sgx_tseal;
 extern crate sgx_types;
 extern crate webpki;
 
@@ -105,7 +107,7 @@ pub extern "C" fn start_remote_attestation(socket_fd: i32, spid: *const Spid) ->
 
     // Step 3: Generate the report and sample the key pair.
     ocall_log!("[+] Start to perform report generation!");
-    let res = unsafe { get_report(&ti, &sigrl_buf, &*spid) };
+    let res = get_report(&ti);
     if let Err(e) = res {
         return e;
     }
@@ -124,11 +126,10 @@ pub extern "C" fn start_remote_attestation(socket_fd: i32, spid: *const Spid) ->
     }
 
     let qw = res.unwrap();
-    let quote_nonce = &qw.quote_nonce;
     let qe_report = &qw.qe_report;
 
     // Step 5: Verify this quote.
-    let res = verify_report(qe_report, quote_nonce);
+    let res = verify_report(qe_report);
     if let Err(e) = res {
         return e;
     }
@@ -171,6 +172,17 @@ pub extern "C" fn start_remote_attestation(socket_fd: i32, spid: *const Spid) ->
     }
 
     ocall_log!("[+] Signature is valid!");
+
+    // Step 10: Seal the report on the computer.
+    ocall_log!("[+] Sealing the report!");
+    let res = seal_attestation_report(&quote_report);
+
+    if let Err(e) = res {
+        ocall_log!("[-] Cannot seal the report.");
+        return e;
+    }
+
+    ocall_log!("[+] Remote attestation completed! Enjoy :)");
 
     SgxStatus::Success
 }

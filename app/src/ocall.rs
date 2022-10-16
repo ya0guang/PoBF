@@ -1,10 +1,11 @@
+use std::fs::File;
+use std::io::prelude::*;
 use std::io::*;
 use std::mem;
 use std::net::TcpStream;
 use std::os::unix::prelude::FromRawFd;
-use std::ptr;
-use std::slice;
 use std::time::SystemTime;
+use std::{ptr, slice, str};
 
 use sgx_types::error::*;
 use sgx_types::function::*;
@@ -272,6 +273,69 @@ pub unsafe extern "C" fn ocall_get_timepoint(time_point: *mut u64) -> SgxStatus 
         .unwrap();
 
     *time_point = time.as_secs();
+
+    SgxStatus::Success
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn ocall_write_data(
+    path: *const u8,
+    path_size: u32,
+    data: *const u8,
+    data_size: u32,
+) -> SgxStatus {
+    println!("[+] Writing data...");
+
+    let path_str = str::from_utf8(slice::from_raw_parts(path, path_size as usize)).unwrap();
+    let mut file = File::create(path_str)
+        .map_err(|e| {
+            println!("[+] IO Error: {}", e.to_string());
+            return SgxStatus::DeviceBusy;
+        })
+        .unwrap();
+
+    let data_buf = slice::from_raw_parts(data, data_size as usize);
+
+    match file.write_all(data_buf) {
+        Ok(_) => SgxStatus::Success,
+
+        Err(e) => {
+            println!("[-] IO Error: {:?}", e);
+            SgxStatus::DeviceBusy
+        }
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn ocall_read_data(
+    path: *const u8,
+    path_size: u32,
+    data: *mut u8,
+    data_buf_size: u32,
+    data_size: *mut u32,
+) -> SgxStatus {
+    println!("[+] Reading data...");
+
+    let path_str = str::from_utf8(slice::from_raw_parts(path, path_size as usize)).unwrap();
+    let mut file = File::open(path_str)
+        .map_err(|e| {
+            println!("[+] IO Error: {}", e.to_string());
+            return SgxStatus::DeviceBusy;
+        })
+        .unwrap();
+
+    let mut data_buf = Vec::new();
+
+    file.read_to_end(&mut data_buf)
+        .map_err(|e| {
+            println!("[+] IO Error: {}", e.to_string());
+            return SgxStatus::DeviceBusy;
+        })
+        .unwrap();
+
+    // Copy back.
+    ptr::copy(data_buf.as_ptr(), data, data_buf.len());
+    *data_size = data_buf.len() as u32;
 
     SgxStatus::Success
 }

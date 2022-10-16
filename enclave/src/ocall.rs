@@ -62,6 +62,23 @@ extern "C" {
     ) -> SgxStatus;
 
     pub fn ocall_get_timepoint(ret_val: *mut SgxStatus, time_point: *mut u64) -> SgxStatus;
+
+    pub fn ocall_write_data(
+        ret_val: *mut SgxStatus,
+        path: *const u8,
+        path_size: u32,
+        data: *const u8,
+        data_size: u32,
+    ) -> SgxStatus;
+
+    pub fn ocall_read_data(
+        ret_val: *mut SgxStatus,
+        path: *const u8,
+        path_size: u32,
+        data: *mut u8,
+        data_buf_size: u32,
+        data_size: *mut u32,
+    ) -> SgxStatus;
 }
 
 pub fn log(s: String) -> SgxStatus {

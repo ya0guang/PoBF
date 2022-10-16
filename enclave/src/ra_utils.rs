@@ -4,6 +4,8 @@ use alloc::{str, string::String, vec, vec::*};
 use sgx_crypto::ecc::{EcKeyPair, EcPrivateKey, EcPublicKey};
 use sgx_crypto::sha::Sha256;
 use sgx_tse::*;
+use sgx_tseal::seal::SealedData;
+use sgx_tseal::seal::UnsealedData;
 use sgx_types::error::*;
 use sgx_types::types::*;
 
@@ -12,8 +14,10 @@ use sgx_types::types::*;
 // Anyone can download this cert from Intel SGX developer zone.
 // Link: https://certificates.trustedservices.intel.com/Intel_SGX_Attestation_RootCA.cer or
 //       https://certificates.trustedservices.intel.com/Intel_SGX_Attestation_RootCA.pem
-pub const IAS_CA_CERT: &'static [u8] =
-    include_bytes!("../Intel_SGX_Attestation_RootCA.cer");
+pub const IAS_CA_CERT: &'static [u8] = include_bytes!("../Intel_SGX_Attestation_RootCA.cer");
+
+// The path where report stores.
+pub const REPORT_PATH: &'static str = "../report.bin";
 
 // For webpki trust anchor.
 type SignatureAlgorithms = &'static [&'static webpki::SignatureAlgorithm];
@@ -84,12 +88,7 @@ pub fn get_sigrl_from_intel(eg: &EpidGroupId, socket_fd: c_int) -> SgxResult<Vec
     }
 }
 
-pub fn get_report(
-    ti: &TargetInfo,
-    sigrl_buf: &Vec<u8>,
-    spid: &Spid,
-) -> SgxResult<(Report, EccContext)> {
-    let sigrl = sigrl_buf.as_slice();
+pub fn get_report(ti: &TargetInfo) -> SgxResult<(Report, EccContext)> {
     // Open the ECC context and sample a key pair.
     let ecc_handle = EcKeyPair::create().unwrap();
     let prv_k = ecc_handle.private_key();
@@ -180,7 +179,7 @@ pub fn get_quote(sigrl_buf: &Vec<u8>, report: &Report, spid: &Spid) -> SgxResult
     }
 }
 
-pub fn verify_report(qe_report: &Report, quote_nonce: &QuoteNonce) -> SgxResult<()> {
+pub fn verify_report(qe_report: &Report) -> SgxResult<()> {
     match qe_report.verify() {
         Err(e) => {
             ocall_log!("[-] Quote report verification failed due to `{:?}`.", e);
@@ -246,7 +245,7 @@ pub fn verify_quote_report(quote_report: &Vec<u8>, sig: &Vec<u8>, cert: &Vec<u8>
     //  * patched-ring: OK with SGX SDK v2.0.0.
     let sig_cert = webpki::EndEntityCert::try_from(cert_decoded.as_slice())
         .map_err(|e| {
-            ocall_log!("[-] Invalid certificate for IAS.");
+            ocall_log!("[-] Invalid certificate for IAS. Error: {:?}", e);
             return false;
         })
         .unwrap();
@@ -362,4 +361,56 @@ pub fn get_quote_report_from_intel(
         }
         _ => Err(res),
     }
+}
+
+/// After the remote attestation is done, we can temporarily store the report on the remote machine,
+/// and we do not need to repeat the boilerplate attestation for a while. The user can decide if she
+/// thinks the report should be expired and re-issues a new request for the remote attestation report.
+pub fn seal_attestation_report(attestation_report: &Vec<u8>) -> SgxResult<()> {
+    let sealed_data = SealedData::<[u8]>::seal(attestation_report, None)?;
+    let sealed_data_bytes = sealed_data.into_bytes().unwrap();
+
+    let mut ret_val = SgxStatus::Success;
+
+    let res = unsafe {
+        ocall_write_data(
+            &mut ret_val,
+            REPORT_PATH.as_ptr(),
+            REPORT_PATH.len() as u32,
+            sealed_data_bytes.as_ptr(),
+            sealed_data_bytes.len() as u32,
+        )
+    };
+
+    match res {
+        SgxStatus::Success => Ok(()),
+        _ => Err(res),
+    }
+}
+
+pub fn unseal_attestation_report() -> SgxResult<Vec<u8>> {
+    let mut unsealed_data_bytes = vec![0u8; 4096];
+    let mut ret_val = SgxStatus::Success;
+    let mut data_size = 0u32;
+
+    let res = unsafe {
+        ocall_read_data(
+            &mut ret_val,
+            REPORT_PATH.as_ptr(),
+            REPORT_PATH.len() as u32,
+            unsealed_data_bytes.as_mut_ptr(),
+            4096u32,
+            &mut data_size,
+        )
+    };
+
+    if res != SgxStatus::Success {
+        return Err(res);
+    }
+
+    // Truncate the buffer.
+    unsealed_data_bytes.truncate(data_size as usize);
+    // Unseal it.
+    UnsealedData::<[u8]>::unseal_from_bytes(unsealed_data_bytes)
+        .map(|data| data.to_plaintext().to_vec())
 }
