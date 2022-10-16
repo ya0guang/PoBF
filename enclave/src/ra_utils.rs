@@ -118,7 +118,7 @@ pub fn get_report(ti: &TargetInfo) -> SgxResult<(Report, EccContext)> {
     }
 }
 
-///The identity of an ISV enclave and the validity of the platform can be verified using Attestation
+/// The identity of an ISV enclave and the validity of the platform can be verified using Attestation
 /// Service for Intel SGX. The Attestation Service verifies only the validity of the platform. It is the
 /// responsibility of the Service Provider to validate the ISV enclave identity. As a result of this
 /// process, an Attestation Verification Report will be generated and sent back to the SP. The report
