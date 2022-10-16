@@ -60,6 +60,8 @@ extern "C" {
         cert_buf_len: u32,
         cert_len: *mut u32,
     ) -> SgxStatus;
+
+    pub fn ocall_get_timepoint(ret_val: *mut SgxStatus, time_point: *mut u64) -> SgxStatus;
 }
 
 pub fn log(s: String) -> SgxStatus {

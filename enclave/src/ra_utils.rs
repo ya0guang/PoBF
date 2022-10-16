@@ -13,8 +13,23 @@ use sgx_types::types::*;
 // Link: https://certificates.trustedservices.intel.com/Intel_SGX_Attestation_RootCA.cer or
 //       https://certificates.trustedservices.intel.com/Intel_SGX_Attestation_RootCA.pem
 pub const IAS_CA_CERT: &'static [u8] =
-    include_bytes!("/home/haobin/PoBF/enclave/Intel_SGX_Attestation_RootCA.pem");
+    include_bytes!("/home/haobin/PoBF/enclave/Intel_SGX_Attestation_RootCA.cer");
 
+// For webpki trust anchor.
+type SignatureAlgorithms = &'static [&'static webpki::SignatureAlgorithm];
+static SUPPORTED_SIG_ALGS: SignatureAlgorithms = &[
+    &webpki::ECDSA_P256_SHA256,
+    &webpki::ECDSA_P256_SHA384,
+    &webpki::ECDSA_P384_SHA256,
+    &webpki::ECDSA_P384_SHA384,
+    &webpki::RSA_PSS_2048_8192_SHA256_LEGACY_KEY,
+    &webpki::RSA_PSS_2048_8192_SHA384_LEGACY_KEY,
+    &webpki::RSA_PSS_2048_8192_SHA512_LEGACY_KEY,
+    &webpki::RSA_PKCS1_2048_8192_SHA256,
+    &webpki::RSA_PKCS1_2048_8192_SHA384,
+    &webpki::RSA_PKCS1_2048_8192_SHA512,
+    &webpki::RSA_PKCS1_3072_8192_SHA384,
+];
 pub struct QuoteWrapper {
     pub qe_report: Report,
     pub quote_nonce: QuoteNonce,
@@ -193,6 +208,25 @@ pub fn process_raw_cert(cert_raw: &Vec<u8>) -> String {
     String::from(v[2])
 }
 
+/// Returns a timepoint from the outside world. Unwraps an unsafe function here.
+/// A pitfall of getting a 'trusted' time source from within the enclave is that
+/// there is no "accurate" timestamp that be fetched by the enclave. A legacy
+/// solution would be to fetch the timestamp using the /dev/mei0, but the time
+/// can be delayed deliberately so that the accuracy of timestamp is tampered, as
+/// this operation requires a network connection to Intel. So we cannot define
+/// accuracy here, nor "trusted". However, at least, we need this functionality.
+pub fn unix_time() -> SgxResult<u64> {
+    let mut timestamp = 0u64;
+    let mut ret = SgxStatus::Success;
+
+    let res = unsafe { ocall_get_timepoint(&mut ret, &mut timestamp) };
+
+    match res {
+        SgxStatus::Success => Ok(timestamp),
+        _ => Err(res),
+    }
+}
+
 /// Returns true if the quote report is genuinely issued by Intel.
 pub fn verify_quote_report(quote_report: &Vec<u8>, sig: &Vec<u8>, cert: &Vec<u8>) -> bool {
     // Decode each data field.
@@ -200,11 +234,11 @@ pub fn verify_quote_report(quote_report: &Vec<u8>, sig: &Vec<u8>, cert: &Vec<u8>
     let sig_decoded = base64::decode(&sig).unwrap();
     let cert_decoded = base64::decode(&cert_processed).unwrap();
 
-    // Also erify that the chain is rooted in
-    // a trusted Attestation Report Signing CA Certificate.
+    // Construct a trust chain from the decoded certificate from IAS.
+    let trust_chain = vec![cert_decoded.as_slice()];
 
     // Construct a certificate object from cert_decoded.
-    // Need to find an SGX-compatible crate for signature verification.
+    // We use webpki with a patched binding to the `ring` crypto library.
     // Alternatives:
     //  * ring: not compatible with SGX; causes duplicate std symbols.
     //  * webpki: not compatible with SGX since it is dependent on low-level implementations of ring.
@@ -216,12 +250,37 @@ pub fn verify_quote_report(quote_report: &Vec<u8>, sig: &Vec<u8>, cert: &Vec<u8>
         })
         .unwrap();
 
+    // We use an OCALL to get the current timestamp.
+    let cur_time = unix_time().unwrap();
+    ocall_log!("[+] Get current time: {}", cur_time);
+
+    // Verify if the chain is rooted in
+    // a trusted Attestation Report Signing CA Certificate. We have hardcoded the CA cert
+    // into the enclave, so it must be secure.
+    let trust_anchor = webpki::TrustAnchor::try_from_cert_der(IAS_CA_CERT).unwrap();
+
+    if let Err(e) = sig_cert.verify_is_valid_tls_server_cert(
+        SUPPORTED_SIG_ALGS,
+        &webpki::TlsServerTrustAnchors(&[trust_anchor]),
+        &trust_chain,
+        webpki::Time::from_seconds_since_unix_epoch(cur_time),
+    ) {
+        ocall_log!("[-] This IAS certificate is invalid! Error: {:?}", e);
+        return false;
+    }
+
+    ocall_log!("[+] IAS certificate check passed!");
+
     // An interesting fact about this is that if we do not use patched version of ring,
     // then verification becomes an endless loop.
-    match sig_cert.verify_signature(&webpki::RSA_PKCS1_2048_8192_SHA256, quote_report, sig) {
+    match sig_cert.verify_signature(
+        &webpki::RSA_PKCS1_2048_8192_SHA256,
+        quote_report,
+        &sig_decoded,
+    ) {
         Ok(()) => true,
         Err(e) => {
-            ocall_log!("[+] The signature is invalid!");
+            ocall_log!("[-] The signature is invalid! Error: {:?}", e);
             false
         }
     }

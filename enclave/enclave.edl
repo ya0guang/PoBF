@@ -64,6 +64,9 @@ enclave {
           [out, size = cert_buf_len] uint8_t* cert,
           uint32_t cert_buf_len,
           [out] uint32_t* cert_len);
+
+        // Get the current timepoint.
+        sgx_status_t ocall_get_timepoint([out] uint64_t* timepoint);
     };
 
     trusted {

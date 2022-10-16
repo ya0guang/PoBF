@@ -4,6 +4,7 @@ use std::net::TcpStream;
 use std::os::unix::prelude::FromRawFd;
 use std::ptr;
 use std::slice;
+use std::time::SystemTime;
 
 use sgx_types::error::*;
 use sgx_types::function::*;
@@ -119,7 +120,7 @@ pub unsafe extern "C" fn ocall_get_quote_report_from_intel(
     let encoded_quote = base64::encode(quote);
     let quote_json = format!("{{\"isvEnclaveQuote\":\"{}\"}}", encoded_quote);
 
-    println!("[+] generated quote json as {}", quote_json);
+    println!("[+] Generated quote json as {}", quote_json);
 
     // Forward quote to the SP.
     writer.write(b"QUOTE\n").unwrap();
@@ -260,6 +261,19 @@ pub unsafe extern "C" fn ocall_get_update_info(
     println!("[+] Performing sgx_report_attestation_status...");
 
     sgx_report_attestation_status(platform_blob, enclave_trusted, update_info)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn ocall_get_timepoint(time_point: *mut u64) -> SgxStatus {
+    println!("[+] Getting current time.");
+
+    let time = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap();
+
+    *time_point = time.as_secs();
+
+    SgxStatus::Success
 }
 
 /// Performs a check if the target TCB is too low to meet IAS's requirements.
