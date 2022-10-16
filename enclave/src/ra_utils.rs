@@ -18,6 +18,7 @@ pub const IAS_CA_CERT: &'static [u8] = include_bytes!("../Intel_SGX_Attestation_
 
 // The path where report stores.
 pub const REPORT_PATH: &'static str = "../report.bin";
+pub const REPORT_AAD: &'static str = "POBF/enclave&INTEL-RA-V4";
 
 // For webpki trust anchor.
 type SignatureAlgorithms = &'static [&'static webpki::SignatureAlgorithm];
@@ -367,7 +368,7 @@ pub fn get_quote_report_from_intel(
 /// and we do not need to repeat the boilerplate attestation for a while. The user can decide if she
 /// thinks the report should be expired and re-issues a new request for the remote attestation report.
 pub fn seal_attestation_report(attestation_report: &Vec<u8>) -> SgxResult<()> {
-    let sealed_data = SealedData::<[u8]>::seal(attestation_report, None)?;
+    let sealed_data = SealedData::<[u8]>::seal(attestation_report, Some(REPORT_AAD.as_bytes()))?;
     let sealed_data_bytes = sealed_data.into_bytes().unwrap();
 
     let mut ret_val = SgxStatus::Success;
@@ -411,6 +412,12 @@ pub fn unseal_attestation_report() -> SgxResult<Vec<u8>> {
     // Truncate the buffer.
     unsealed_data_bytes.truncate(data_size as usize);
     // Unseal it.
-    UnsealedData::<[u8]>::unseal_from_bytes(unsealed_data_bytes)
-        .map(|data| data.to_plaintext().to_vec())
+    let unsealed_data = UnsealedData::<[u8]>::unseal_from_bytes(unsealed_data_bytes)?;
+    let aad = alloc::str::from_utf8(unsealed_data.to_aad()).unwrap();
+
+    if aad != REPORT_AAD {
+        Err(SgxStatus::NoPrivilege)
+    } else {
+        Ok(unsealed_data.to_plaintext().to_vec())
+    }
 }
