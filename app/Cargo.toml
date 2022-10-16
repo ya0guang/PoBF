@@ -13,4 +13,3 @@ serde_json = "1.0.86"
 serde = { version = "1.0.145", features = ["derive"]}
 base64 = "0.13.0"
 base16 = "0.2.1"
-# sgx_libc = { path = "../incubator-teaclave-sgx-sdk/sgx_libc", default-features = false }
