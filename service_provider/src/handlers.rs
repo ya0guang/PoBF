@@ -3,7 +3,6 @@ use crate::{IAS_CONTENT_TYPE_HEADER, IAS_KEY_HEADER};
 
 use curl::easy::{Easy, List};
 
-
 use std::io::*;
 use std::mem;
 use std::net::TcpStream;
@@ -18,9 +17,13 @@ pub fn send_sigrl(writer: &mut BufWriter<TcpStream>, sigrl: Vec<u8>) -> Result<(
     Ok(())
 }
 
-pub fn send_spid(writer: &mut BufWriter<TcpStream>, spid: &String) -> Result<()> {
+pub fn send_spid(writer: &mut BufWriter<TcpStream>, spid: &String, linkable: bool) -> Result<()> {
     writer.write(b"0\n").unwrap();
     writer.write(spid.as_bytes()).unwrap();
+    writer.write(b"\n").unwrap();
+    writer
+        .write((linkable as i64).to_string().as_bytes())
+        .unwrap();
     writer.write(b"\n").unwrap();
     writer.flush().unwrap();
 
@@ -229,7 +232,9 @@ pub fn handle_quote(
     // Get quote report from Intel.
     let quote_report = get_quote_report(ias_key, &quote_buf).unwrap();
     // Send it to the application enclave.
-    writer.write(quote_report.len().to_string().as_bytes()).unwrap();
+    writer
+        .write(quote_report.len().to_string().as_bytes())
+        .unwrap();
     writer.write(b"\n").unwrap();
     writer.write(&quote_report).unwrap();
     writer.write(b"\n").unwrap();

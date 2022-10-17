@@ -12,7 +12,6 @@ extern crate percent_encoding;
 extern crate sgx_no_tstd;
 extern crate sgx_trts;
 extern crate sgx_tse;
-#[cfg(feature = "sgx")]
 extern crate sgx_tseal;
 extern crate sgx_types;
 extern crate webpki;
@@ -84,7 +83,11 @@ pub extern "C" fn private_computing_entry(
 }
 
 #[no_mangle]
-pub extern "C" fn start_remote_attestation(socket_fd: i32, spid: *const Spid) -> SgxStatus {
+pub extern "C" fn start_remote_attestation(
+    socket_fd: i32,
+    spid: *const Spid,
+    linkable: i64,
+) -> SgxStatus {
     ocall_log!("[+] Start to perform remote attestation!");
 
     // Step 1: Ocall to get the target information and the EPID.
@@ -119,7 +122,7 @@ pub extern "C" fn start_remote_attestation(socket_fd: i32, spid: *const Spid) ->
 
     // Step 4: Convert the report into a quote type.
     ocall_log!("[+] Start to perform quote generation!");
-    let res = unsafe { get_quote(&sigrl_buf, &report, &*spid) };
+    let res = unsafe { get_quote(&sigrl_buf, &report, &*spid, linkable) };
 
     if let Err(e) = res {
         return e;

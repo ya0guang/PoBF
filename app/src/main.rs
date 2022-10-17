@@ -42,7 +42,7 @@ extern "C" {
         retval: *mut SgxStatus,
         socket_fd: i32,
         spid: *const Spid,
-        spid_len: u32,
+        linkable: i64,
     ) -> SgxStatus;
 }
 
@@ -146,6 +146,7 @@ fn server_start(
             // let socket_clone = socket.try_clone().unwrap();
             let mut reader = BufReader::new(socket);
             let mut spid = vec![0u8; 33];
+            let mut linkable = 0i64;
             // let mut writer = BufWriter::new(socket_clone);
             loop {
                 // Command explanations:
@@ -173,11 +174,18 @@ fn server_start(
                         spid.truncate(32);
 
                         println!("[+] Spid received as {:?}", spid);
+
+                        // Receive linkable.
+                        s.clear();
+                        reader.read_line(&mut s).unwrap();
+                        linkable = s[..s.len() - 1].parse::<i64>().unwrap();
+                        println!("[+] The subscription is linkable? {}.", linkable != 0);
                     }
+
                     '1' => {
                         println!("[+] Performing remote attestation!");
 
-                        match exec_remote_attestation(&enclave, socket_fd, &spid) {
+                        match exec_remote_attestation(&enclave, socket_fd, &spid, linkable) {
                             SgxStatus::Success => ra_done = true,
                             _ => panic!("[-] Remote attestation intial state failed."),
                         }
@@ -236,6 +244,7 @@ fn exec_remote_attestation(
     enclave: &SgxEnclave,
     socket_fd: c_int,
     spid_buf: &Vec<u8>,
+    linkable: i64,
 ) -> SgxStatus {
     let mut retval = SgxStatus::Success;
 
@@ -243,7 +252,7 @@ fn exec_remote_attestation(
     let spid_str = String::from_utf8(spid_buf.to_vec()).unwrap();
     let spid = hex::decode_spid(&spid_str);
     unsafe {
-        start_remote_attestation(enclave.eid(), &mut retval, socket_fd, &spid, 16u32);
+        start_remote_attestation(enclave.eid(), &mut retval, socket_fd, &spid, linkable);
     }
 
     retval

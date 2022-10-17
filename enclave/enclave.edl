@@ -98,8 +98,7 @@ enclave {
         // Perform the remote attestation components inside the enclave.
         public sgx_status_t start_remote_attestation(
           int32_t socket_fd,
-          [in, size = spid_len] sgx_spid_t* spid,
-          uint32_t spid_len);
-
+          [in] sgx_spid_t* spid,
+          int linkable);
     };
 };

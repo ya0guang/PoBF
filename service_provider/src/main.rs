@@ -25,6 +25,8 @@ enum Commands {
         port: u16,
         spid: String,
         key: String,
+        // Whether this subscription allows multiple requests from one platform.
+        linkable: bool,
     },
 }
 
@@ -49,6 +51,7 @@ fn main() {
             port,
             spid,
             key,
+            linkable,
         } => {
             let socket = connect(&address, &port).expect("[-] Cannot connect to the given address");
             let socket_clone = socket.try_clone().unwrap();
@@ -56,7 +59,7 @@ fn main() {
             let mut writer = BufWriter::new(socket_clone);
 
             // Send Spid to the application enclave.
-            send_spid(&mut writer, &spid).unwrap();
+            send_spid(&mut writer, &spid, linkable).unwrap();
 
             let sigrl =
                 handle_epid(&mut reader, &mut writer, &key).expect("[-] EPID receiving failed.");
