@@ -68,7 +68,7 @@ fn main() {
             // Handle quote.
             handle_quote(&mut reader, &mut writer, &key).unwrap();
 
-            // Quite.
+            // Quit.
             writer.write(b"q\n").unwrap();
         }
     }
