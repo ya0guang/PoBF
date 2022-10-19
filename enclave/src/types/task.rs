@@ -130,9 +130,10 @@ where
     _state: S,
 }
 
-
 impl<K> Key<K, AllowedTwice>
-where K: Zeroize + Default {
+where
+    K: Zeroize + Default,
+{
     fn from(raw: K) -> Self {
         Key {
             raw,
@@ -158,7 +159,8 @@ where
 }
 
 impl<K> Key<K, AllowedOnce>
-where K: Zeroize + Default,
+where
+    K: Zeroize + Default,
 {
     fn once(mut self) -> Key<K, AllowedTwice> {
         self.raw.zeroize();
@@ -170,7 +172,8 @@ where K: Zeroize + Default,
 }
 
 impl<K> Key<K, Invalid>
-where K: Zeroize + Default,
+where
+    K: Zeroize + Default,
 {
     pub fn invalid() -> Self {
         Key {
