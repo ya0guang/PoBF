@@ -2,6 +2,7 @@
 
 // pub mod state;
 pub mod vecaes;
+pub mod task;
 
 // pub use state::*;
 pub use vecaes::*;
