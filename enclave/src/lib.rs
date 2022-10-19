@@ -18,6 +18,7 @@ extern crate webpki;
 
 #[cfg(not(feature = "sgx"))]
 mod bogus;
+mod dh;
 mod ocall;
 mod pobf;
 mod pobf_verifier;
@@ -90,6 +91,14 @@ pub extern "C" fn start_remote_attestation(
 ) -> SgxStatus {
     ocall_log!("[+] Start to perform remote attestation!");
 
+    // Step 0: Get the public key generated from the enclave.
+    let res = dh::open_dh_session();
+    if let Err(e) = res {
+        return e;
+    }
+
+    let ecc_context = res.unwrap();
+
     // Step 1: Ocall to get the target information and the EPID.
     let res = init_quote();
     if let Err(e) = res {
@@ -108,17 +117,14 @@ pub extern "C" fn start_remote_attestation(
 
     let sigrl_buf = res.unwrap();
 
-    // Step 3: Generate the report and sample the key pair.
+    // Step 3: Generate the report.
     ocall_log!("[+] Start to perform report generation!");
-    let res = get_report(&ti);
+    let res = get_report(&ti, &ecc_context);
     if let Err(e) = res {
         return e;
     }
 
-    let report_tuple = res.unwrap();
-    let report = report_tuple.0;
-    // This is needed in future TLS connection with the client. So we keep it.
-    let ecc_context = report_tuple.1;
+    let report = res.unwrap();
 
     // Step 4: Convert the report into a quote type.
     ocall_log!("[+] Start to perform quote generation!");

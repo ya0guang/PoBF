@@ -40,6 +40,7 @@ sgx_trts = { path = "../incubator-teaclave-sgx-sdk/sgx_trts", optional = true }
 sgx_rand = { path = "../incubator-teaclave-sgx-sdk/sgx_rand", optional = true }
 sgx_tseal = { path = "../incubator-teaclave-sgx-sdk/sgx_tseal", optional = true }
 sgx_alloc = { path = "../incubator-teaclave-sgx-sdk/sgx_alloc" }
+sgx_tdh = { path = "../incubator-teaclave-sgx-sdk/sgx_tdh" }
 
 # External dependencies: SGX compatible (or) crates.
 zeroize = "1.5.7"

@@ -1,7 +1,7 @@
+use crate::dh;
 use crate::ocall::*;
 use crate::ocall_log;
 use alloc::{str, string::String, vec, vec::*};
-use sgx_crypto::ecc::{EcKeyPair, EcPrivateKey, EcPublicKey};
 use sgx_crypto::sha::Sha256;
 use sgx_tse::*;
 use sgx_tseal::seal::SealedData;
@@ -41,12 +41,6 @@ pub struct QuoteWrapper {
     pub quote_nonce: QuoteNonce,
     pub quote_len: u32,
     pub quote: Vec<u8>,
-}
-
-pub struct EccContext {
-    ecc_handle: EcKeyPair,
-    pub_k: EcPublicKey,
-    prv_k: EcPrivateKey,
 }
 
 pub fn init_quote() -> SgxResult<(TargetInfo, EpidGroupId)> {
@@ -89,11 +83,9 @@ pub fn get_sigrl_from_intel(eg: &EpidGroupId, socket_fd: c_int) -> SgxResult<Vec
     }
 }
 
-pub fn get_report(ti: &TargetInfo) -> SgxResult<(Report, EccContext)> {
-    // Open the ECC context and sample a key pair.
-    let ecc_handle = EcKeyPair::create().unwrap();
-    let prv_k = ecc_handle.private_key();
-    let pub_k = ecc_handle.public_key();
+pub fn get_report(ti: &TargetInfo, ecc: &dh::DhEccContext) -> SgxResult<Report> {
+    let prv_k = &ecc.prv_k();
+    let pub_k = &ecc.pub_k();
 
     // Fill ecc256 public key into report_data. This is the attestation key.
     let mut report_data = ReportData::default();
@@ -106,15 +98,7 @@ pub fn get_report(ti: &TargetInfo) -> SgxResult<(Report, EccContext)> {
 
     // Get the report.
     match Report::for_target(ti, &report_data) {
-        Ok(res) => Ok((
-            res,
-            EccContext {
-                ecc_handle,
-                pub_k,
-                prv_k,
-            },
-        )),
-
+        Ok(res) => Ok(res),
         Err(e) => Err(e),
     }
 }
