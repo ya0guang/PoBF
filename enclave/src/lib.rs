@@ -35,6 +35,8 @@ use ra_utils::*;
 
 use sgx_types::{error::SgxStatus, types::*};
 
+use crate::dh::*;
+
 static DEFAULT_PAGE_SIZE_ENTRY: usize = 0x4;
 static DEFAULT_PAGE_SIZE_LEAF: usize = 0x1;
 
@@ -91,13 +93,29 @@ pub extern "C" fn start_remote_attestation(
 ) -> SgxStatus {
     ocall_log!("[+] Start to perform remote attestation!");
 
+    // Set peer.
+    let mut peer = Peer::from(SP_PUBLIC_KEY);
+    peer.role = DhSessionRole::Initiator;
+
     // Step 0: Get the public key generated from the enclave.
     let res = dh::open_dh_session();
     if let Err(e) = res {
         return e;
     }
 
-    let ecc_context = res.unwrap();
+    let mut session = res.unwrap();
+    ocall_log!("[+] Peer: {:?}", peer);
+    ocall_log!("[+] Enclave: {:?}", session.session_context().prv_k());
+    ocall_log!("[+] enclave key pair OK!");
+
+    // Compute the shared_key.
+    let res = session.compute_shared_key(&peer);
+    if let Err(e) = res {
+        ocall_log!("{:?}", e);
+        return e;
+    }
+
+    ocall_log!("[+] DH key sampled!");
 
     // Step 1: Ocall to get the target information and the EPID.
     let res = init_quote();
@@ -110,7 +128,7 @@ pub extern "C" fn start_remote_attestation(
 
     // Step 2: Forward this information to the application which later forwards to service provider who later verifies the information with the help of the IAS.
     ocall_log!("[+] Start to get SigRL from Intel!");
-    let res = get_sigrl_from_intel(&eg, socket_fd);
+    let res = get_sigrl_from_intel(&eg, socket_fd, session.session_context().pub_k());
     if let Err(e) = res {
         return e;
     }
@@ -119,7 +137,8 @@ pub extern "C" fn start_remote_attestation(
 
     // Step 3: Generate the report.
     ocall_log!("[+] Start to perform report generation!");
-    let res = get_report(&ti, &ecc_context);
+    // Extract the ecc handle.
+    let res = get_report(&ti, &session.session_context());
     if let Err(e) = res {
         return e;
     }

@@ -2,6 +2,7 @@ use crate::dh;
 use crate::ocall::*;
 use crate::ocall_log;
 use alloc::{str, string::String, vec, vec::*};
+use sgx_crypto::ecc::EcPublicKey;
 use sgx_crypto::sha::Sha256;
 use sgx_tse::*;
 use sgx_tseal::seal::SealedData;
@@ -55,7 +56,13 @@ pub fn init_quote() -> SgxResult<(TargetInfo, EpidGroupId)> {
     }
 }
 
-pub fn get_sigrl_from_intel(eg: &EpidGroupId, socket_fd: c_int) -> SgxResult<Vec<u8>> {
+/// Invokes an OCALL to send the generated EPID to the Intel for getting the corresponding Sig
+/// revocation list. This function also sends the public key of the enclave to the peer.
+pub fn get_sigrl_from_intel(
+    eg: &EpidGroupId,
+    socket_fd: c_int,
+    pub_k: &EcPublicKey,
+) -> SgxResult<Vec<u8>> {
     let mut sigrl_len = 0u32;
     let mut sigrl_buf = vec![0u8; 128];
 

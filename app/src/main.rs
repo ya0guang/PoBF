@@ -147,7 +147,6 @@ fn server_start(
             let mut reader = BufReader::new(socket);
             let mut spid = vec![0u8; 33];
             let mut linkable = 0i64;
-            // let mut writer = BufWriter::new(socket_clone);
             loop {
                 // Command explanations:
                 // 0: Send Spid.
