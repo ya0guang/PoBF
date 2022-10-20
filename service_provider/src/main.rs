@@ -104,6 +104,8 @@ fn main() {
             let session_key =
                 compute_shared_key(private_key, &enclave_pubkey, KDF_MAGIC_STR.as_bytes()).unwrap();
 
+            println!("[+] The session key sampled as {:?}", session_key);
+
             // Quit.
             writer.write(b"q\n").unwrap();
         }
