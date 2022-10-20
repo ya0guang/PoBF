@@ -7,6 +7,8 @@ use std::io::*;
 use std::mem;
 use std::net::TcpStream;
 
+use ring::agreement::PublicKey;
+
 pub fn send_sigrl(writer: &mut BufWriter<TcpStream>, sigrl: Vec<u8>) -> Result<()> {
     writer.write(sigrl.len().to_string().as_bytes()).unwrap();
     writer.write(b"\n").unwrap();
@@ -17,13 +19,20 @@ pub fn send_sigrl(writer: &mut BufWriter<TcpStream>, sigrl: Vec<u8>) -> Result<(
     Ok(())
 }
 
-pub fn send_spid(writer: &mut BufWriter<TcpStream>, spid: &String, linkable: bool) -> Result<()> {
+pub fn send_spid(
+    writer: &mut BufWriter<TcpStream>,
+    spid: &String,
+    linkable: bool,
+    public_key: &PublicKey,
+) -> Result<()> {
     writer.write(b"0\n").unwrap();
     writer.write(spid.as_bytes()).unwrap();
     writer.write(b"\n").unwrap();
     writer
         .write((linkable as i64).to_string().as_bytes())
         .unwrap();
+    writer.write(b"\n").unwrap();
+    writer.write(&public_key.as_ref()[1..]).unwrap();
     writer.write(b"\n").unwrap();
     writer.flush().unwrap();
 

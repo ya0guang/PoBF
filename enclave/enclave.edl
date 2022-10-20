@@ -48,7 +48,9 @@ enclave {
           int32_t socket_fd,
           [out, size = len] uint8_t* sigrl,
           uint32_t len,
-          [out] uint32_t* sigrl_len);
+          [out] uint32_t* sigrl_len,
+          [in, size = enclave_pub_key_len] uint8_t* enclave_pub_key,
+          uint32_t enclave_pub_key_len);
 
         // Forward the information to the outside world and get the quote report from Intel.
         sgx_status_t ocall_get_quote_report_from_intel(
@@ -99,6 +101,8 @@ enclave {
         public sgx_status_t start_remote_attestation(
           int32_t socket_fd,
           [in] sgx_spid_t* spid,
-          int linkable);
+          int linkable,
+          [in, size = public_key_len] uint8_t* public_key,
+          uint32_t public_key_len);
     };
 };

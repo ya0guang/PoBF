@@ -9,7 +9,7 @@ use sgx_types::{
 pub const DH_KEY_EXPIRATION: i64 = 600;
 
 /// A magic string that identifies the key.
-pub const KDF_MAGIC: &'static str = "enclave_key";
+pub const KDF_MAGIC_STR: &'static str = "enclave_key";
 
 /// Generated from a NIST P256 ecliptic curve.
 /// Be aware of the endianess. g^x and g^y are formatted in little endian.
@@ -166,7 +166,7 @@ impl DhSession {
         self.session_context.smk = self
             .session_context
             .shared_key
-            .derive_key(KDF_MAGIC.as_bytes())?;
+            .derive_key(KDF_MAGIC_STR.as_bytes())?;
 
         Ok(())
     }

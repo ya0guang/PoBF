@@ -90,11 +90,17 @@ pub extern "C" fn start_remote_attestation(
     socket_fd: i32,
     spid: *const Spid,
     linkable: i64,
+    public_key: *const u8,
+    public_key_len: u32,
 ) -> SgxStatus {
     ocall_log!("[+] Start to perform remote attestation!");
 
     // Set peer.
-    let mut peer = Peer::from(SP_PUBLIC_KEY);
+    let pubkey: &[u8; 64] =
+        unsafe { alloc::slice::from_raw_parts(public_key, public_key_len as usize) }
+            .try_into()
+            .unwrap();
+    let mut peer = Peer::from(pubkey);
     peer.role = DhSessionRole::Initiator;
 
     // Step 0: Get the public key generated from the enclave.
@@ -102,11 +108,9 @@ pub extern "C" fn start_remote_attestation(
     if let Err(e) = res {
         return e;
     }
+    ocall_log!("[+] enclave key pair OK!");
 
     let mut session = res.unwrap();
-    ocall_log!("[+] Peer: {:?}", peer);
-    ocall_log!("[+] Enclave: {:?}", session.session_context().prv_k());
-    ocall_log!("[+] enclave key pair OK!");
 
     // Compute the shared_key.
     let res = session.compute_shared_key(&peer);
@@ -115,7 +119,7 @@ pub extern "C" fn start_remote_attestation(
         return e;
     }
 
-    ocall_log!("[+] DH key sampled!");
+    ocall_log!("[+] DH key sampled! {:?}", session);
 
     // Step 1: Ocall to get the target information and the EPID.
     let res = init_quote();

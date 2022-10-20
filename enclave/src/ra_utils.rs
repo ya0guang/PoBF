@@ -76,6 +76,8 @@ pub fn get_sigrl_from_intel(
             sigrl_buf.as_mut_ptr(),
             128,
             &mut sigrl_len,
+            pub_k.as_ref() as *const u8,
+            pub_k.as_ref().len() as u32,
         )
     };
 

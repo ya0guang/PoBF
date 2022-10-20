@@ -47,23 +47,30 @@ pub unsafe extern "C" fn ocall_get_sigrl_from_intel(
     sigrl: *mut u8,
     len: u32,
     sigrl_len: *mut u32,
+    enclave_pub_key: *const u8,
+    enclave_pub_key_len: u32,
 ) -> SgxStatus {
     println!(
         "[+] Performing ocall_get_sigrl_from_intel... The EPID is {:?}",
         *epid
     );
-    // Forward this request to the SP.
+    // Forward this request and the public key to the SP.
     // Wrap a new tcp stream from the raw socket fd.
     let socket = TcpStream::from_raw_fd(socket_fd);
     let socket_clone = socket.try_clone().unwrap();
     let mut reader = BufReader::new(socket);
     let mut writer = BufWriter::new(socket_clone);
 
+    let enclave_key = std::slice::from_raw_parts(enclave_pub_key, enclave_pub_key_len as usize);
+
     // Send EPID and its length first.
+    // Then public key.
     writer.write(b"EPID:\n").unwrap();
     writer.write(epid_len.to_string().as_bytes()).unwrap();
     writer.write(b"\n").unwrap();
     writer.write(&*epid).unwrap();
+    writer.write(enclave_key).unwrap();
+    writer.write(b"\n").unwrap();
     writer.flush().unwrap();
 
     // Receive SigRL.

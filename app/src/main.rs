@@ -43,6 +43,8 @@ extern "C" {
         socket_fd: i32,
         spid: *const Spid,
         linkable: i64,
+        public_key: *const u8,
+        public_key_len: u32,
     ) -> SgxStatus;
 }
 
@@ -147,6 +149,7 @@ fn server_start(
             let mut reader = BufReader::new(socket);
             let mut spid = vec![0u8; 33];
             let mut linkable = 0i64;
+            let mut public_key = vec![0u8; 65];
             loop {
                 // Command explanations:
                 // 0: Send Spid.
@@ -179,12 +182,23 @@ fn server_start(
                         reader.read_line(&mut s).unwrap();
                         linkable = s[..s.len() - 1].parse::<i64>().unwrap();
                         println!("[+] The subscription is linkable? {}.", linkable != 0);
+
+                        // Receive public key.
+                        reader.read_exact(&mut public_key).unwrap();
+                        public_key.truncate(64);
+                        println!("[+] Received public key as {:?}", public_key);
                     }
 
                     '1' => {
                         println!("[+] Performing remote attestation!");
 
-                        match exec_remote_attestation(&enclave, socket_fd, &spid, linkable) {
+                        match exec_remote_attestation(
+                            &enclave,
+                            socket_fd,
+                            &spid,
+                            linkable,
+                            &public_key,
+                        ) {
                             SgxStatus::Success => ra_done = true,
                             _ => panic!("[-] Remote attestation intial state failed."),
                         }
@@ -244,6 +258,7 @@ fn exec_remote_attestation(
     socket_fd: c_int,
     spid_buf: &Vec<u8>,
     linkable: i64,
+    pubkey: &Vec<u8>,
 ) -> SgxStatus {
     let mut retval = SgxStatus::Success;
 
@@ -253,7 +268,15 @@ fn exec_remote_attestation(
     let mut spid = Spid::default();
     spid.id.copy_from_slice(&spid_vec[..16]);
     unsafe {
-        start_remote_attestation(enclave.eid(), &mut retval, socket_fd, &spid, linkable);
+        start_remote_attestation(
+            enclave.eid(),
+            &mut retval,
+            socket_fd,
+            &spid,
+            linkable,
+            pubkey.as_ptr(),
+            pubkey.len() as u32,
+        );
     }
 
     retval

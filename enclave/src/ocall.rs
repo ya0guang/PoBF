@@ -29,6 +29,8 @@ extern "C" {
         sigrl: *mut u8,
         len: u32,
         sigrl_len: *mut u32,
+        enclave_pub_key: *const u8,
+        enclave_pub_key_len: u32,
     ) -> SgxStatus;
 
     pub fn ocall_get_quote(
