@@ -1,12 +1,12 @@
 extern crate base16;
 extern crate base64;
 extern crate clap;
+extern crate hex;
 extern crate serde;
 extern crate serde_json;
 extern crate sgx_types;
 extern crate sgx_urts;
 
-mod hex;
 mod ocall;
 
 use clap::{Parser, Subcommand};
@@ -250,7 +250,9 @@ fn exec_remote_attestation(
 
     // Convert spid string to Spid type.
     let spid_str = String::from_utf8(spid_buf.to_vec()).unwrap();
-    let spid = hex::decode_spid(&spid_str);
+    let spid_vec = hex::decode(&spid_str).unwrap();
+    let mut spid = Spid::default();
+    spid.id.copy_from_slice(&spid_vec[..16]);
     unsafe {
         start_remote_attestation(enclave.eid(), &mut retval, socket_fd, &spid, linkable);
     }
