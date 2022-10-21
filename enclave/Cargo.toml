@@ -21,7 +21,7 @@ vio_private = ["sgx", "direct_decrypt", "access_inner", "access_key"]
 direct_decrypt = []
 access_inner = []
 access_key = []
-vio_unsafe = [ "sgx", "raw_read", "raw_write"]
+vio_unsafe = ["sgx", "raw_read", "raw_write"]
 raw_read = []
 raw_write = []
 vio_ocall = ["sgx", "leak_log", "leak_net", "leak_file"]
@@ -30,26 +30,26 @@ leak_net = []
 leak_file = []
 
 [dependencies]
-sgx_types = { path = "../incubator-teaclave-sgx-sdk/sgx_types" }
+base64 = { version = "0.13.0", default-features = false, features = [ "alloc" ] }
+clear_on_drop = { git = "https://github.com/hiroki-chen/clear_on_drop", branch = "master" }
+mirai-annotations = { path = "../MIRAI/annotations" }
+# rustls           = { git = "https://github.com/mesalock-linux/rustls", branch = "mesalock_sgx-client-cert-verifier-patch" }
+percent-encoding = { git = "https://github.com/mesalock-linux/rust-url-sgx" }
+sgx_alloc = { path = "../incubator-teaclave-sgx-sdk/sgx_alloc" }
 sgx_crypto = { path = "../incubator-teaclave-sgx-sdk/sgx_crypto" }
-sgx_tse = { path = "../incubator-teaclave-sgx-sdk/sgx_tse" }
-sgx_no_tstd = { path = "../incubator-teaclave-sgx-sdk/sgx_no_tstd", optional = true }
 sgx_libc = { path = "../incubator-teaclave-sgx-sdk/sgx_libc", default-features = false }
+sgx_no_tstd = { path = "../incubator-teaclave-sgx-sdk/sgx_no_tstd", optional = true }
+sgx_rand = { path = "../incubator-teaclave-sgx-sdk/sgx_rand", optional = true }
+sgx_tdh = { path = "../incubator-teaclave-sgx-sdk/sgx_tdh" }
 # sgx_tstd = { path = "../incubator-teaclave-sgx-sdk/sgx_tstd", default-features = false, optional = true }
 sgx_trts = { path = "../incubator-teaclave-sgx-sdk/sgx_trts", optional = true }
-sgx_rand = { path = "../incubator-teaclave-sgx-sdk/sgx_rand", optional = true }
+sgx_tse = { path = "../incubator-teaclave-sgx-sdk/sgx_tse" }
 sgx_tseal = { path = "../incubator-teaclave-sgx-sdk/sgx_tseal", optional = true }
-sgx_alloc = { path = "../incubator-teaclave-sgx-sdk/sgx_alloc" }
-sgx_tdh = { path = "../incubator-teaclave-sgx-sdk/sgx_tdh" }
+sgx_types = { path = "../incubator-teaclave-sgx-sdk/sgx_types" }
+webpki = { version = "0.22.0", features = [ "alloc" ] }
 
 # External dependencies: SGX compatible (or) crates.
 zeroize = "1.5.7"
-mirai-annotations = { path = "../MIRAI/annotations" }
-clear_on_drop = { git = "https://github.com/hiroki-chen/clear_on_drop", branch = "master" }
-base64 = { version = "0.13.0", default-features = false, features = [ "alloc" ] }
-webpki = { version = "0.22.0", features = [ "alloc" ] }
-# rustls           = { git = "https://github.com/mesalock-linux/rustls", branch = "mesalock_sgx-client-cert-verifier-patch" }
-percent-encoding = { git = "https://github.com/mesalock-linux/rust-url-sgx" }
 
 [patch.crates-io]
 # Patached version of ring.
