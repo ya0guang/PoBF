@@ -45,6 +45,8 @@ extern "C" {
         linkable: i64,
         public_key: *const u8,
         public_key_len: u32,
+        pubkey_signature: *const u8,
+        pubkey_signature_len: u32,
     ) -> SgxStatus;
 }
 
@@ -150,6 +152,7 @@ fn server_start(
             let mut spid = vec![0u8; 33];
             let mut linkable = 0i64;
             let mut public_key = vec![0u8; 65];
+            let mut pubkey_signature = vec![0u8; 0];
             loop {
                 // Command explanations:
                 // 0: Send Spid.
@@ -187,6 +190,18 @@ fn server_start(
                         reader.read_exact(&mut public_key).unwrap();
                         public_key.truncate(64);
                         println!("[+] Received public key as {:?}", public_key);
+
+                        // Receive the signature for public key.
+                        let mut length = String::with_capacity(32);
+                        reader.read_line(&mut length).unwrap();
+                        let sign_len = length[..length.len() - 1].parse::<usize>().unwrap();
+                        pubkey_signature.resize(sign_len + 1, 0);
+                        reader.read_exact(&mut pubkey_signature).unwrap();
+                        pubkey_signature.truncate(sign_len);
+                        println!(
+                            "[+] Received signature for public key is {:?}",
+                            pubkey_signature
+                        );
                     }
 
                     '1' => {
@@ -198,6 +213,7 @@ fn server_start(
                             &spid,
                             linkable,
                             &public_key,
+                            &pubkey_signature,
                         ) {
                             SgxStatus::Success => ra_done = true,
                             _ => panic!("[-] Remote attestation intial state failed."),
@@ -218,25 +234,6 @@ fn server_start(
 
                             println!("[+] Private computing successfully done!");
                         }
-                    }
-                    '3' => {
-                        // println!("[+] Receiving SigRL from the SP!");
-                        // // Read SigRL's length.
-                        // let mut s = String::with_capacity(OUTPUT_BUFFER_SIZE);
-                        // reader.read_line(&mut s).unwrap();
-                        // let length = s[..s.len() - 1].parse::<usize>().unwrap();
-                        // println!("[+] SigRL length = {}.", length);
-
-                        // // Read SigRL.
-                        // let mut sigrl = Vec::with_capacity(length);
-                        // reader.read(&mut sigrl).unwrap();
-                        // println!("[+] SigRl is {:?}", sigrl);
-
-                        // // Generate quote.
-                        // match exec_generate_quote(&enclave, socket_fd, &sigrl) {
-                        //     SgxStatus::Success => println!("[+] Successfully generated quote!"),
-                        //     _ => panic!("[-] Remote attestation quote generation failed."),
-                        // }
                     }
 
                     // Throw away.
@@ -259,6 +256,7 @@ fn exec_remote_attestation(
     spid_buf: &Vec<u8>,
     linkable: i64,
     pubkey: &Vec<u8>,
+    pubkey_signature: &Vec<u8>,
 ) -> SgxStatus {
     let mut retval = SgxStatus::Success;
 
@@ -276,6 +274,8 @@ fn exec_remote_attestation(
             linkable,
             pubkey.as_ptr(),
             pubkey.len() as u32,
+            pubkey_signature.as_ptr(),
+            pubkey_signature.len() as u32,
         );
     }
 

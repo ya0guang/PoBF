@@ -19,11 +19,12 @@ pub fn send_sigrl(writer: &mut BufWriter<TcpStream>, sigrl: Vec<u8>) -> Result<(
     Ok(())
 }
 
-pub fn send_spid(
+pub fn send_initial_messages(
     writer: &mut BufWriter<TcpStream>,
     spid: &String,
     linkable: bool,
     public_key: &PublicKey,
+    pubkey_signature: &Vec<u8>,
 ) -> Result<()> {
     writer.write(b"0\n").unwrap();
     writer.write(spid.as_bytes()).unwrap();
@@ -33,6 +34,12 @@ pub fn send_spid(
         .unwrap();
     writer.write(b"\n").unwrap();
     writer.write(&public_key.as_ref()[1..]).unwrap();
+    writer.write(b"\n").unwrap();
+    writer.write(pubkey_signature.len().to_string().as_bytes()).unwrap();
+    writer.write(b"\n").unwrap();
+    writer.flush().unwrap();
+    
+    writer.write(&pubkey_signature).unwrap();
     writer.write(b"\n").unwrap();
     writer.flush().unwrap();
 

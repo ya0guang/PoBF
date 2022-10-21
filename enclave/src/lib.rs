@@ -92,6 +92,8 @@ pub extern "C" fn start_remote_attestation(
     linkable: i64,
     public_key: *const u8,
     public_key_len: u32,
+    pubkey_signature: *const u8,
+    pubkey_signature_len: u32,
 ) -> SgxStatus {
     ocall_log!("[+] Start to perform remote attestation!");
 
@@ -100,7 +102,18 @@ pub extern "C" fn start_remote_attestation(
         unsafe { alloc::slice::from_raw_parts(public_key, public_key_len as usize) }
             .try_into()
             .unwrap();
-    let mut peer = Peer::from(pubkey);
+    let pubkey_sign: &[u8] =
+        unsafe { alloc::slice::from_raw_parts(pubkey_signature, pubkey_signature_len as usize) };
+
+    let res = Peer::new(pubkey, pubkey_sign);
+    if let Err(e) = res {
+        ocall_log!("[-] Public key signature is invalid.");
+        return e;
+    }
+
+    ocall_log!("[+] Peer authentication passed.");
+
+    let mut peer = res.unwrap();
     peer.role = DhSessionRole::Initiator;
 
     // Step 0: Get the public key generated from the enclave.

@@ -103,6 +103,8 @@ enclave {
           [in] sgx_spid_t* spid,
           int linkable,
           [in, size = public_key_len] uint8_t* public_key,
-          uint32_t public_key_len);
+          uint32_t public_key_len,
+          [in, size = pubkey_signature_len] uint8_t* pubkey_signature,
+          uint32_t pubkey_signature_len);
     };
 };

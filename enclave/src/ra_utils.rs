@@ -1,7 +1,8 @@
 use crate::dh;
 use crate::ocall::*;
 use crate::ocall_log;
-use alloc::{str, string::String, vec, vec::*};
+use crate::utils::process_raw_cert;
+use alloc::{str, vec, vec::*};
 use sgx_crypto::ecc::EcPublicKey;
 use sgx_crypto::sha::Sha256;
 use sgx_tse::*;
@@ -19,7 +20,7 @@ pub const IAS_CA_CERT: &'static [u8] = include_bytes!("../Intel_SGX_Attestation_
 
 // The path where report stores.
 pub const REPORT_PATH: &'static str = "../report.bin";
-pub const REPORT_AAD: &'static str = "POBF/enclave&INTEL-RA-V4";
+pub const REPORT_AAD: &'static str = "PoBF/enclave&INTEL-RA-V4";
 
 // For webpki trust anchor.
 type SignatureAlgorithms = &'static [&'static webpki::SignatureAlgorithm];
@@ -193,22 +194,6 @@ pub fn verify_report(qe_report: &Report) -> SgxResult<()> {
             return Ok(());
         }
     }
-}
-
-/// Special characters are http-encoded, we want to remove these base64-unrecognizable tokens.
-/// Also, we do not need the CA cert here.
-pub fn process_raw_cert(cert_raw: &Vec<u8>) -> String {
-    let cert_removed = str::from_utf8(cert_raw).unwrap().replace("%0A", "");
-    // Decode %.
-    let cert = String::from(
-        percent_encoding::percent_decode_str(&cert_removed)
-            .decode_utf8()
-            .unwrap(),
-    );
-
-    let v: Vec<&str> = cert.split("-----").collect();
-
-    String::from(v[2])
 }
 
 /// Returns a timepoint from the outside world. Unwraps an unsafe function here.
