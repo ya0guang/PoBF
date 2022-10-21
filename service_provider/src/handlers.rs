@@ -2,6 +2,7 @@ use crate::utils::*;
 use crate::{IAS_CONTENT_TYPE_HEADER, IAS_KEY_HEADER};
 
 use curl::easy::{Easy, List};
+use log::{debug, error, info};
 
 use std::io::*;
 use std::mem;
@@ -35,10 +36,12 @@ pub fn send_initial_messages(
     writer.write(b"\n").unwrap();
     writer.write(&public_key.as_ref()[1..]).unwrap();
     writer.write(b"\n").unwrap();
-    writer.write(pubkey_signature.len().to_string().as_bytes()).unwrap();
+    writer
+        .write(pubkey_signature.len().to_string().as_bytes())
+        .unwrap();
     writer.write(b"\n").unwrap();
     writer.flush().unwrap();
-    
+
     writer.write(&pubkey_signature).unwrap();
     writer.write(b"\n").unwrap();
     writer.flush().unwrap();
@@ -61,8 +64,8 @@ pub fn get_sigrl(ias_key: &String, epid: &[u8; 4]) -> Result<Vec<u8>> {
     let mut header = List::new();
     let header_str = format!("{}: {}", IAS_KEY_HEADER, ias_key);
 
-    println!(
-        "[+] Requesting {}\n[+] HTTP header:\n\t{}",
+    info!(
+        "\n[+] Requesting {}\n[+] HTTP header:\n\t{}",
         full_url, header_str
     );
 
@@ -87,14 +90,16 @@ pub fn get_sigrl(ias_key: &String, epid: &[u8; 4]) -> Result<Vec<u8>> {
     }
 
     let code = easy.response_code().unwrap();
-    println!("[+] Request sent. Got status code {}.", code);
+    info!("[+] Request sent. Got status code {}.", code);
+
+    debug!(
+        "[+] Response body: {}",
+        std::str::from_utf8(&sigrl).unwrap()
+    );
 
     if code != 200 {
         // Leave an error message and die.
-        println!(
-            "[+] Response body: {}",
-            std::str::from_utf8(&sigrl).unwrap()
-        );
+        error!("[-] Got non 200 status code.");
 
         Err(Error::from(ErrorKind::PermissionDenied))
     } else {
@@ -114,8 +119,8 @@ pub fn get_quote_report(ias_key: &String, report_json: &Vec<u8>) -> Result<Vec<u
     let key_header = format!("{}: {}", IAS_KEY_HEADER, ias_key);
     let content_type_header = format!("{}: {}", IAS_CONTENT_TYPE_HEADER, "application/json");
 
-    println!(
-        "[+] Requesting {}\n[+] HTTP header:\n\t{}\n\t{}",
+    info!(
+        "\n[+] Requesting {}\n[+] HTTP header:\n\t{}\n\t{}",
         full_url, key_header, content_type_header,
     );
 
@@ -147,15 +152,16 @@ pub fn get_quote_report(ias_key: &String, report_json: &Vec<u8>) -> Result<Vec<u
     }
 
     let code = easy.response_code().unwrap();
-    println!("[+] Request sent. Got status code {}.", code);
+    info!("[+] Request sent. Got status code {}.", code);
 
-    println!(
+    debug!(
         "[+] Response body:\n{}\nResponse header:\n{}",
         std::str::from_utf8(&response_buf).unwrap(),
         std::str::from_utf8(&response_header).unwrap()
     );
 
     if code != 200 {
+        error!("[-] Got non 200 status code.");
         // Leave an error message and die.
         Err(Error::from(ErrorKind::PermissionDenied))
     } else {
@@ -171,7 +177,7 @@ pub fn connect(address: &String, port: &u16) -> Result<TcpStream> {
     full_address.push_str(":");
     full_address.push_str(&port.to_string());
 
-    println!("[+] Connecting to {}", full_address);
+    info!("[+] Connecting to {}", full_address);
 
     TcpStream::connect(&full_address)
 }
@@ -189,7 +195,7 @@ pub fn handle_epid(
     reader.read_line(&mut s).unwrap();
 
     if !s.starts_with("EPID:") {
-        println!("[-] Expecting an EPID. Got {}.", s);
+        error!("[-] Expecting an EPID. Got {}.", s);
         return Err(Error::from(ErrorKind::InvalidData));
     }
 
@@ -197,22 +203,22 @@ pub fn handle_epid(
     s.clear();
     reader.read_line(&mut s).unwrap();
     if s.chars().next().unwrap() != '4' {
-        println!("[-] Expecting EPID length to be 4. Got {}.", s);
+        error!("[-] Expecting EPID length to be 4. Got {}.", s);
         return Err(Error::from(ErrorKind::InvalidData));
     }
 
     // Read EPID itself.
     let mut epid = [0u8; 4];
     reader.read_exact(&mut epid).unwrap();
-    println!("[+] EPID: {:?}", epid);
+    debug!("[+] EPID: {:?}", epid);
 
     // Get the SigRL from the IAS.
     let sigrl = get_sigrl(ias_key, &epid).unwrap();
     if !sigrl.is_empty() {
         let sigrl_str = String::from_utf8(sigrl.clone()).unwrap();
-        println!("[+] Got SigRL: {:?}", sigrl_str);
+        debug!("[+] Got SigRL: {:?}", sigrl_str);
     } else {
-        println!("[+] SigRL is empty!");
+        debug!("[+] SigRL is empty!");
     }
 
     parse_sigrl(&sigrl)
@@ -227,7 +233,7 @@ pub fn handle_quote(
     reader.read_line(&mut s).unwrap();
 
     if !s.starts_with("QUOTE") {
-        println!("[-] Expecting a quote, got {}", s);
+        error!("[-] Expecting a quote, got {}", s);
     }
 
     // Get quote length.
@@ -238,12 +244,12 @@ pub fn handle_quote(
         .parse::<usize>()
         .expect("[-] Not a valid length!");
 
-    println!("[+] Read quote length: {}.", quote_len);
+    debug!("[+] Read quote length: {}.", quote_len);
     let mut quote_buf = vec![0u8; quote_len];
 
     // Read quote.
     reader.read_exact(&mut quote_buf).unwrap();
-    println!("content: {}", String::from_utf8(quote_buf.clone()).unwrap());
+    debug!("content: {}", String::from_utf8(quote_buf.clone()).unwrap());
 
     // Get quote report from Intel.
     let quote_report = get_quote_report(ias_key, &quote_buf).unwrap();

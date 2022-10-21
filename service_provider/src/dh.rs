@@ -1,8 +1,10 @@
 use std::io::*;
 use std::net::TcpStream;
+use std::time;
 
 use aes::Aes128;
 use cmac::{Cmac, Mac};
+use log::{debug, error, info};
 use pem::*;
 use ring::agreement::*;
 use ring::error::*;
@@ -22,16 +24,71 @@ pub const ECC_KEY: &'static [u8] = include_bytes!("../key.pem");
 #[allow(unused)]
 pub const ECC_CERT: &'static [u8] = include_bytes!("../cert.pem");
 
+#[derive(Debug)]
+pub struct KeyPair {
+    /// Only used once.
+    /// Computation on the private key will CONSUME it, leaving `None` at the place.
+    pub prv_k: Option<EphemeralPrivateKey>,
+    pub pub_k: PublicKey,
+    pub signature: Vec<u8>,
+    pub session_key: Vec<u8>,
+    pub timestamp: u64,
+}
+
+impl KeyPair {
+    pub fn new(keypair: (EphemeralPrivateKey, PublicKey), signature: Vec<u8>) -> Self {
+        Self {
+            prv_k: Some(keypair.0),
+            pub_k: keypair.1,
+            signature,
+            session_key: Vec::new(),
+            timestamp: 0u64,
+        }
+    }
+
+    pub fn compute_shared_key(
+        &mut self,
+        peer_pub_key: &UnparsedPublicKey<Vec<u8>>,
+        label: &[u8],
+    ) -> Result<()> {
+        self.session_key = agree_ephemeral(
+            self.prv_k.take().unwrap(),
+            peer_pub_key,
+            ring::error::Unspecified,
+            |key_materials| key_derive_function(key_materials, label),
+        )
+        .map_err(|e| {
+            error!("[-] Failed to compute the session key. {:?}", e);
+            return Unspecified;
+        })
+        .unwrap();
+
+        // Set the current timestamp.
+        self.timestamp = time::SystemTime::now()
+            .duration_since(time::UNIX_EPOCH)
+            .map_err(|e| {
+                error!("[-] Failed to get the time. {:?}", e);
+                return Unspecified;
+            })
+            .unwrap()
+            .as_secs();
+
+        debug!("[+] The session key sampled as {:?}", self.session_key);
+
+        Ok(())
+    }
+}
+
 /// This function should not be directly called; this is used as a callback.
 /// We mimic the steps from the SGX SDK which uses AES CMAC as the HMAC function.
 fn key_derive_function(shared_key: &[u8], label: &[u8]) -> Result<Vec<u8>> {
     // Reverse it at first.
     let shared_key_rev = shared_key.iter().copied().rev().collect::<Vec<u8>>();
     // Be aware of the endianness.
-    println!("[+] The shared key is {:?}", shared_key_rev);
+    debug!("[+] The shared key is {:?}", shared_key_rev);
 
     if label.is_empty() {
-        println!("[-] The label for KDF is empty!");
+        error!("[-] The label for KDF is empty!");
         return Err(Unspecified);
     }
 
@@ -52,21 +109,6 @@ fn key_derive_function(shared_key: &[u8], label: &[u8]) -> Result<Vec<u8>> {
     mac.update(derivation.as_slice());
 
     Ok(mac.finalize().into_bytes().to_vec())
-}
-
-pub fn compute_shared_key(
-    my_private_key: EphemeralPrivateKey,
-    peer_pub_key: &UnparsedPublicKey<Vec<u8>>,
-    label: &[u8],
-) -> Result<Vec<u8>> {
-    // Be aware of the endianness...
-    // ring and SGX SDK use different ones.
-    agree_ephemeral(
-        my_private_key,
-        peer_pub_key,
-        ring::error::Unspecified,
-        |key_materials| key_derive_function(key_materials, label),
-    )
 }
 
 pub fn handle_enclave_pubkey(
@@ -110,16 +152,34 @@ pub fn sign_with_ecdsa(message: &[u8]) -> Result<Vec<u8>> {
         &signature::ECDSA_P256_SHA256_ASN1_SIGNING,
         parsed_pem.contents.as_slice(),
     )
-    .expect("[-] Invalid private key!");
+    .map_err(|e| {
+        error!("[-] Failed to construct ECDSA key pair! {:?}", e);
+        return Unspecified;
+    })
+    .unwrap();
 
     // Sign this message.
     let signature = ecdsa_keypair
         .sign(&ring::rand::SystemRandom::new(), message)
         .map_err(|_| {
-            println!("[-] Signing failed.");
+            error!("[-] Signing failed.");
             return Unspecified;
         })
         .unwrap();
 
     Ok(signature.as_ref().to_vec())
+}
+
+pub fn init_keypair() -> Result<KeyPair> {
+    // Generate key pair.
+    info!("[+] Sampling SP's EC key pair.");
+    let keypair = open_session()?;
+    info!("[+] Succeeded.");
+    debug!("[+] Key pair: {:?} and {:?}", keypair.0, keypair.1);
+
+    // Sign the public key.
+    let signature = sign_with_ecdsa(keypair.1.as_ref())?;
+    debug!("[+] Signature is {:?}", signature);
+
+    Ok(KeyPair::new(keypair, signature))
 }

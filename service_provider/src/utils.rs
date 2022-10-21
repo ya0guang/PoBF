@@ -3,6 +3,7 @@ use crate::{
     IAS_XIAS_SIG_HEADER, ISV_ENCLAVE_QUOTE_BODY, ISV_ENCLAVE_QUOTE_STATUS, PLATFORM_INFO_BLOB,
 };
 
+use std::env;
 use std::io::*;
 
 use serde::{Deserialize, Serialize};
@@ -104,4 +105,13 @@ pub fn parse_quote_report(raw_header: Vec<u8>, raw_response: Vec<u8>) -> Result<
     };
 
     Ok(serde_json::to_vec(&quote_report).unwrap())
+}
+
+pub fn init_logger() {
+    // Get environment variable.
+    if env::var("RUST_LOG").is_err() {
+        env::set_var("RUST_LOG", "INFO");
+    }
+
+    env_logger::init();
 }

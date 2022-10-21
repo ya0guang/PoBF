@@ -3,6 +3,8 @@ extern crate base64;
 extern crate clap;
 extern crate cmac;
 extern crate curl;
+extern crate env_logger;
+extern crate log;
 extern crate pem;
 extern crate ring;
 extern crate serde_json;
@@ -14,8 +16,11 @@ mod utils;
 use clap::{Parser, Subcommand};
 use dh::*;
 use handlers::*;
+use log::{debug, info};
 
 use std::io::*;
+
+use crate::utils::*;
 
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
@@ -51,13 +56,9 @@ static PLATFORM_INFO_BLOB: &'static str = "\"platformInfoBlob\"";
 static ISV_ENCLAVE_QUOTE_BODY: &'static str = "\"isvEnclaveQuoteBody\"";
 
 fn main() {
-    // Generate key pair.
-    let (private_key, public_key) = open_session().unwrap();
-    println!("[+] Key pair: {:?} and {:?}", private_key, public_key);
-    // Sign the public key.
-    let pubkey_signature = sign_with_ecdsa(public_key.as_ref()).unwrap();
-    println!("[+] Signature is {:?}", pubkey_signature);
+    init_logger();
 
+    let mut key_pair = init_keypair().unwrap();
     let args = Args::parse();
     match args.command {
         Commands::Run {
@@ -73,28 +74,48 @@ fn main() {
             let mut writer = BufWriter::new(socket_clone);
 
             // Send Spid and public key to the application enclave.
-            send_initial_messages(&mut writer, &spid, linkable, &public_key, &pubkey_signature).unwrap();
+            info!("[+] Sending initial messages including SPID and public key.");
+            send_initial_messages(
+                &mut writer,
+                &spid,
+                linkable,
+                &key_pair.pub_k,
+                &key_pair.signature,
+            )
+            .unwrap();
+            info!("[+] Succeeded.");
 
+            info!("[+] Waiting for Extended Group ID.");
             let sigrl =
                 handle_epid(&mut reader, &mut writer, &key).expect("[-] EPID receiving failed.");
-            let enclave_pubkey = handle_enclave_pubkey(&mut reader).unwrap();
-            println!("[+] The public key of the enclave is {:?}", enclave_pubkey);
+            info!("[+] Succeeded.");
 
+            info!("[+] Waiting for public key of the enclave.");
+            let enclave_pubkey = handle_enclave_pubkey(&mut reader).unwrap();
+            info!("[+] Succeeded.");
+
+            debug!("[+] The public key of the enclave is {:?}", enclave_pubkey);
+
+            info!("[+] Fetching Signature Revocation List from Intel.");
             send_sigrl(&mut writer, sigrl).unwrap();
+            info!("[+] Succeeded.");
 
             // Handle quote.
+            info!("[+] Verifying quote.");
             handle_quote(&mut reader, &mut writer, &key).unwrap();
+            info!("[+] Succeeded.");
 
             // Compute shared key.
-            let session_key =
-                compute_shared_key(private_key, &enclave_pubkey, KDF_MAGIC_STR.as_bytes()).unwrap();
-
-            println!("[+] The session key sampled as {:?}", session_key);
+            info!("[+] Computing ephemeral session key.");
+            key_pair
+                .compute_shared_key(&enclave_pubkey, KDF_MAGIC_STR.as_bytes())
+                .unwrap();
+            info!("[+] Succeeded.");
 
             // Quit.
             writer.write(b"qqqq\n").unwrap();
         }
     }
 
-    println!("[+] Finished!");
+    info!("[+] Finished!");
 }
