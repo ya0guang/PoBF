@@ -7,6 +7,8 @@ use sgx_types::{
     types::{AlignKey128bit, DhSessionRole, Ec256PublicKey, ECP256_KEY_SIZE},
 };
 
+use crate::ra_utils::unix_time;
+
 /// Time for expiration. We currently set it to 600 seconds (5 min).
 /// If the key is expired, the both sides are notified and then re-negotiate a new one.
 pub const DH_KEY_EXPIRATION: i64 = 600;
@@ -59,6 +61,7 @@ pub struct DhEccContext {
     shared_key: EcShareKey,
     smk: AlignKey128bit,
     role: DhSessionRole,
+    timestamp: u64,
 }
 
 impl DhEccContext {
@@ -80,6 +83,14 @@ impl DhEccContext {
 
     pub fn smk(&self) -> &AlignKey128bit {
         &self.smk
+    }
+
+    pub fn role(&self) -> &DhSessionRole {
+        &self.role
+    }
+
+    pub fn timestamp(&self) -> u64 {
+        self.timestamp
     }
 }
 
@@ -214,6 +225,9 @@ impl DhSession {
             .shared_key
             .derive_key(KDF_MAGIC_STR.as_bytes())?;
 
+        // Set the current timestamp.
+        self.session_context.timestamp = unix_time()?;
+
         Ok(())
     }
 }
@@ -242,6 +256,8 @@ pub fn open_dh_session() -> SgxResult<DhSession> {
             shared_key: EcShareKey::default(),
             smk: AlignKey128bit::default(),
             role: DhSessionRole::Responder,
+            // Not valid.
+            timestamp: 0u64,
         },
     })
 }
