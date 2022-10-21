@@ -4,8 +4,8 @@
 use crate::bogus::SealedData;
 use crate::ocall::*;
 use crate::ocall_log;
-use alloc::vec::Vec;
 use alloc::string::String;
+use alloc::vec::Vec;
 #[cfg(feature = "sgx")]
 use sgx_tseal::seal::SealedData;
 use sgx_types::marker::ContiguousMemory;
