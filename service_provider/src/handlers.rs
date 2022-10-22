@@ -1,3 +1,4 @@
+use crate::dh::{handle_enclave_pubkey, KeyPair, KDF_MAGIC_STR};
 use crate::utils::*;
 use crate::{IAS_CONTENT_TYPE_HEADER, IAS_KEY_HEADER};
 
@@ -10,11 +11,17 @@ use std::net::TcpStream;
 
 use ring::agreement::PublicKey;
 
+// Some useful constants.
+pub const BREAKLINE: &'static [u8] = b"\n";
+pub const DEFAULT_BUFFER_LEN: usize = 0x400;
+pub const EPID_LEN: usize = 0x04;
+pub const HTTP_OK: u32 = 200;
+
 pub fn send_sigrl(writer: &mut BufWriter<TcpStream>, sigrl: Vec<u8>) -> Result<()> {
     writer.write(sigrl.len().to_string().as_bytes()).unwrap();
-    writer.write(b"\n").unwrap();
+    writer.write(BREAKLINE).unwrap();
     writer.write(&sigrl).unwrap();
-    writer.write(b"\n").unwrap();
+    writer.write(BREAKLINE).unwrap();
     writer.flush().unwrap();
 
     Ok(())
@@ -29,33 +36,33 @@ pub fn send_initial_messages(
 ) -> Result<()> {
     writer.write(b"0\n").unwrap();
     writer.write(spid.as_bytes()).unwrap();
-    writer.write(b"\n").unwrap();
+    writer.write(BREAKLINE).unwrap();
     writer
         .write((linkable as i64).to_string().as_bytes())
         .unwrap();
-    writer.write(b"\n").unwrap();
+    writer.write(BREAKLINE).unwrap();
     writer.write(&public_key.as_ref()[1..]).unwrap();
-    writer.write(b"\n").unwrap();
+    writer.write(BREAKLINE).unwrap();
     writer
         .write(pubkey_signature.len().to_string().as_bytes())
         .unwrap();
-    writer.write(b"\n").unwrap();
+    writer.write(BREAKLINE).unwrap();
     writer.flush().unwrap();
 
     writer.write(&pubkey_signature).unwrap();
-    writer.write(b"\n").unwrap();
+    writer.write(BREAKLINE).unwrap();
     writer.flush().unwrap();
 
     Ok(())
 }
 
-pub fn get_sigrl(ias_key: &String, epid: &[u8; 4]) -> Result<Vec<u8>> {
+pub fn get_sigrl(ias_key: &String, epid: &[u8; EPID_LEN]) -> Result<Vec<u8>> {
     let mut easy = Easy::new();
     let mut sigrl = Vec::new();
     let mut full_url = get_full_url("sigrl");
 
     // Encode the epid and append it to the full URL.
-    let gid = unsafe { mem::transmute::<[u8; 4], u32>(*epid) }.to_le();
+    let gid = unsafe { mem::transmute::<[u8; EPID_LEN], u32>(*epid) }.to_le();
     full_url.push_str(&format!("/{:08x?}", gid));
 
     easy.url(&full_url).unwrap();
@@ -97,7 +104,7 @@ pub fn get_sigrl(ias_key: &String, epid: &[u8; 4]) -> Result<Vec<u8>> {
         std::str::from_utf8(&sigrl).unwrap()
     );
 
-    if code != 200 {
+    if code != HTTP_OK {
         // Leave an error message and die.
         error!("[-] Got non 200 status code.");
 
@@ -160,7 +167,7 @@ pub fn get_quote_report(ias_key: &String, report_json: &Vec<u8>) -> Result<Vec<u
         std::str::from_utf8(&response_header).unwrap()
     );
 
-    if code != 200 {
+    if code != HTTP_OK {
         error!("[-] Got non 200 status code.");
         // Leave an error message and die.
         Err(Error::from(ErrorKind::PermissionDenied))
@@ -182,6 +189,56 @@ pub fn connect(address: &String, port: &u16) -> Result<TcpStream> {
     TcpStream::connect(&full_address)
 }
 
+pub fn exec_full_workflow(
+    reader: &mut BufReader<TcpStream>,
+    writer: &mut BufWriter<TcpStream>,
+    key_pair: &mut KeyPair,
+    spid: &String,
+    linkable: bool,
+    key: &String,
+) -> Result<()> {
+    // Send Spid and public key to the application enclave.
+    info!("[+] Sending initial messages including SPID and public key.");
+    send_initial_messages(writer, spid, linkable, &key_pair.pub_k, &key_pair.signature).unwrap();
+    info!("[+] Succeeded.");
+
+    info!("[+] Waiting for Extended Group ID.");
+    let sigrl = handle_epid(reader, writer, &key)?;
+    info!("[+] Succeeded.");
+
+    info!("[+] Waiting for public key of the enclave.");
+    let enclave_pubkey = handle_enclave_pubkey(reader)
+        .map_err(|_| {
+            error!("[-] Failed to parse enclave public key.");
+            return Error::from(ErrorKind::InvalidData);
+        })
+        .unwrap();
+    info!("[+] Succeeded.");
+
+    debug!("[+] The public key of the enclave is {:?}", enclave_pubkey);
+
+    info!("[+] Fetching Signature Revocation List from Intel.");
+    send_sigrl(writer, sigrl)?;
+    info!("[+] Succeeded.");
+
+    // Handle quote.
+    info!("[+] Verifying quote.");
+    handle_quote(reader, writer, &key)?;
+    info!("[+] Succeeded.");
+
+    // Compute shared key.
+    info!("[+] Computing ephemeral session key.");
+    key_pair
+        .compute_shared_key(&enclave_pubkey, KDF_MAGIC_STR.as_bytes())
+        .unwrap();
+    info!("[+] Succeeded.");
+
+    // Quit.
+    writer.write(b"qqqq\n")?;
+
+    Ok(())
+}
+
 pub fn handle_epid(
     reader: &mut BufReader<TcpStream>,
     writer: &mut BufWriter<TcpStream>,
@@ -190,7 +247,7 @@ pub fn handle_epid(
     writer.write(b"1\n").unwrap();
     writer.flush().unwrap();
 
-    let mut s = String::with_capacity(512);
+    let mut s = String::with_capacity(DEFAULT_BUFFER_LEN);
     // Wait for the EPID.
     reader.read_line(&mut s).unwrap();
 
@@ -202,13 +259,13 @@ pub fn handle_epid(
     // Read length.
     s.clear();
     reader.read_line(&mut s).unwrap();
-    if s.chars().next().unwrap() != '4' {
+    if s.chars().next().unwrap().to_digit(10).unwrap() as usize != EPID_LEN {
         error!("[-] Expecting EPID length to be 4. Got {}.", s);
         return Err(Error::from(ErrorKind::InvalidData));
     }
 
     // Read EPID itself.
-    let mut epid = [0u8; 4];
+    let mut epid = [0u8; EPID_LEN];
     reader.read_exact(&mut epid).unwrap();
     debug!("[+] EPID: {:?}", epid);
 
@@ -229,11 +286,12 @@ pub fn handle_quote(
     writer: &mut BufWriter<TcpStream>,
     ias_key: &String,
 ) -> Result<()> {
-    let mut s = String::with_capacity(128);
+    let mut s = String::with_capacity(DEFAULT_BUFFER_LEN);
     reader.read_line(&mut s).unwrap();
 
     if !s.starts_with("QUOTE") {
         error!("[-] Expecting a quote, got {}", s);
+        return Err(Error::from(ErrorKind::InvalidData));
     }
 
     // Get quote length.
@@ -257,9 +315,9 @@ pub fn handle_quote(
     writer
         .write(quote_report.len().to_string().as_bytes())
         .unwrap();
-    writer.write(b"\n").unwrap();
+    writer.write(BREAKLINE).unwrap();
     writer.write(&quote_report).unwrap();
-    writer.write(b"\n").unwrap();
+    writer.write(BREAKLINE).unwrap();
 
     Ok(())
 }

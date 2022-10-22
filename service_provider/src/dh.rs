@@ -24,6 +24,15 @@ pub const ECC_KEY: &'static [u8] = include_bytes!("../key.pem");
 #[allow(unused)]
 pub const ECC_CERT: &'static [u8] = include_bytes!("../cert.pem");
 
+/// The P256 key length.
+pub const P256_PUBKEY_LEN: usize = 0x40;
+/// The P256 public key length for each coordinate.
+pub const P256_PUBKEY_COORDINATE_LEN: usize = 0x20;
+/// A header for public key coordinate.
+pub const P256_PUBKEY_HEADER: u8 = 0x04;
+/// The EC session key length.
+pub const ECC_SESSION_KEY_LEN: usize = 0x10;
+
 #[derive(Debug)]
 pub struct KeyPair {
     /// Only used once.
@@ -93,7 +102,7 @@ fn key_derive_function(shared_key: &[u8], label: &[u8]) -> Result<Vec<u8>> {
     }
 
     // Use an empty key to get the hashed derive key from the shared session key.
-    let key = [0u8; 16];
+    let key = [0u8; ECC_SESSION_KEY_LEN];
     let mut mac = Cmac::<Aes128>::new_from_slice(&key).unwrap();
     mac.update(shared_key_rev.as_slice());
     // Used for a second Cmac.
@@ -114,15 +123,15 @@ fn key_derive_function(shared_key: &[u8], label: &[u8]) -> Result<Vec<u8>> {
 pub fn handle_enclave_pubkey(
     reader: &mut BufReader<TcpStream>,
 ) -> Result<UnparsedPublicKey<Vec<u8>>> {
-    let mut key_buf = vec![0u8; 65];
+    let mut key_buf = vec![0u8; P256_PUBKEY_LEN + 1];
     reader.read_exact(&mut key_buf).unwrap();
-    key_buf.truncate(64);
+    key_buf.truncate(P256_PUBKEY_LEN);
 
     // Convert the endianness.
-    key_buf[..32].reverse();
-    key_buf[32..].reverse();
+    key_buf[..P256_PUBKEY_COORDINATE_LEN].reverse();
+    key_buf[P256_PUBKEY_COORDINATE_LEN..].reverse();
     // Then insert "0x04" into the front.
-    key_buf.insert(0, 0x04);
+    key_buf.insert(0, P256_PUBKEY_HEADER);
 
     // Convert to UnparsedPublicKey.
     Ok(UnparsedPublicKey::new(&ECDH_P256, key_buf))
@@ -132,12 +141,14 @@ pub fn open_session() -> Result<(EphemeralPrivateKey, PublicKey)> {
     let rng = ring::rand::SystemRandom::new();
     let private_key = EphemeralPrivateKey::generate(&ECDH_P256, &rng)
         .map_err(|_| {
+            error!("[-] Cannot generate ephemeral key pair.");
             return Unspecified;
         })
         .unwrap();
     let public_key = private_key
         .compute_public_key()
         .map_err(|_| {
+            error!("[-] Cannot compute public key from private key on the given P256 curve.");
             return Unspecified;
         })
         .unwrap();
