@@ -1,3 +1,6 @@
 [submodule "MIRAI"]
 	path = MIRAI
 	url = https://github.com/facebookexperimental/MIRAI
+[submodule "incubator-teaclave-sgx-sdk"]
+	path = incubator-teaclave-sgx-sdk
+	url = https://github.com/hiroki-chen/incubator-teaclave-sgx-sdk
