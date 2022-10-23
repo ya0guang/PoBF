@@ -36,16 +36,13 @@ use alloc::slice;
 use clear_on_drop::clear_stack_and_regs_on_return;
 use ocall::*;
 use pobf::*;
-<<<<<<< HEAD
 use prusti_contracts::*;
 use sgx_types::error::SgxStatus;
-=======
 use ra_utils::*;
 
 use sgx_types::{error::SgxStatus, types::*};
 
 use crate::dh::*;
->>>>>>> remote_attestation
 
 static DEFAULT_PAGE_SIZE_ENTRY: usize = 0x4;
 static DEFAULT_PAGE_SIZE_LEAF: usize = 0x1;
