@@ -15,7 +15,7 @@
 ** TODO Zerorize heap (modify heap allocator)
 ** TODO Instrumentation (LLVM)
 ** WAITING Multi-threading
-** SOMEDAY Attestation (And Integrate with Typestate)
+** SOMEDAY Attestatetion (And Integrate with Typestate)
 
 * Verification
 
@@ -25,5 +25,8 @@
 * WAITING Evaluation
 
 ** Realworld Task (e.g., ML training & inference)
+** Security Benchmark (the Implementation is correct? e.g., residue cleared?)
 
 * WAITING Paper Writing
+
+** TODO Slides Outline

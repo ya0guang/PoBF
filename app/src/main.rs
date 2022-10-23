@@ -1,3 +1,9 @@
+extern crate base16;
+extern crate base64;
+extern crate clap;
+extern crate hex;
+extern crate serde;
+extern crate serde_json;
 extern crate sgx_types;
 extern crate sgx_urts;
 
@@ -9,8 +15,13 @@ use sgx_types::types::*;
 use sgx_urts::enclave::SgxEnclave;
 use std::fs::File;
 use std::io::prelude::*;
+use std::io::BufReader;
+use std::io::Result;
+use std::net::TcpListener;
+use std::os::unix::prelude::AsRawFd;
 
 static ENCLAVE_FILE: &'static str = "enclave.signed.so";
+static SGX_PLATFORM_HEADER_SIZE: usize = 0x4;
 const OUTPUT_BUFFER_SIZE: usize = 2048;
 
 extern "C" {
@@ -25,6 +36,18 @@ extern "C" {
         encrypted_output_buffer_size: u32,
         encrypted_output_size: *mut u32,
     ) -> SgxStatus;
+
+    fn start_remote_attestation(
+        eid: EnclaveId,
+        retval: *mut SgxStatus,
+        socket_fd: i32,
+        spid: *const Spid,
+        linkable: i64,
+        public_key: *const u8,
+        public_key_len: u32,
+        pubkey_signature: *const u8,
+        pubkey_signature_len: u32,
+    ) -> SgxStatus;
 }
 
 #[derive(Parser)]
@@ -38,7 +61,13 @@ struct Args {
 #[derive(Subcommand)]
 enum Commands {
     /// do private computation on encrypted data with a sealed key
-    Cal { key_path: String, data_path: String },
+    /// Also listen to the request from the SP to perform the RA.
+    Cal {
+        key_path: String,
+        data_path: String,
+        address: String,
+        port: u16,
+    },
 }
 
 fn main() {
@@ -58,19 +87,199 @@ fn main() {
         Commands::Cal {
             key_path,
             data_path,
+            address,
+            port,
         } => {
             // Sealed [0] * 16
-            let mut key_file = File::open(key_path).expect("key file not found");
-            let mut sealed_key_log = Vec::new();
-            key_file.read_to_end(&mut sealed_key_log).unwrap();
-
+            let sealed_key_log = read_file(&key_path).unwrap();
             // Encrypted [42] * 16
-            let mut data_file = File::open(data_path).expect("data file not found");
-            let mut encrypted_data_vec = Vec::new();
-            data_file.read_to_end(&mut encrypted_data_vec).unwrap();
-            exec_private_computing(&enclave, &sealed_key_log, &encrypted_data_vec);
+            let encrypted_data_vec = read_file(&data_path).unwrap();
+
+            let listener = match listen(&address, &port) {
+                Ok(res) => res,
+                Err(e) => {
+                    println!("{}", e.to_string());
+                    return;
+                }
+            };
+
+            match server_start(listener, &enclave, &encrypted_data_vec, &sealed_key_log) {
+                Err(e) => {
+                    println!("Error running the server: {}", e.to_string());
+                    return;
+                }
+                _ => (),
+            }
         }
     };
+}
+
+fn listen(address: &String, port: &u16) -> Result<TcpListener> {
+    // Create the full address for the server.
+    let full_address = format!("{}:{}", address, port);
+    println!("[+] Listening to {}", full_address);
+
+    TcpListener::bind(&full_address)
+}
+
+fn read_file(path: &String) -> Result<Vec<u8>> {
+    let mut f = File::open(&path).expect(&format!("File {} not found", path));
+    let mut buf = Vec::new();
+
+    f.read_to_end(&mut buf)?;
+
+    Ok(buf)
+}
+
+fn server_start(
+    listener: TcpListener,
+    enclave: &SgxEnclave,
+    data: &Vec<u8>,
+    key: &Vec<u8>,
+) -> Result<()> {
+    let mut ra_done = false;
+
+    match listener.accept() {
+        Ok((socket, addr)) => {
+            println!("[+] Got connection from {:?}", addr);
+
+            // Expose the raw socket fd.
+            let socket_fd = socket.as_raw_fd();
+
+            // Create the buffer.
+            // let socket_clone = socket.try_clone().unwrap();
+            let mut reader = BufReader::new(socket);
+            let mut spid = vec![0u8; 33];
+            let mut linkable = 0i64;
+            let mut public_key = vec![0u8; 65];
+            let mut pubkey_signature = vec![0u8; 0];
+            loop {
+                // Command explanations:
+                // 0: Send Spid.
+                // 1: Do RA.
+                // 2: Execute private computing.
+                // 3: Read SigRL.
+                //
+                // Other keys are used to quit the server.
+                // For receiving the socket data.
+                let mut s = String::with_capacity(1);
+                let size = reader.read_line(&mut s).unwrap();
+
+                if size == 0 {
+                    continue;
+                }
+
+                println!("[+] Successfully read {} bytes from the client.", size);
+
+                match s.chars().next().unwrap() {
+                    '0' => {
+                        println!("[+] Receiving Spid from SP!");
+
+                        reader.read_exact(&mut spid).unwrap();
+                        spid.truncate(32);
+
+                        println!("[+] Spid received as {:?}", spid);
+
+                        // Receive linkable.
+                        s.clear();
+                        reader.read_line(&mut s).unwrap();
+                        linkable = s[..s.len() - 1].parse::<i64>().unwrap();
+                        println!("[+] The subscription is linkable? {}.", linkable != 0);
+
+                        // Receive public key.
+                        reader.read_exact(&mut public_key).unwrap();
+                        public_key.truncate(64);
+                        println!("[+] Received public key as {:?}", public_key);
+
+                        // Receive the signature for public key.
+                        let mut length = String::with_capacity(32);
+                        reader.read_line(&mut length).unwrap();
+                        let sign_len = length[..length.len() - 1].parse::<usize>().unwrap();
+                        pubkey_signature.resize(sign_len + 1, 0);
+                        reader.read_exact(&mut pubkey_signature).unwrap();
+                        pubkey_signature.truncate(sign_len);
+                        println!(
+                            "[+] Received signature for public key is {:?}",
+                            pubkey_signature
+                        );
+                    }
+
+                    '1' => {
+                        println!("[+] Performing remote attestation!");
+
+                        match exec_remote_attestation(
+                            &enclave,
+                            socket_fd,
+                            &spid,
+                            linkable,
+                            &public_key,
+                            &pubkey_signature,
+                        ) {
+                            SgxStatus::Success => ra_done = true,
+                            _ => panic!("[-] Remote attestation intial state failed."),
+                        }
+                    }
+
+                    '2' => {
+                        // Should do RA first.
+                        if !ra_done {
+                            println!(
+                                "[-] You should first do remote attestation before private computing!"
+                            );
+                            continue;
+                        } else {
+                            println!("[+] Performing private computating!");
+
+                            exec_private_computing(enclave, key, data);
+
+                            println!("[+] Private computing successfully done!");
+                        }
+                    }
+
+                    // Throw away.
+                    _ => {
+                        println!("[+] Quitting the server...");
+
+                        return Ok(());
+                    }
+                }
+            }
+        }
+
+        Err(e) => return Err(e),
+    }
+}
+
+fn exec_remote_attestation(
+    enclave: &SgxEnclave,
+    socket_fd: c_int,
+    spid_buf: &Vec<u8>,
+    linkable: i64,
+    pubkey: &Vec<u8>,
+    pubkey_signature: &Vec<u8>,
+) -> SgxStatus {
+    let mut retval = SgxStatus::Success;
+
+    // Convert spid string to Spid type.
+    let spid_str = String::from_utf8(spid_buf.to_vec()).unwrap();
+    let spid_vec = hex::decode(&spid_str).unwrap();
+    let mut spid = Spid::default();
+    spid.id.copy_from_slice(&spid_vec[..16]);
+    unsafe {
+        start_remote_attestation(
+            enclave.eid(),
+            &mut retval,
+            socket_fd,
+            &spid,
+            linkable,
+            pubkey.as_ptr(),
+            pubkey.len() as u32,
+            pubkey_signature.as_ptr(),
+            pubkey_signature.len() as u32,
+        );
+    }
+
+    retval
 }
 
 fn exec_private_computing(

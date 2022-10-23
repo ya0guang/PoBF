@@ -62,6 +62,15 @@ Definition eq_location (i1 i2: location) : bool :=
   | _, _ => false
   end.
 
+Theorem eq_location_comm: forall (l1 l2: location), eq_location l1 l2 = eq_location l2 l1.
+Proof.
+  intros.
+  destruct l1 eqn: eql1; destruct l2 eqn: eql2; simpl; try reflexivity.
+  - eauto. Search ( _ =? _). apply Nat.eqb_sym.
+  - destruct (string_dec s s0) eqn:ss0; destruct (string_dec s0 s) eqn:s0s;
+      try reflexivity; subst; destruct n; reflexivity.
+Qed.  
+
 Theorem eq_location_eq: forall i1 i2, eq_location i1 i2 = true <-> i1 = i2.
 Proof.
   split. 
@@ -107,6 +116,9 @@ Inductive cell: Type :=
   | UnusedMem (* may not need this! *)
   | EncMem (z: enclave_tag) (v: tag_value)
 .
+
+Definition In_zone (c: cell) : Prop :=
+  exists v, c = EncMem ZoneMem v.
 
 Definition cell_example1: cell := AppMem tag_value_example.
 
@@ -172,10 +184,14 @@ Example mem_eg1: memory := update empty_memory (Ident "rax") (AppMem ((ConcreteN
 
 Print mem_eg1.
 
-Lemma update_comm: forall l1 l2 c1 c2 me,
-  memory_eq (update (update me l2 c2) l1 c1) (update (update me l1 c1) l2 c2).
-Proof.
-Admitted.
+(* Lemma update_comm: forall l1 l2 c1 c2 me, *)
+(*   memory_eq (update (update me l2 c2) l1 c1) (update (update me l1 c1) l2 c2). *)
+(* Proof. *)
+(*   induction me. *)
+(*   - unfold update, update_countinue. simpl. *)
+(*     destruct (eq_location l1 l2) eqn: eql1l2. rewrite eq_location_comm; *)
+(*     rewrite eql1l2     *)
+
 
 (** * Abstract Syntax *)
 
@@ -287,25 +303,90 @@ Definition procedure: Type := com.
 (** * PoBF: leaked *)
 (* secrets find on places other than the zone *)
 
+Definition leaked_cell (c: cell) : bool :=
+  match c with
+    | AppMem (_, Secret) => true
+    | DummyMem | UnusedMem | AppMem _ => false
+    | EncMem NonzoneMem (_, Secret) => true
+    | EncMem _ _ => false
+  end.
+                     
 Fixpoint leaked (me: memory) : bool :=
   match me with
   | [] => false
-  | hd :: tl => match snd hd with
-              | AppMem (_, Secret) => true
-              | DummyMem | UnusedMem | AppMem _ => leaked tl
-              | EncMem NonzoneMem (_, Secret) => true
-              | EncMem _ _ => leaked tl
-              end
+  | hd :: tl => if leaked_cell (snd hd) then true else leaked tl
   end.
+
 
 (* How to express this theorem? *)
 (* Lemma leaked_false_no_leak: forall (me: memory) (l: location) (c: cell), *)
 (*   leaked me = false -> In l (get_accessible me) -> raw_read me l = Some c ->  *)
 
+Lemma no_leak: forall me l c tv,
+    leaked me = false -> raw_read me l = Some c ->
+    c = AppMem tv \/ c = EncMem NonzoneMem tv -> ~(snd tv = Secret).
+Proof.
+  intros. generalize dependent l. generalize dependent tv. induction me.
+  - intros. inversion H0.
+  - simpl. intros. destruct a eqn: eqa. subst. simpl in *.
+    destruct (eq_location l0 l) eqn: eql0l. 
+    + apply eq_location_eq in eql0l. inversion H0. subst. destruct H0.
+      destruct c eqn: eqc.
+      * destruct H1. inversion H0. subst. destruct tv eqn:eqtv;
+          destruct s; simpl; eauto; try inversion H; intros Ha; discriminate Ha.
+        discriminate H0.
+      * inversion H1; inversion H0.
+      * inversion H1; inversion H0.
+      * inversion H1; inversion H0. subst.
+        destruct tv eqn: eqtv; destruct s eqn: eqs. inversion H.
+        simpl. intros Ha. inversion Ha.
+        simpl. intros Ha. inversion Ha.
+    + eapply IHme. destruct c0 eqn: eqc0; try assumption.
+      * destruct v eqn: eqv. destruct s. inversion H. assumption. assumption.
+      * destruct z. assumption. destruct v. destruct s.
+        inversion H. assumption. assumption.
+      * assumption.
+      * exact H0.
+Qed.
 
-(** ** Definition: Critical Procedure *)
-(* Definition: accessible vars (in memory) contain secrets in the zone *)
-(* Critical Should ONLY describe procedure(s) *)
+Lemma concat_no_leak :
+  forall me mc, leaked me = false -> leaked mc = false ->
+           leaked (me ++ mc) = false.
+Proof.
+  induction me; intros.
+  - simpl. assumption.
+  - Search (_::_ ++ _). rewrite <- app_comm_cons. simpl.
+    inversion H. destruct (leaked_cell (snd a)) eqn: eqla.
+    inversion H2. rewrite H2. apply IHme.
+    assumption. assumption.
+Qed.
+
+Lemma update_countinue_no_leak :
+  forall me mc l c, leaked me = false -> leaked mc = false -> leaked_cell c = false ->
+               leaked (update_countinue me mc l c) = false.
+Proof.
+  induction me; intros.
+  - simpl. rewrite H1. assumption.
+  - simpl. inversion H.
+    destruct (leaked_cell (snd a)) eqn: eqsa. discriminate H3. rewrite H3.
+    destruct (eq_location (fst a) l) eqn: eqal.
+    apply concat_no_leak. assumption. simpl. rewrite H1. assumption.
+    apply IHme; try assumption. apply concat_no_leak. assumption.
+    simpl. rewrite eqsa. auto.
+Qed.
+
+Hint Immediate update_countinue_no_leak: core.
+
+Lemma update_zone_no_leak: forall me l tv,
+    leaked me = false -> leaked (update me l (EncMem ZoneMem tv)) = false.
+Proof with eauto.
+  intros. unfold update. apply update_countinue_no_leak...
+Qed.
+
+Definition state := memory * mode * errors.
+
+(** ** Definition: Critical State *)
+(* Definition:  Current memory contains secrets in the zone *)
 Fixpoint is_critical (me: memory) : bool :=
   match me with
   | [] => false
@@ -314,3 +395,131 @@ Fixpoint is_critical (me: memory) : bool :=
               | _ => false
               end
   end.
+
+(** * Semantics of the Statements *)
+(* interpreter for critical state *)
+Inductive com_eval_critical : com -> state -> state -> Prop :=
+  | E_Nop (me: memory) (mo: mode) (vars: accessible) (ers: errors) (ers: errors): 
+    com_eval_critical CNop (me, mo, ers) (me, mo, ers)
+  | E_Eenter (me: memory) (mo: mode) (vars: accessible) (ers: errors) (Her: ers = []):
+    com_eval_critical CEenter (me, mo, ers) (me, EnclaveMode, ers)
+  | E_Eexit (me: memory) (mo: mode) (vars: accessible) (ers: errors) (Her: ers = []):
+    com_eval_critical CEexit (me, mo, ers) (me, NormalMode, ers)
+  | E_Asgn_Ok_enc (me: memory) (mo: mode) (vars: accessible) (ers: errors) (Her: ers = [])
+    (l: location) (v: exp) (r: tag_value) (Hexp: exp_tagged_val mo me v = (Ok r))
+    (Henc: mo = EnclaveMode):
+    (* What if not in the enclave mode? *)
+    (* Write restricted in the Zone! *)
+    com_eval_critical (CAsgn l v) (me, mo, ers) ((update me l (EncMem ZoneMem r) ), mo, ers)
+  | E_Asgn_Err_access (me: memory) (mo: mode) (vars: accessible) (ers: errors) (Her: ers = [])
+    (l: location) (v: exp) (er: errors) (Hexp: exp_tagged_val mo me v = (Err er)):
+    com_eval_critical (CAsgn l v) (me, mo, ers) (me, mo, (er ++ ers))
+  | E_Seq (st st' st'': state) (c1 c2: com)
+    (Hc1: com_eval_critical c1 st st') (Hc2: com_eval_critical c2 st' st''):
+    com_eval_critical (CSeq c1 c2) st st''
+  | E_If_then (me: memory) (mo: mode) (vars: list location) (ers: errors) (Her: ers = [])
+    (b: exp) (c1 c2: com) (st': state):
+    exp_as_bool mo me b = Ok true -> 
+    com_eval_critical c1 (me, mo, ers) st' -> 
+    com_eval_critical (CIf b c1 c2) (me, mo, ers) st'
+  | E_If_else (me: memory) (mo: mode) (vars: list location) (ers: errors) (Her: ers = [])
+    (b: exp) (c1 c2: com) (st': state):
+    exp_as_bool mo me b = Ok false -> 
+    com_eval_critical c2 (me, mo, ers) st' -> 
+    com_eval_critical (CIf b c1 c2) (me, mo, ers) st'
+  | E_If_err (me: memory) (mo: mode) (vars: list location) (ers: errors) (Her: ers = [])
+    (b: exp) (c1 c2: com) (er: errors):
+    exp_as_bool mo me b = Err er -> 
+    com_eval_critical (CIf b c1 c2) (me, mo, ers) (me, mo, er ++ ers)
+  | E_while_true (me: memory) (mo: mode) (vars: list location) (ers: errors) (Her: ers = [])
+    (b: exp) (c: com) (st': state):
+    exp_as_bool mo me b = Ok true -> 
+    com_eval_critical c (me, mo, ers) st' -> 
+    com_eval_critical (CWhile b c) (me, mo, ers) st'
+  | E_while_false (me: memory) (mo: mode) (vars: list location) (ers: errors) (Her: ers = [])
+    (b: exp) (c: com):
+    exp_as_bool mo me b = Ok false -> 
+    com_eval_critical (CWhile b c) (me, mo, ers) (me, mo, ers)
+  | E_while_err (me: memory) (mo: mode) (vars: list location) (ers: errors) (Her: ers = [])
+    (b: exp) (c: com) (er: errors):
+    exp_as_bool mo me b = Err er -> 
+    com_eval_critical (CWhile b c) (me, mo, ers) (me, mo, er ++ ers)
+  | E_Err_ignore (me: memory) (mo: mode) (vars: accessible) (ers: errors) 
+    (Herr: (length ers) >= 1) (c: com):
+    com_eval_critical c (me, mo, ers) (me, mo, ers)
+.
+
+
+(* No criticalness required here! *)
+Theorem restricted_no_leakage_proc: forall (c: com) (me me': memory) (mo mo': mode) (ers ers': errors),
+      com_eval_critical c (me, mo, ers) (me', mo', ers') ->
+  (* no leakage at the beginning, criticalness doesn't change *)
+  leaked me = false ->
+  leaked me' = false.
+Proof with eauto.
+  intros c. induction c; intros; inversion H; subst; try assumption...
+  - (* CAsgn *)
+    apply update_zone_no_leak...
+  - (* CSeq *)
+    destruct  st'. destruct p. eapply IHc2. exact Hc2.
+    eapply IHc1. exact Hc1... assumption.
+Qed.
+    
+Fixpoint residue_secret' (me: memory): bool :=
+  match me with
+  | [] => false
+  | (l, c)::tl => match c with
+                | EncMem _ (_, Secret) => true
+                | AppMem (_, Secret) => true
+                | _ => residue_secret' tl
+                end
+  end.
+
+Fixpoint zeroize' (me: memory) : memory :=
+  match me with
+  | [] => me
+  | (l, c)::tl => match c with
+                | EncMem ZoneMem _ =>
+                    (* Zeroize the entire Zone *)
+                    (l, EncMem ZoneMem (Cleared, Notsecret))::(zeroize' tl)
+                | _ => (l, c)::(zeroize' tl)
+                end
+  end.
+
+Fixpoint residue_secret (me: memory) : bool :=
+  match me with
+  | [] => false
+  | (l, c)::tl => match l with
+                | RV => residue_secret tl
+                | _ => match c with
+                      | EncMem _ (_, Secret) => true
+                      | AppMem (_, Secret) => true
+                      | _ => residue_secret tl
+                      end
+                end
+  end.
+
+Fixpoint zeroize (me: memory) : memory :=
+  match me with
+  | [] => me
+  | (l, c)::tl => match l with
+                | RV => (l, c)::(zeroize tl)
+                | _ => match c with
+                      | EncMem ZoneMem _ =>
+                          (l, EncMem ZoneMem (Cleared, Notsecret))::(zeroize tl)
+                      | _ => zeroize tl
+                      end
+                end
+  end.
+
+(* Zeroized memory contains no secret residue if not leaked *)
+Theorem zeroize_sound: forall me,
+    leaked me = false -> residue_secret (zeroize me) = false.
+Proof.
+  induction me; intros.
+  - reflexivity.
+  - simpl. destruct a. inversion H. destruct (leaked_cell c). inversion H1.
+    destruct l eqn: eql; destruct c eqn: eqc;
+      rewrite H1; try destruct z; try apply IHme; try auto.
+Qed.
+    
