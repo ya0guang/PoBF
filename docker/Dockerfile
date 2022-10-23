@@ -2,9 +2,9 @@ FROM ubuntu:20.04
 
 ARG SGX_SDK_VERSION=2.17.100.3
 ARG PRUSTI_GIT_REPO=https://github.com/viperproject/prusti-dev.git
-ARG PRUSTI_COMMIT=b74ed28a0d8b946c67fb85f56edbeb81346aabd9
+ARG PRUSTI_COMMIT=46488be654aa770797378929a9d1fd265b49aa29
 ARG RUST_COMP="rust-src rustc-dev llvm-tools-preview rustfmt rust-analysis"
-ARG RUST_TOOLCHAIN=nightly-2022-02-11
+ARG RUST_TOOLCHAIN=nightly-2022-10-22
 
 SHELL ["/bin/bash", "-c"] 
 
@@ -49,7 +49,7 @@ RUN git clone ${PRUSTI_GIT_REPO}
 
 WORKDIR /root/Downloads/prusti-dev
 RUN git checkout ${PRUSTI_COMMIT}
-RUN source "$HOME/.cargo/env" && rustup override set ${RUST_TOOLCHAIN}
+
 RUN source "$HOME/.cargo/env" && rustup component add --toolchain ${RUST_TOOLCHAIN} ${RUST_COMP}
 RUN apt update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC \ 
     apt install -y \
@@ -57,7 +57,12 @@ RUN apt update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC \
     default-jre \
     openssl \
     libssl-dev \
-    pkg-config
+    pkg-config \
+    sudo
+
+# Override the toolchain.
+RUN printf '[toolchain]\nchannel = "nightly-2022-10-22"\ncomponents = [ "rustc-dev", "llvm-tools-preview", "rust-std", "rustfmt", "clippy" ]\nprofile = "minimal"' \
+    > rust-toolchain
 
 RUN source "$HOME/.cargo/env" && ./x.py setup && ./x.py build --release
 
