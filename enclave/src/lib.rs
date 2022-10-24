@@ -42,6 +42,13 @@ static DEFAULT_PAGE_SIZE_LEAF: usize = 0x1;
 
 #[no_mangle]
 pub extern "C" fn private_computing_entry(
+    socket_fd: c_int,
+    spid_ptr: *const Spid,
+    linkable: i64,
+    public_key_ptr: *const u8,
+    public_key_len: u32,
+    signature_ptr: *const u8,
+    signature_len: u32,
     sealed_key_ptr: *mut u8,
     sealed_key_size: u32,
     encrypted_input_ptr: *mut u8,
@@ -52,13 +59,32 @@ pub extern "C" fn private_computing_entry(
 ) -> SgxStatus {
     ocall_log!("[+] private_computing_entry");
 
+    // Construct Rust data structures from FFI-types.
+    let spid = unsafe { &*spid_ptr };
+    let public_key: &[u8; 64] =
+        unsafe { slice::from_raw_parts(public_key_ptr, public_key_len as usize) }
+            .try_into()
+            .unwrap();
+    let signature = unsafe { slice::from_raw_parts(signature_ptr, signature_len as usize) };
     let sealed_key = unsafe { slice::from_raw_parts_mut(sealed_key_ptr, sealed_key_size as usize) };
-
     let encrypted_input =
         unsafe { slice::from_raw_parts_mut(encrypted_input_ptr, encrypted_input_size as usize) };
 
-    let f = || pobf_private_computing(encrypted_input, sealed_key);
-    let res = clear_stack_and_regs_on_return(DEFAULT_PAGE_SIZE_ENTRY, f);
+    // Remote attestation callback.
+    let remote_attestation_callback =
+        || pobf_remote_attestation(socket_fd, spid, linkable, public_key, signature);
+    let receive_data_callback = || pobf_receive_data(socket_fd);
+    // PoBF main entry callback.
+    let pobf_private_computing_callback = || {
+        pobf_private_computing(
+            encrypted_input,
+            sealed_key,
+            &remote_attestation_callback,
+            &receive_data_callback,
+        )
+    };
+    let res =
+        clear_stack_and_regs_on_return(DEFAULT_PAGE_SIZE_ENTRY, pobf_private_computing_callback);
 
     let encrypted_output = match res {
         Ok(x) => x,
@@ -85,9 +111,10 @@ pub extern "C" fn private_computing_entry(
     SgxStatus::Success
 }
 
+/// Legacy function.
 #[no_mangle]
 pub extern "C" fn start_remote_attestation(
-    socket_fd: i32,
+    socket_fd: c_int,
     spid: *const Spid,
     linkable: i64,
     public_key: *const u8,
@@ -104,7 +131,7 @@ pub extern "C" fn start_remote_attestation(
     let r_signature =
         unsafe { core::slice::from_raw_parts(pubkey_signature, pubkey_signature_len as usize) };
 
-    let _ = remote_attestation_callback(socket_fd, r_spid, linkable, r_public_key, r_signature);
+    let _ = pobf_remote_attestation(socket_fd, r_spid, linkable, r_public_key, r_signature);
 
     SgxStatus::Success
 }

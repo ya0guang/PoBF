@@ -34,7 +34,6 @@ pub fn send_initial_messages(
     public_key: &PublicKey,
     pubkey_signature: &Vec<u8>,
 ) -> Result<()> {
-    writer.write(b"0\n").unwrap();
     writer.write(spid.as_bytes()).unwrap();
     writer.write(BREAKLINE).unwrap();
     writer
@@ -233,8 +232,10 @@ pub fn exec_full_workflow(
         .unwrap();
     info!("[+] Succeeded.");
 
-    // Quit.
-    writer.write(b"qqqq\n")?;
+    // Send initial encrypted data. Trivial data 1,2,3 are just for test.
+    info!("[+] Sending encrypted vector data.");
+    send_vecaes_data(writer, &vec![1, 2, 3])?;
+    info!("[+] Succeeded.");
 
     Ok(())
 }
@@ -244,9 +245,6 @@ pub fn handle_epid(
     writer: &mut BufWriter<TcpStream>,
     ias_key: &String,
 ) -> Result<Vec<u8>> {
-    writer.write(b"1\n").unwrap();
-    writer.flush().unwrap();
-
     let mut s = String::with_capacity(DEFAULT_BUFFER_LEN);
     // Wait for the EPID.
     reader.read_line(&mut s).unwrap();
@@ -318,6 +316,12 @@ pub fn handle_quote(
     writer.write(BREAKLINE).unwrap();
     writer.write(&quote_report).unwrap();
     writer.write(BREAKLINE).unwrap();
+
+    Ok(())
+}
+
+pub fn send_vecaes_data(writer: &mut BufWriter<TcpStream>, data: &Vec<u8>) -> Result<()> {
+    // Encrypt the data first.
 
     Ok(())
 }

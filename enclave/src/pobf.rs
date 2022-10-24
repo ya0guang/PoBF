@@ -1,19 +1,29 @@
 #![forbid(unsafe_code)]
 
+use crate::dh::*;
 use crate::ocall::*;
+use crate::ra_utils::*;
 use crate::types::*;
 use crate::userfunc::vec_inc;
 use crate::{ocall_log, verified_log};
+use alloc::string::String;
 use alloc::vec::Vec;
 use clear_on_drop::clear_stack_and_regs_on_return;
 use sgx_types::error::SgxResult;
+use sgx_types::types::{c_int, Spid};
 use zeroize::Zeroize;
 
 pub fn pobf_private_computing(
     data_buffer: &[u8],
     sealed_key_buffer: &[u8],
+    remote_attestation_callback: &dyn Fn() -> AES128Key,
+    receive_data_callback: &dyn Fn() -> VecAESData,
 ) -> SgxResult<VecAESData> {
-    verified_log!("PoBF sample task AES started...");
+    // FIXME: move these two callbacks into type state. Now they are called for testing.
+    let _ = remote_attestation_callback();
+    let _ = receive_data_callback();
+
+    verified_log!("[+] PoBF sample task AES started...");
     // initialize data from buffer
     let input_key = AES128Key::from_sealed_buffer(sealed_key_buffer)?;
     let output_key = AES128Key::from_sealed_buffer(sealed_key_buffer)?;
@@ -90,4 +100,51 @@ where
     let en_out: ProtectedAssets<Encrypted, Output, D, K> = dec_out.encrypt()?;
 
     Ok(en_out.take())
+}
+
+/// This is a callback for performing the remote attestation as well as the key exchange with the data provider
+/// a.k.a., service provider. The function will return a wrapped ECDH key that implements Zeroize + Default trait.
+/// Note that the AES128Key has the corresponding implementations.
+#[must_use]
+pub fn pobf_remote_attestation(
+    socket_fd: c_int,
+    spid: &Spid,
+    linkable: i64,
+    peer_pub_key: &[u8; 64],
+    signature: &[u8],
+) -> AES128Key {
+    ocall_log!("[+] Start to generate ECDH session key and perform remote attestation!");
+
+    // We need to get the ECDH key.
+    // Panic on error.
+    let dh_session = perform_ecdh(peer_pub_key, signature).unwrap();
+    assert_eq!(
+        dh_session.session_status(),
+        DhStatus::InProgress,
+        "[-] Mismatched session status. Check if the code is correct?",
+    );
+
+    // Convert AlignKey128bit to AES128Key.
+    let session_key = AES128Key::from_ecdh_key(&dh_session).unwrap();
+
+    // Perform remote attestation.
+    let res = perform_remote_attestation(socket_fd, spid, linkable, &dh_session);
+    if !res.is_success() {
+        panic!("[-] Remote attestation failed due to {:?}.", res);
+    }
+
+    session_key
+}
+
+/// Receives the data as a vector from the data provider (encrypted data).
+#[must_use]
+pub fn pobf_receive_data(socket_fd: c_int) -> VecAESData {
+    verified_log!("[+] Receiving secret data from data provider...");
+    
+    match receive_data(socket_fd) {
+        Ok(data) => data,
+        Err(e) => {
+            panic!("[-] Failed to receive data due to {:?}.", e);
+        }
+    }
 }

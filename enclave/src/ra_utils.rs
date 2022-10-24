@@ -2,8 +2,9 @@ use crate::dh::*;
 use crate::ocall::*;
 use crate::ocall_log;
 use crate::types::AES128Key;
+use crate::types::VecAESData;
 use crate::utils::process_raw_cert;
-use alloc::{str, vec, vec::*};
+use alloc::{str, string::*, vec, vec::*};
 use sgx_crypto::ecc::EcPublicKey;
 use sgx_crypto::sha::Sha256;
 use sgx_tse::*;
@@ -46,40 +47,6 @@ pub struct QuoteWrapper {
     pub quote: Vec<u8>,
 }
 
-/// This is a callback for performing the remote attestation as well as the key exchange with the data provider
-/// a.k.a., service provider. The function will return a wrapped ECDH key that implements Zeroize + Default trait.
-/// Note that the AES128Key has the corresponding implementations.
-#[must_use]
-pub fn remote_attestation_callback(
-    socket_fd: c_int,
-    spid: &Spid,
-    linkable: i64,
-    peer_pub_key: &[u8; 64],
-    signature: &[u8],
-) -> AES128Key {
-    ocall_log!("[+] Start to generate ECDH session key and perform remote attestation!");
-
-    // We need to get the ECDH key.
-    // Panic on error.
-    let dh_session = perform_ecdh(peer_pub_key, signature).unwrap();
-    assert_eq!(
-        dh_session.session_status(),
-        DhStatus::InProgress,
-        "[-] Mismatched session status. Check if the code is correct?",
-    );
-
-    // Convert AlignKey128bit to AES128Key.
-    let session_key = AES128Key::from_ecdh_key(&dh_session).unwrap();
-
-    // Perform remote attestation.
-    let res = perform_remote_attestation(socket_fd, spid, linkable, &dh_session);
-    if !res.is_success() {
-        panic!("[-] Remote attestation failed due to {:?}.", res);
-    }
-
-    session_key
-}
-
 pub fn perform_remote_attestation(
     socket_fd: c_int,
     spid: &Spid,
@@ -116,7 +83,7 @@ pub fn perform_remote_attestation(
 
     // Step 4: Convert the report into a quote type.
     ocall_log!("[+] Start to perform quote generation!");
-    let res = unsafe { get_quote(&sigrl_buf, &report, &*spid, linkable) };
+    let res = get_quote(&sigrl_buf, &report, &*spid, linkable);
 
     if let Err(e) = res {
         return e;
@@ -219,6 +186,34 @@ pub fn get_sigrl_from_intel(
 
         _ => Err(res),
     }
+}
+
+/// A safe wrapper for `ocall_receive_data`.
+pub fn receive_data(socket_fd: c_int) -> SgxResult<VecAESData> {
+    let mut encrypted_data_buf = vec![0u8; 2048];
+    let mut str_len = String::with_capacity(512);
+    let mut data_size = 0u32;
+
+    // Perform an ocall.
+    let mut ret_val = SgxStatus::Success;
+    let ret = unsafe {
+        ocall_receive_data(
+            &mut ret_val,
+            socket_fd,
+            encrypted_data_buf.as_mut_ptr(),
+            2048u32,
+            &mut data_size,
+        )
+    };
+
+    if !ret.is_success() {
+        return Err(ret);
+    }
+
+    // Truncate the buffer.
+    encrypted_data_buf.truncate(data_size as usize);
+
+    Ok(VecAESData::from(encrypted_data_buf.as_slice()))
 }
 
 pub fn get_report(ti: &TargetInfo, ecc: &DhEccContext) -> SgxResult<Report> {

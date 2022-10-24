@@ -25,7 +25,7 @@ extern "C" {
         ret_val: *mut SgxStatus,
         epid: *const EpidGroupId,
         epid_len: usize,
-        socket_fd: i32,
+        socket_fd: c_int,
         sigrl: *mut u8,
         len: u32,
         sigrl_len: *mut u32,
@@ -64,6 +64,14 @@ extern "C" {
     ) -> SgxStatus;
 
     pub fn ocall_get_timepoint(ret_val: *mut SgxStatus, time_point: *mut u64) -> SgxStatus;
+
+    pub fn ocall_receive_data(
+        ret_val: *mut SgxStatus,
+        socket_fd: c_int,
+        data_buf: *mut u8,
+        data_buf_len: u32,
+        data_size: *mut u32,
+    ) -> SgxStatus;
 
     pub fn ocall_write_data(
         ret_val: *mut SgxStatus,

@@ -1,4 +1,5 @@
 extern crate aes;
+extern crate aes_gcm;
 extern crate base64;
 extern crate clap;
 extern crate cmac;
@@ -72,8 +73,15 @@ fn main() {
             let mut reader = BufReader::new(socket);
             let mut writer = BufWriter::new(socket_clone);
 
-            exec_full_workflow(&mut reader, &mut writer, &mut key_pair, &spid, linkable, &key)
-                .expect("[-] Failed to execute workflow.");
+            exec_full_workflow(
+                &mut reader,
+                &mut writer,
+                &mut key_pair,
+                &spid,
+                linkable,
+                &key,
+            )
+            .expect("[-] Failed to execute workflow.");
         }
     }
 

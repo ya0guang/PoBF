@@ -13,6 +13,7 @@ use sgx_types::types::*;
 
 use serde::{Deserialize, Serialize};
 
+use crate::OUTPUT_BUFFER_SIZE;
 use crate::SGX_PLATFORM_HEADER_SIZE;
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -43,7 +44,7 @@ pub unsafe extern "C" fn u_log_ocall(
 pub unsafe extern "C" fn ocall_get_sigrl_from_intel(
     epid: *const EpidGroupId,
     epid_len: usize,
-    socket_fd: i32,
+    socket_fd: c_int,
     sigrl: *mut u8,
     len: u32,
     sigrl_len: *mut u32,
@@ -331,9 +332,9 @@ pub unsafe extern "C" fn ocall_read_data(
         })
         .unwrap();
 
-    let mut data_buf = Vec::new();
+    let data_buf = slice::from_raw_parts_mut(data, data_buf_size as usize);
 
-    file.read_to_end(&mut data_buf)
+    file.read(data_buf)
         .map_err(|e| {
             println!("[+] IO Error: {}", e.to_string());
             return SgxStatus::DeviceBusy;
@@ -380,7 +381,7 @@ fn check_status(isv_enclave_quote: &IasQuoteReport) -> SgxStatus {
         let res = unsafe { sgx_report_attestation_status(&platform_blob, 1, &mut update_info) };
         match res {
             SgxStatus::UpdateNeeded => {
-                println!("[+] The TCB version is outdated. Please consider an update, but you can still trust this enclave if you do not think it is a problem.");
+                println!("[?] The TCB version is outdated. Please consider an update, but you can still trust this enclave if you do not think it is a problem.");
                 // Check more details.
                 //
                 // A security upgrade for your computing device is required for this
@@ -413,6 +414,60 @@ fn check_status(isv_enclave_quote: &IasQuoteReport) -> SgxStatus {
 
         return SgxStatus::BadStatus;
     }
+
+    SgxStatus::Success
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn ocall_receive_data(
+    socket_fd: c_int,
+    data_buf: *mut u8,
+    data_buf_len: u32,
+    data_size: *mut u32,
+) -> SgxStatus {
+    // Wrap a new tcp stream from the raw socket fd.
+    let socket = TcpStream::from_raw_fd(socket_fd);
+    let mut reader = BufReader::new(socket);
+    let mut str_len = String::with_capacity(OUTPUT_BUFFER_SIZE);
+
+    // Read length.
+    reader
+        .read_line(&mut str_len)
+        .map_err(|e| {
+            println!("[-] Failed to receive data due to {:?}", e);
+            return SgxStatus::InvalidParameter;
+        })
+        .unwrap();
+
+    if str_len.is_empty() {
+        println!("[-] Failed to receive any data length! Is the socket closed?");
+        return SgxStatus::InvalidParameter;
+    }
+
+    *data_size = str_len[..str_len.len() - 1]
+        .parse()
+        .map_err(|e| {
+            println!("[-] Failed to parse the data size due to {:?}", e);
+            return SgxStatus::InvalidParameter;
+        })
+        .unwrap();
+
+    if data_buf_len < *data_size {
+        return SgxStatus::InvalidParameter;
+    }
+
+    let mut buf = vec![0u8; (*data_size + 1) as usize];
+    reader
+        .read_exact(&mut buf)
+        .map_err(|e| {
+            println!("[-] Failed to receive data due to {:?}", e);
+            return SgxStatus::InvalidParameter;
+        })
+        .unwrap();
+    core::ptr::copy(buf.as_ptr(), data_buf, *data_size as usize);
+
+    // Do not destroy the socket.
+    mem::forget(reader);
 
     SgxStatus::Success
 }

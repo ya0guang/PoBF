@@ -3,6 +3,10 @@ use std::net::TcpStream;
 use std::time;
 
 use aes::Aes128;
+use aes_gcm::{
+    aead::{Aead, KeyInit},
+    Aes128Gcm, Nonce,
+};
 use cmac::{Cmac, Mac};
 use log::{debug, error, info};
 use pem::*;
@@ -86,6 +90,42 @@ impl KeyPair {
 
         Ok(())
     }
+
+    pub fn encrypt_with_smk(&self, input: &Vec<u8>) -> Result<Vec<u8>> {
+        let aesctx = Aes128Gcm::new_from_slice(&self.session_key)
+            .map_err(|e| {
+                error!("[-] Failed to create AES context due to {:?}", e);
+                return Unspecified;
+            })
+            .unwrap();
+        let nonce = Nonce::from_slice(&[0u8; 12]);
+
+        match aesctx.encrypt(&nonce, input.as_slice()) {
+            Ok(ciphertext) => Ok(ciphertext),
+            Err(e) => {
+                error!("[-] Failed to encrypt the data!");
+                Err(Unspecified)
+            }
+        }
+    }
+
+    pub fn decrypt_with_smk(&self, input: &Vec<u8>) -> Result<Vec<u8>> {
+        let aesctx = Aes128Gcm::new_from_slice(&self.session_key)
+            .map_err(|e| {
+                error!("[-] Failed to create AES context due to {:?}", e);
+                return Unspecified;
+            })
+            .unwrap();
+        let nonce = Nonce::from_slice(&[0u8; 12]);
+
+        match aesctx.decrypt(&nonce, input.as_slice()) {
+            Ok(plaintext) => Ok(plaintext),
+            Err(e) => {
+                error!("[-] Failed to decrypt the data!");
+                Err(Unspecified)
+            }
+        }
+    }
 }
 
 /// This function should not be directly called; this is used as a callback.
@@ -103,7 +143,7 @@ fn key_derive_function(shared_key: &[u8], label: &[u8]) -> Result<Vec<u8>> {
 
     // Use an empty key to get the hashed derive key from the shared session key.
     let key = [0u8; ECC_SESSION_KEY_LEN];
-    let mut mac = Cmac::<Aes128>::new_from_slice(&key).unwrap();
+    let mut mac = <Cmac<Aes128> as Mac>::new_from_slice(&key).unwrap();
     mac.update(shared_key_rev.as_slice());
     // Used for a second Cmac.
     let derive_key = mac.finalize().into_bytes();
@@ -114,7 +154,7 @@ fn key_derive_function(shared_key: &[u8], label: &[u8]) -> Result<Vec<u8>> {
     derivation[1..derivation_len - 3].copy_from_slice(label);
     derivation[derivation_len - 3..].copy_from_slice(KDF_CMAC_MAGIC);
 
-    mac = Cmac::<Aes128>::new_from_slice(&derive_key).unwrap();
+    mac = <Cmac<Aes128> as Mac>::new_from_slice(&derive_key).unwrap();
     mac.update(derivation.as_slice());
 
     Ok(mac.finalize().into_bytes().to_vec())

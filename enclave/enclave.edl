@@ -83,21 +83,34 @@ enclave {
           [out, size = data_buf_size] uint8_t* data,
           uint32_t data_buf_size,
           [out] uint32_t* data_size);
+
+        sgx_status_t ocall_receive_data(
+          int32_t socket_fd,
+          [out, size = data_buf_size] uint8_t* data_buf,
+          uint32_t data_buf_size,
+          [out] uint32_t* data_size);
     };
 
     trusted {
         /* define ECALLs here. */
-        public sgx_status_t private_computing_entry(
-            [in, size=sealed_key_size]
-            uint8_t* sealed_key_ptr, uint32_t sealed_key_size, 
-            [in, size=encrypted_input_size] 
-            uint8_t* encrypted_input_ptr, uint32_t encrypted_input_size,
-            [out, size=encrypted_output_buffer_size]
-            uint8_t* encrypted_output_buffer_ptr, uint32_t encrypted_output_buffer_size,
-            [out]
-            uint32_t* encrypted_output_size);
+        public sgx_status_t private_computing_entry(int32_t socket_fd,
+          [in] sgx_spid_t* spid,
+          int linkable,
+          [in, size = public_key_len] uint8_t* public_key,
+          uint32_t public_key_len,
+          [in, size = pubkey_signature_len] uint8_t* pubkey_signature,
+          uint32_t pubkey_signature_len,
+          [in, size=sealed_key_size]
+          uint8_t* sealed_key_ptr, uint32_t sealed_key_size, 
+          [in, size=encrypted_input_size] 
+          uint8_t* encrypted_input_ptr, uint32_t encrypted_input_size,
+          [out, size=encrypted_output_buffer_size]
+          uint8_t* encrypted_output_buffer_ptr, uint32_t encrypted_output_buffer_size,
+          [out]
+          uint32_t* encrypted_output_size);
 
         // Perform the remote attestation components inside the enclave.
+        // Legacy function.
         public sgx_status_t start_remote_attestation(
           int32_t socket_fd,
           [in] sgx_spid_t* spid,
