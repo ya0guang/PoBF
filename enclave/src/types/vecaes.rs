@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 use super::*;
+use crate::dh::DhSession;
 use crate::ocall::*;
 use crate::utils::*;
 use crate::{ocall_log, verified_log};
@@ -71,6 +72,29 @@ impl Zeroize for AES128Key {
 }
 
 impl AES128Key {
+    /// Sometimes, keys are not always from sealed, they can be ephemeral ones that are only valid for specific sessions.
+    /// This function deals with such circumstances.
+    pub fn from_ecdh_key(key: &DhSession) -> SgxResult<Self> {
+        // Need to check the session's validity.
+        if !key.is_valid() {
+            return Err(SgxStatus::InvalidParameter);
+        }
+
+        let mut ret = Self::default();
+        ret.inner = key
+            .session_context()
+            .smk()
+            .as_ref()
+            .clone()
+            .try_into()
+            .map_err(|_| {
+                return SgxStatus::InvalidParameter;
+            })
+            .unwrap();
+
+        Ok(ret)
+    }
+    
     pub fn from_sealed_buffer(sealed_buffer: &[u8]) -> SgxResult<Self> {
         assert!(sealed_buffer.len() <= BUFFER_SIZE);
         let buffer = sealed_buffer.to_vec();

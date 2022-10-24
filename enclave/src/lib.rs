@@ -95,139 +95,16 @@ pub extern "C" fn start_remote_attestation(
     pubkey_signature: *const u8,
     pubkey_signature_len: u32,
 ) -> SgxStatus {
-    ocall_log!("[+] Start to perform remote attestation!");
-
-    // Set peer.
-    let pubkey: &[u8; 64] =
-        unsafe { alloc::slice::from_raw_parts(public_key, public_key_len as usize) }
+    // Convert FFI-types to Rust-types.
+    let r_spid = unsafe { &*spid };
+    let r_public_key: &[u8; 64] =
+        unsafe { core::slice::from_raw_parts(public_key, public_key_len as usize) }
             .try_into()
             .unwrap();
-    let pubkey_sign: &[u8] =
-        unsafe { alloc::slice::from_raw_parts(pubkey_signature, pubkey_signature_len as usize) };
+    let r_signature =
+        unsafe { core::slice::from_raw_parts(pubkey_signature, pubkey_signature_len as usize) };
 
-    let res = Peer::new(pubkey, pubkey_sign);
-    if let Err(e) = res {
-        ocall_log!("[-] Public key signature is invalid.");
-        return e;
-    }
-
-    ocall_log!("[+] Peer authentication passed.");
-
-    let mut peer = res.unwrap();
-    peer.role = DhSessionRole::Initiator;
-
-    // Step 0: Get the public key generated from the enclave.
-    let res = dh::open_dh_session();
-    if let Err(e) = res {
-        return e;
-    }
-    ocall_log!("[+] enclave key pair OK!");
-
-    let mut session = res.unwrap();
-
-    // Compute the shared_key.
-    let res = session.compute_shared_key(&peer);
-    if let Err(e) = res {
-        ocall_log!("{:?}", e);
-        return e;
-    }
-
-    ocall_log!("[+] DH key sampled! {:?}", session);
-
-    // Step 1: Ocall to get the target information and the EPID.
-    let res = init_quote();
-    if let Err(e) = res {
-        return e;
-    }
-
-    let ti = res.unwrap().0;
-    let eg = res.unwrap().1;
-
-    // Step 2: Forward this information to the application which later forwards to service provider who later verifies the information with the help of the IAS.
-    ocall_log!("[+] Start to get SigRL from Intel!");
-    let res = get_sigrl_from_intel(&eg, socket_fd, session.session_context().pub_k());
-    if let Err(e) = res {
-        return e;
-    }
-
-    let sigrl_buf = res.unwrap();
-
-    // Step 3: Generate the report.
-    ocall_log!("[+] Start to perform report generation!");
-    // Extract the ecc handle.
-    let res = get_report(&ti, &session.session_context());
-    if let Err(e) = res {
-        return e;
-    }
-
-    let report = res.unwrap();
-
-    // Step 4: Convert the report into a quote type.
-    ocall_log!("[+] Start to perform quote generation!");
-    let res = unsafe { get_quote(&sigrl_buf, &report, &*spid, linkable) };
-
-    if let Err(e) = res {
-        return e;
-    }
-
-    let qw = res.unwrap();
-    let qe_report = &qw.qe_report;
-
-    // Step 5: Verify this quote.
-    let res = verify_report(qe_report);
-    if let Err(e) = res {
-        return e;
-    }
-
-    // Step 6: Check if the qe_report is produced on the same platform.
-    if !same_platform(qe_report, &ti) {
-        ocall_log!("[-] This quote report does belong to this platform.");
-        return SgxStatus::UnrecognizedPlatform;
-    }
-
-    ocall_log!("[+] This quote is genuine for this platform.");
-
-    // Step 7: Check if this quote is replayed.
-    if !check_quote_integrity(&qw) {
-        ocall_log!("[-] This quote is tampered by malicious party. Abort.");
-        return SgxStatus::BadStatus;
-    }
-
-    ocall_log!("[+] The integrity of this quote is ok.");
-
-    // Step 8: This quote is valid. Forward this quote to IAS.
-    ocall_log!("[+] Start to get quote report from Intel!");
-    let res = get_quote_report_from_intel(&qw, socket_fd);
-    if let Err(e) = res {
-        return e;
-    }
-
-    ocall_log!("[+] Successfully get quote report.");
-
-    // Step 9: Verify this quote report: is this genuinely issues by Intel?
-    ocall_log!("[+] Start to verify quote report!");
-    let quote_triple = res.unwrap();
-    let quote_report = quote_triple.0;
-    let sig = quote_triple.1;
-    let cert = quote_triple.2;
-
-    if !verify_quote_report(&quote_report, &sig, &cert) {
-        ocall_log!("[-] This quote report is tampered by malicious party. Abort.");
-        return SgxStatus::BadStatus;
-    }
-
-    ocall_log!("[+] Signature is valid!");
-
-    // Step 10: Seal the report on the computer.
-    ocall_log!("[+] Sealing the report!");
-    let res = seal_attestation_report(&quote_report);
-
-    if let Err(e) = res {
-        ocall_log!("[-] Cannot seal the report.");
-        return e;
-    }
-
-    ocall_log!("[+] Remote attestation completed! Enjoy :)");
+    let _ = remote_attestation_callback(socket_fd, r_spid, linkable, r_public_key, r_signature);
 
     SgxStatus::Success
 }

@@ -1,6 +1,7 @@
-use crate::dh;
+use crate::dh::*;
 use crate::ocall::*;
 use crate::ocall_log;
+use crate::types::AES128Key;
 use crate::utils::process_raw_cert;
 use alloc::{str, vec, vec::*};
 use sgx_crypto::ecc::EcPublicKey;
@@ -43,6 +44,133 @@ pub struct QuoteWrapper {
     pub quote_nonce: QuoteNonce,
     pub quote_len: u32,
     pub quote: Vec<u8>,
+}
+
+/// This is a callback for performing the remote attestation as well as the key exchange with the data provider
+/// a.k.a., service provider. The function will return a wrapped ECDH key that implements Zeroize + Default trait.
+/// Note that the AES128Key has the corresponding implementations.
+#[must_use]
+pub fn remote_attestation_callback(
+    socket_fd: c_int,
+    spid: &Spid,
+    linkable: i64,
+    peer_pub_key: &[u8; 64],
+    signature: &[u8],
+) -> AES128Key {
+    ocall_log!("[+] Start to generate ECDH session key and perform remote attestation!");
+
+    // We need to get the ECDH key.
+    // Panic on error.
+    let dh_session = perform_ecdh(peer_pub_key, signature).unwrap();
+    assert_eq!(
+        dh_session.session_status(),
+        DhStatus::InProgress,
+        "[-] Mismatched session status. Check if the code is correct?",
+    );
+
+    // Convert AlignKey128bit to AES128Key.
+    let session_key = AES128Key::from_ecdh_key(&dh_session).unwrap();
+
+    // Perform remote attestation.
+    let res = perform_remote_attestation(socket_fd, spid, linkable, &dh_session);
+    if !res.is_success() {
+        panic!("[-] Remote attestation failed due to {:?}.", res);
+    }
+
+    session_key
+}
+
+pub fn perform_remote_attestation(
+    socket_fd: c_int,
+    spid: &Spid,
+    linkable: i64,
+    session: &DhSession,
+) -> SgxStatus {
+    // Step 1: Ocall to get the target information and the EPID.
+    let res = init_quote();
+    if let Err(e) = res {
+        return e;
+    }
+
+    let ti = res.unwrap().0;
+    let eg = res.unwrap().1;
+
+    // Step 2: Forward this information to the application which later forwards to service provider who later verifies the information with the help of the IAS.
+    ocall_log!("[+] Start to get SigRL from Intel!");
+    let res = get_sigrl_from_intel(&eg, socket_fd, session.session_context().pub_k());
+    if let Err(e) = res {
+        return e;
+    }
+
+    let sigrl_buf = res.unwrap();
+
+    // Step 3: Generate the report.
+    ocall_log!("[+] Start to perform report generation!");
+    // Extract the ecc handle.
+    let res = get_report(&ti, session.session_context());
+    if let Err(e) = res {
+        return e;
+    }
+
+    let report = res.unwrap();
+
+    // Step 4: Convert the report into a quote type.
+    ocall_log!("[+] Start to perform quote generation!");
+    let res = unsafe { get_quote(&sigrl_buf, &report, &*spid, linkable) };
+
+    if let Err(e) = res {
+        return e;
+    }
+
+    let qw = res.unwrap();
+    let qe_report = &qw.qe_report;
+
+    // Step 5: Verify this quote.
+    let res = verify_report(qe_report);
+    if let Err(e) = res {
+        return e;
+    }
+
+    // Step 6: Check if the qe_report is produced on the same platform.
+    if !same_platform(qe_report, &ti) {
+        ocall_log!("[-] This quote report does belong to this platform.");
+        return SgxStatus::UnrecognizedPlatform;
+    }
+
+    ocall_log!("[+] This quote is genuine for this platform.");
+
+    // Step 7: Check if this quote is replayed.
+    if !check_quote_integrity(&qw) {
+        ocall_log!("[-] This quote is tampered by malicious party. Abort.");
+        return SgxStatus::BadStatus;
+    }
+
+    ocall_log!("[+] The integrity of this quote is ok.");
+
+    // Step 8: This quote is valid. Forward this quote to IAS.
+    ocall_log!("[+] Start to get quote report from Intel!");
+    let res = get_quote_report_from_intel(&qw, socket_fd);
+    if let Err(e) = res {
+        return e;
+    }
+
+    ocall_log!("[+] Successfully get quote report.");
+
+    // Step 9: Verify this quote report: is this genuinely issues by Intel?
+    ocall_log!("[+] Start to verify quote report!");
+    let quote_triple = res.unwrap();
+    let quote_report = quote_triple.0;
+    let sig = quote_triple.1;
+    let cert = quote_triple.2;
+
+    if !verify_quote_report(&quote_report, &sig, &cert) {
+        ocall_log!("[-] This quote report is tampered by malicious party. Abort.");
+        return SgxStatus::BadStatus;
+    }
+
+    ocall_log!("[+] Signature is valid!");
+
+    SgxStatus::Success
 }
 
 pub fn init_quote() -> SgxResult<(TargetInfo, EpidGroupId)> {
@@ -93,7 +221,7 @@ pub fn get_sigrl_from_intel(
     }
 }
 
-pub fn get_report(ti: &TargetInfo, ecc: &dh::DhEccContext) -> SgxResult<Report> {
+pub fn get_report(ti: &TargetInfo, ecc: &DhEccContext) -> SgxResult<Report> {
     let prv_k = &ecc.prv_k();
     let pub_k = &ecc.pub_k();
 

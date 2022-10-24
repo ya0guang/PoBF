@@ -8,10 +8,11 @@ use sgx_types::{
 };
 
 use crate::ra_utils::unix_time;
+use crate::{log, ocall_log};
 
-/// Time for expiration. We currently set it to 600 seconds (5 min).
+/// Time for expiration. We currently set it to 600 seconds (10 min).
 /// If the key is expired, the both sides are notified and then re-negotiate a new one.
-pub const DH_KEY_EXPIRATION: i64 = 600;
+pub const DH_KEY_EXPIRATION: u64 = 600;
 
 /// A magic string that identifies the key.
 pub const KDF_MAGIC_STR: &'static str = "PoBF/enclave&session-key";
@@ -229,6 +230,52 @@ impl DhSession {
         self.session_context.timestamp = unix_time()?;
 
         Ok(())
+    }
+    
+    /// Returns true if the key is still within its lifetime.
+    pub fn is_valid(&self) -> bool { 
+      let cur_time = unix_time().unwrap();
+      let key_time = self.session_context.timestamp;
+      let elapsed_time = cur_time - key_time;
+      
+      elapsed_time <= DH_KEY_EXPIRATION
+    }
+}
+
+/// Returns a valid DH session if peer authenticates.
+/// The function will first check the validity of the public key signature using ECDSA.
+/// If the signature is valid, then it will open an ECC context and generates an ephemeral
+/// key pair, completing the generation of session key.
+pub fn perform_ecdh(peer_pub_key: &[u8; 64], signature: &[u8]) -> SgxResult<DhSession> {
+    // Construct peer from its public key and signature.
+    let mut peer = match Peer::new(peer_pub_key, signature) {
+        Ok(peer) => peer,
+        Err(e) => {
+            ocall_log!("[-] Public key signature is invalid due to {:?}.", e);
+
+            return Err(e);
+        }
+    };
+    peer.role = DhSessionRole::Initiator;
+
+    ocall_log!("[+] Peer authentication passed.");
+
+    // Open the DH session on the enclave side.
+    let mut session = match open_dh_session() {
+        Ok(session) => session,
+        Err(e) => {
+            ocall_log!("[-] Failed to open the ECDH session due to {:?}.", e);
+
+            return Err(e);
+        }
+    };
+
+    // Generate the session key.
+    if let Err(e) = session.compute_shared_key(&peer) {
+        ocall_log!("[-] Fialed to generate the session key due to {:?}.", e);
+        Err(e)
+    } else {
+        Ok(session)
     }
 }
 
