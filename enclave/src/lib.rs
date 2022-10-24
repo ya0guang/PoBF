@@ -112,6 +112,7 @@ pub extern "C" fn private_computing_entry(
 }
 
 /// Legacy function.
+#[allow(unused)]
 #[no_mangle]
 pub extern "C" fn start_remote_attestation(
     socket_fd: c_int,

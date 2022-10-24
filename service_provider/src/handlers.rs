@@ -234,7 +234,7 @@ pub fn exec_full_workflow(
 
     // Send initial encrypted data. Trivial data 1,2,3 are just for test.
     info!("[+] Sending encrypted vector data.");
-    send_vecaes_data(writer, &vec![1, 2, 3])?;
+    send_vecaes_data(writer, &vec![0u8; 16], &key_pair)?;
     info!("[+] Succeeded.");
 
     Ok(())
@@ -316,12 +316,31 @@ pub fn handle_quote(
     writer.write(BREAKLINE).unwrap();
     writer.write(&quote_report).unwrap();
     writer.write(BREAKLINE).unwrap();
+    writer.flush().unwrap();
 
     Ok(())
 }
 
-pub fn send_vecaes_data(writer: &mut BufWriter<TcpStream>, data: &Vec<u8>) -> Result<()> {
+pub fn send_vecaes_data(
+    writer: &mut BufWriter<TcpStream>,
+    data: &Vec<u8>,
+    key: &KeyPair,
+) -> Result<()> {
     // Encrypt the data first.
+    let encrypted_input = key.encrypt_with_smk(data).map_err(|_| {
+        error!("[-] Cannot encrypt the input.");
+        Error::from(ErrorKind::InvalidData)
+    })?;
+
+    info!("[+] The encrypted data is {:?}.", encrypted_input.len());
+
+    writer
+        .write(encrypted_input.len().to_string().as_bytes())
+        .unwrap();
+    writer.write(BREAKLINE).unwrap();
+    writer.write(&encrypted_input).unwrap();
+    writer.write(BREAKLINE).unwrap();
+    writer.flush().unwrap();
 
     Ok(())
 }
