@@ -32,7 +32,7 @@ leak_file = []
 [dependencies]
 base64 = { version = "0.13.0", default-features = false, features = [ "alloc" ] }
 clear_on_drop = { git = "https://github.com/hiroki-chen/clear_on_drop.git", branch = "master" }
-mirai-annotations = { path = "../MIRAI/annotations" }
+mirai-annotations = { path = "../../MIRAI/annotations" }
 # rustls           = { git = "https://github.com/mesalock-linux/rustls", branch = "mesalock_sgx-client-cert-verifier-patch" }
 percent-encoding = { git = "https://github.com/mesalock-linux/rust-url-sgx" }
 sgx_alloc = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk.git", branch = "v2.0.0-preview", package = "sgx_alloc" }
