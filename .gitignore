@@ -1,9 +1,10 @@
 # compiled files
+target
 /target
 */target
 /md_output
-/bin
-/lib
+platform_sgx/bin
+platform_sgx/lib
 
 # intermediate results
 enclave_u.*

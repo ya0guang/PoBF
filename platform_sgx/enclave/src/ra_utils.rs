@@ -1,9 +1,8 @@
 use crate::dh::*;
 use crate::ocall::*;
 use crate::ocall_log;
-use crate::types::AES128Key;
-use crate::types::VecAESData;
 use crate::utils::process_raw_cert;
+use crate::vecaes::VecAESData;
 use alloc::{str, string::*, vec, vec::*};
 use sgx_crypto::ecc::EcPublicKey;
 use sgx_crypto::sha::Sha256;

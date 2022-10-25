@@ -1,14 +1,18 @@
 #![forbid(unsafe_code)]
 
-use super::*;
 use crate::dh::DhSession;
 use crate::ocall::*;
 use crate::utils::*;
 use crate::{ocall_log, verified_log};
 use alloc::vec;
 use alloc::vec::Vec;
+use pobf_state::*;
 use sgx_crypto::aes::gcm::*;
 use sgx_types::error::*;
+use zeroize::Zeroize;
+
+pub const BUFFER_SIZE: usize = 1024;
+pub const SEALED_DATA_SIZE: usize = 16;
 
 pub struct VecAESData {
     inner: Vec<u8>,
@@ -94,7 +98,7 @@ impl AES128Key {
 
         Ok(ret)
     }
-    
+
     // Deprecate.
     pub fn from_sealed_buffer(sealed_buffer: &[u8]) -> SgxResult<Self> {
         assert!(sealed_buffer.len() <= BUFFER_SIZE);

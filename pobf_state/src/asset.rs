@@ -1,15 +1,12 @@
 #![forbid(unsafe_code)]
 
-// pub mod state;
-pub mod vecaes;
-pub mod task;
-
-// pub use state::*;
-pub use vecaes::*;
-
+use crate::EncDec;
 use core::marker::PhantomData;
-use sgx_types::error::SgxResult;
+#[cfg(feature = "sgx")]
+use sgx_types::error::SgxResult as Result;
 use zeroize::Zeroize;
+#[cfg(not(feature = "sgx"))]
+type Result<T> = core::result::Result<T, ()>;
 
 pub const BUFFER_SIZE: usize = 1024;
 pub const SEALED_DATA_SIZE: usize = 16;
@@ -101,28 +98,6 @@ where
     type KeyState = Invalid;
 }
 
-#[allow(private_in_public)]
-trait Decryption<K>
-where
-    Self: Sized + Zeroize,
-{
-    fn decrypt(self, key: &K) -> SgxResult<Self>;
-}
-
-#[allow(private_in_public)]
-trait Encryption<K>
-where
-    Self: Sized + Zeroize,
-{
-    fn encrypt(self, key: &K) -> SgxResult<Self>;
-}
-
-pub trait EncDec<K>
-where
-    Self: Sized + Decryption<K> + Encryption<K>,
-{
-}
-
 pub struct Data<S, T, D, K>
 where
     S: EncryptionState,
@@ -157,7 +132,7 @@ where
     D: EncDec<K>,
     K: Default + Zeroize,
 {
-    pub fn decrypt(self, key: &Key<K, Sealed>) -> SgxResult<Data<Decrypted, Input, D, K>> {
+    pub fn decrypt(self, key: &Key<K, Sealed>) -> Result<Data<Decrypted, Input, D, K>> {
         // Moved. No need to zeroize it.
         let raw = self.raw.decrypt(key.raw_ref())?;
 
@@ -174,7 +149,7 @@ impl<D, K> Data<Decrypted, Input, D, K>
 where
     D: EncDec<K>,
 {
-    pub fn invoke(self, fun: &dyn Fn(D) -> D) -> SgxResult<Data<Decrypted, Output, D, K>> {
+    pub fn invoke(self, fun: &dyn Fn(D) -> D) -> Result<Data<Decrypted, Output, D, K>> {
         let raw = fun(self.raw);
         Ok(Data {
             raw,
@@ -190,7 +165,7 @@ where
     D: EncDec<K>,
     K: Default + Zeroize,
 {
-    pub fn encrypt(self, key: &Key<K, Sealed>) -> SgxResult<Data<Encrypted, Output, D, K>> {
+    pub fn encrypt(self, key: &Key<K, Sealed>) -> Result<Data<Encrypted, Output, D, K>> {
         // TODO: zeroize previous raw data.
         let raw = self.raw.encrypt(key.raw_ref())?;
         Ok(Data {
@@ -261,7 +236,7 @@ where
     D: EncDec<K>,
     K: Default + Zeroize,
 {
-    pub fn decrypt(mut self) -> SgxResult<ProtectedAssets<Decrypted, Input, D, K>> {
+    pub fn decrypt(mut self) -> Result<ProtectedAssets<Decrypted, Input, D, K>> {
         let data = self.data.decrypt(&self.input_key)?;
         Ok(ProtectedAssets {
             data,
@@ -283,10 +258,7 @@ impl<D, K> ProtectedAssets<Decrypted, Input, D, K>
 where
     D: EncDec<K>,
 {
-    pub fn invoke(
-        self,
-        fun: &dyn Fn(D) -> D,
-    ) -> SgxResult<ProtectedAssets<Decrypted, Output, D, K>> {
+    pub fn invoke(self, fun: &dyn Fn(D) -> D) -> Result<ProtectedAssets<Decrypted, Output, D, K>> {
         let data = self.data.invoke(fun)?;
 
         Ok(ProtectedAssets {
@@ -302,7 +274,7 @@ where
     D: EncDec<K>,
     K: Default + Zeroize,
 {
-    pub fn encrypt(mut self) -> SgxResult<ProtectedAssets<Encrypted, Output, D, K>> {
+    pub fn encrypt(mut self) -> Result<ProtectedAssets<Encrypted, Output, D, K>> {
         let data = self.data.encrypt(&self.output_key)?;
 
         Ok(ProtectedAssets {

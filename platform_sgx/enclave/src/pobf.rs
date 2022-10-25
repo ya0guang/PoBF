@@ -3,12 +3,14 @@
 use crate::dh::*;
 use crate::ocall::*;
 use crate::ra_utils::*;
-use crate::types::*;
 use crate::userfunc::vec_inc;
+use crate::vecaes::{AES128Key, VecAESData};
 use crate::{ocall_log, verified_log};
 use alloc::string::String;
 use alloc::vec::Vec;
 use clear_on_drop::clear_stack_and_regs_on_return;
+use pobf_state::asset::*;
+use pobf_state::EncDec;
 use sgx_types::error::SgxResult;
 use sgx_types::types::{c_int, Spid};
 use zeroize::Zeroize;
@@ -140,7 +142,7 @@ pub fn pobf_remote_attestation(
 #[must_use]
 pub fn pobf_receive_data(socket_fd: c_int) -> VecAESData {
     verified_log!("[+] Receiving secret data from data provider...");
-    
+
     match receive_data(socket_fd) {
         Ok(data) => data,
         Err(e) => {
