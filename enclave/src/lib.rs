@@ -61,7 +61,7 @@ pub extern "C" fn private_computing_entry(
 
     // Construct Rust data structures from FFI-types.
     let spid = unsafe { &*spid_ptr };
-    let public_key: &[u8; 64] =
+    let public_key: &[u8; ECP_COORDINATE_SIZE] =
         unsafe { slice::from_raw_parts(public_key_ptr, public_key_len as usize) }
             .try_into()
             .unwrap();
@@ -125,7 +125,7 @@ pub extern "C" fn start_remote_attestation(
 ) -> SgxStatus {
     // Convert FFI-types to Rust-types.
     let r_spid = unsafe { &*spid };
-    let r_public_key: &[u8; 64] =
+    let r_public_key: &[u8; ECP_COORDINATE_SIZE] =
         unsafe { core::slice::from_raw_parts(public_key, public_key_len as usize) }
             .try_into()
             .unwrap();

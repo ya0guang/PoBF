@@ -14,6 +14,9 @@ use crate::{log, ocall_log};
 /// If the key is expired, the both sides are notified and then re-negotiate a new one.
 pub const DH_KEY_EXPIRATION: u64 = 600;
 
+/// Size for the ECC public key coordinate.
+pub const ECP_COORDINATE_SIZE: usize = 64;
+
 /// A magic string that identifies the key.
 pub const KDF_MAGIC_STR: &'static str = "PoBF/enclave&session-key";
 
@@ -104,7 +107,7 @@ pub struct Peer<'a> {
 
 impl<'a> Peer<'a> {
     /// Returns a new `Peer` object if the authenticity is verified; otherwise, an error will be returned.
-    pub fn new(peer_pub_key: &[u8; 64], signature: &'a [u8]) -> SgxResult<Self> {
+    pub fn new(peer_pub_key: &[u8; ECP_COORDINATE_SIZE], signature: &'a [u8]) -> SgxResult<Self> {
         // Convert from a raw byte array into Ecc256PubKey.
         let pub_k_gx = peer_pub_key[..ECP256_KEY_SIZE].to_vec();
         let pub_k_gy = peer_pub_key[ECP256_KEY_SIZE..].to_vec();
@@ -231,14 +234,14 @@ impl DhSession {
 
         Ok(())
     }
-    
+
     /// Returns true if the key is still within its lifetime.
-    pub fn is_valid(&self) -> bool { 
-      let cur_time = unix_time().unwrap();
-      let key_time = self.session_context.timestamp;
-      let elapsed_time = cur_time - key_time;
-      
-      elapsed_time <= DH_KEY_EXPIRATION
+    pub fn is_valid(&self) -> bool {
+        let cur_time = unix_time().unwrap();
+        let key_time = self.session_context.timestamp;
+        let elapsed_time = cur_time - key_time;
+
+        elapsed_time <= DH_KEY_EXPIRATION
     }
 }
 
@@ -246,7 +249,10 @@ impl DhSession {
 /// The function will first check the validity of the public key signature using ECDSA.
 /// If the signature is valid, then it will open an ECC context and generates an ephemeral
 /// key pair, completing the generation of session key.
-pub fn perform_ecdh(peer_pub_key: &[u8; 64], signature: &[u8]) -> SgxResult<DhSession> {
+pub fn perform_ecdh(
+    peer_pub_key: &[u8; ECP_COORDINATE_SIZE],
+    signature: &[u8],
+) -> SgxResult<DhSession> {
     // Construct peer from its public key and signature.
     let mut peer = match Peer::new(peer_pub_key, signature) {
         Ok(peer) => peer,

@@ -24,6 +24,11 @@ pub const IAS_CA_CERT: &'static [u8] = include_bytes!("../Intel_SGX_Attestation_
 pub const REPORT_PATH: &'static str = "../report.bin";
 pub const REPORT_AAD: &'static str = "PoBF/enclave&INTEL-RA-V4";
 
+// Buffer size control.
+pub const SMALL_BUF_SIZE: usize = 128;
+pub const MEDIUM_BUF_SIZE: usize = 1024;
+pub const LARGE_BUF_SIZE: usize = 4096;
+
 // For webpki trust anchor.
 type SignatureAlgorithms = &'static [&'static webpki::SignatureAlgorithm];
 static SUPPORTED_SIG_ALGS: SignatureAlgorithms = &[
@@ -226,8 +231,8 @@ pub fn get_report(ti: &TargetInfo, ecc: &DhEccContext) -> SgxResult<Report> {
     pub_k_gx.reverse();
     let mut pub_k_gy = pub_k.public_key().gy.clone();
     pub_k_gy.reverse();
-    report_data.d[..32].clone_from_slice(&pub_k_gx);
-    report_data.d[32..].clone_from_slice(&pub_k_gy);
+    report_data.d[..ECP256_KEY_SIZE].clone_from_slice(&pub_k_gx);
+    report_data.d[ECP256_KEY_SIZE..].clone_from_slice(&pub_k_gy);
 
     // Get the report.
     match Report::for_target(ti, &report_data) {
@@ -255,15 +260,16 @@ pub fn get_quote(
         _ => QuoteSignType::Linkable,
     };
 
-    let mut quote_nonce = QuoteNonce { rand: [0u8; 16] };
+    let mut quote_nonce = QuoteNonce {
+        rand: [0u8; AESCBC_IV_SIZE],
+    };
     let mut os_rng = sgx_trts::rand::Rng::new();
     os_rng.fill_bytes(&mut quote_nonce.rand);
     ocall_log!("[+] Quote nonce generated.");
 
     // Prepare quote.
     let mut qe_report = Report::default();
-    const RET_QUOTE_BUF_LEN: u32 = 2048;
-    let mut return_quote_buf: [u8; RET_QUOTE_BUF_LEN as usize] = [0; RET_QUOTE_BUF_LEN as usize];
+    let mut return_quote_buf = [0; LARGE_BUF_SIZE];
     let mut quote_len: u32 = 0;
     let mut ret = SgxStatus::Success;
 
@@ -289,7 +295,7 @@ pub fn get_quote(
             &quote_nonce,
             &mut qe_report,
             return_quote_buf.as_mut_ptr(),
-            RET_QUOTE_BUF_LEN,
+            LARGE_BUF_SIZE as u32,
             &mut quote_len,
         )
     };
@@ -420,7 +426,7 @@ pub fn check_quote_integrity(qw: &QuoteWrapper) -> bool {
     let mut shactx = Sha256::new().unwrap();
     shactx.update(&rhs_vec[..]).unwrap();
     let rhs_hash = shactx.finalize().unwrap();
-    let lhs_hash = &qw.qe_report.body.report_data.d[..32];
+    let lhs_hash = &qw.qe_report.body.report_data.d[..MAC_256BIT_SIZE];
 
     ocall_log!("[+] Checking hash of this quote!");
     ocall_log!("[+] The expected hash should be {:02x?}", rhs_hash.hash);
@@ -436,9 +442,9 @@ pub fn get_quote_report_from_intel(
     let mut retval = SgxStatus::Success;
 
     // Prepare three buffers.
-    let mut quote_report = vec![0u8; 2048];
-    let mut sig = vec![0u8; 2048];
-    let mut cert = vec![0u8; 4096];
+    let mut quote_report = vec![0u8; LARGE_BUF_SIZE];
+    let mut sig = vec![0u8; LARGE_BUF_SIZE];
+    let mut cert = vec![0u8; LARGE_BUF_SIZE];
     let mut quote_report_len = 0u32;
     let mut sig_len = 0u32;
     let mut cert_len = 0u32;
@@ -450,13 +456,13 @@ pub fn get_quote_report_from_intel(
             qw.quote.as_ptr(),
             qw.quote_len,
             quote_report.as_mut_ptr(),
-            2048u32,
+            LARGE_BUF_SIZE as u32,
             &mut quote_report_len,
             sig.as_mut_ptr(),
-            2048u32,
+            LARGE_BUF_SIZE as u32,
             &mut sig_len,
             cert.as_mut_ptr(),
-            4096u32,
+            LARGE_BUF_SIZE as u32,
             &mut cert_len,
         )
     };
@@ -500,7 +506,7 @@ pub fn seal_attestation_report(attestation_report: &Vec<u8>) -> SgxResult<()> {
 }
 
 pub fn unseal_attestation_report() -> SgxResult<Vec<u8>> {
-    let mut unsealed_data_bytes = vec![0u8; 4096];
+    let mut unsealed_data_bytes = vec![0u8; LARGE_BUF_SIZE];
     let mut ret_val = SgxStatus::Success;
     let mut data_size = 0u32;
 
@@ -510,7 +516,7 @@ pub fn unseal_attestation_report() -> SgxResult<Vec<u8>> {
             REPORT_PATH.as_ptr(),
             REPORT_PATH.len() as u32,
             unsealed_data_bytes.as_mut_ptr(),
-            4096u32,
+            LARGE_BUF_SIZE as u32,
             &mut data_size,
         )
     };

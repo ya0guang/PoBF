@@ -110,7 +110,7 @@ pub fn pobf_remote_attestation(
     socket_fd: c_int,
     spid: &Spid,
     linkable: i64,
-    peer_pub_key: &[u8; 64],
+    peer_pub_key: &[u8; ECP_COORDINATE_SIZE],
     signature: &[u8],
 ) -> AES128Key {
     ocall_log!("[+] Start to generate ECDH session key and perform remote attestation!");
