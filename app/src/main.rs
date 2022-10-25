@@ -1,6 +1,7 @@
 extern crate base16;
 extern crate base64;
 extern crate clap;
+extern crate env_logger;
 extern crate hex;
 extern crate serde;
 extern crate serde_json;
@@ -10,6 +11,7 @@ extern crate sgx_urts;
 mod ocall;
 
 use clap::{Parser, Subcommand};
+use log::{debug, error, info};
 use sgx_types::error::*;
 use sgx_types::types::*;
 use sgx_urts::enclave::SgxEnclave;
@@ -51,7 +53,7 @@ extern "C" {
         encrypted_output_buffer_size: u32,
         encrypted_output_size: *mut u32,
     ) -> SgxStatus;
-    
+
     /// Legacy function.
     #[allow(unused)]
     fn start_remote_attestation(
@@ -88,13 +90,18 @@ enum Commands {
 }
 
 fn main() {
+    if std::env::var("RUST_LOG").is_err() {
+        std::env::set_var("RUST_LOG", "INFO");
+    }
+    env_logger::init();
+
     let enclave = match SgxEnclave::create(ENCLAVE_FILE, false) {
         Ok(r) => {
-            println!("[+] Init Enclave Successful, eid: {}!", r.eid());
+            info!("[+] Init Enclave Successful, eid: {}!", r.eid());
             r
         }
         Err(x) => {
-            println!("[-] Init Enclave Failed, reason: {}!", x.as_str());
+            error!("[-] Init Enclave Failed, reason: {}!", x.as_str());
             return;
         }
     };
@@ -115,14 +122,17 @@ fn main() {
             let listener = match listen(&address, &port) {
                 Ok(res) => res,
                 Err(e) => {
-                    println!("{}", e.to_string());
+                    error!(
+                        "[-] Failed to bind to the given address due to {}.",
+                        e.to_string()
+                    );
                     return;
                 }
             };
 
             match server_run(listener, &enclave, &encrypted_data_vec, &sealed_key_log) {
                 Err(e) => {
-                    println!("Error running the server: {}", e.to_string());
+                    error!("[-] Error running the server due to {}.", e.to_string());
                     return;
                 }
                 _ => (),
@@ -134,13 +144,13 @@ fn main() {
 fn listen(address: &String, port: &u16) -> Result<TcpListener> {
     // Create the full address for the server.
     let full_address = format!("{}:{}", address, port);
-    println!("[+] Listening to {}", full_address);
+    info!("[+] Listening to {}", full_address);
 
     TcpListener::bind(&full_address)
 }
 
 fn read_file(path: &String) -> Result<Vec<u8>> {
-    let mut f = File::open(&path).expect(&format!("File {} not found", path));
+    let mut f = File::open(&path)?;
     let mut buf = Vec::new();
 
     f.read_to_end(&mut buf)?;
@@ -156,7 +166,7 @@ fn server_run(
 ) -> Result<()> {
     match listener.accept() {
         Ok((socket, addr)) => {
-            println!("[+] Got connection from {:?}", addr);
+            info!("[+] Got connection from {:?}", addr);
 
             // Expose the raw socket fd.
             let socket_fd = socket.as_raw_fd();
@@ -186,7 +196,7 @@ fn receive_ra_message(reader: &mut BufReader<TcpStream>) -> Result<RaMessage> {
     reader.read_line(&mut spid_buf)?;
     // Decode it.
     let decoded_spid = hex::decode(&spid_buf[..32]).map_err(|_| {
-        println!("[-] Cannot decode the spid received from socket!");
+        error!("[-] Cannot decode the spid received from socket!");
         return Error::from(ErrorKind::InvalidData);
     })?;
     message.spid.id.copy_from_slice(&decoded_spid[..16]);
@@ -194,7 +204,7 @@ fn receive_ra_message(reader: &mut BufReader<TcpStream>) -> Result<RaMessage> {
     // Read linkable.
     reader.read_line(&mut str_buf)?;
     message.linkable = str_buf[..1].parse().map_err(|_| {
-        println!("[-] Cannot parse `linkable`!");
+        error!("[-] Cannot parse `linkable`!");
         return Error::from(ErrorKind::InvalidData);
     })?;
 
@@ -206,7 +216,7 @@ fn receive_ra_message(reader: &mut BufReader<TcpStream>) -> Result<RaMessage> {
     str_buf.clear();
     reader.read_line(&mut str_buf)?;
     let signature_len = str_buf[..str_buf.len() - 1].parse::<usize>().map_err(|_| {
-        println!("[-] Cannot parse signature length!");
+        error!("[-] Cannot parse signature length!");
         return Error::from(ErrorKind::InvalidData);
     })?;
     message.signature.resize(signature_len + 1, 0u8);
@@ -249,22 +259,22 @@ fn exec_private_computing(
     };
     match retval {
         SgxStatus::Success => {
-            println!(
+            info!(
                 "[+] ECALL Successful, returned size: {}",
                 encrypted_output_size
             );
             encrypted_output.truncate(encrypted_output_size as _);
-            println!(
+            info!(
                 "[+] output encrypted data: {:02X?}",
                 &encrypted_output[..(encrypted_output_size as usize - MAC_SIZE) as _]
             );
-            println!(
+            info!(
                 "[+] output encrypted data mac: {:02X?}",
                 &encrypted_output[(encrypted_output_size as usize - MAC_SIZE) as _..]
             );
         }
         e => {
-            println!("[-] ECALL Enclave Failed, reason: {}!", e.as_str());
+            error!("[-] ECALL Enclave Failed, reason: {}!", e.as_str());
         }
     }
 

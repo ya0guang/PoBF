@@ -31,21 +31,21 @@ leak_file = []
 
 [dependencies]
 base64 = { version = "0.13.0", default-features = false, features = [ "alloc" ] }
-clear_on_drop = { git = "https://github.com/hiroki-chen/clear_on_drop", branch = "master" }
+clear_on_drop = { git = "https://github.com/hiroki-chen/clear_on_drop.git", branch = "master" }
 mirai-annotations = { path = "../MIRAI/annotations" }
 # rustls           = { git = "https://github.com/mesalock-linux/rustls", branch = "mesalock_sgx-client-cert-verifier-patch" }
 percent-encoding = { git = "https://github.com/mesalock-linux/rust-url-sgx" }
-sgx_alloc = { path = "../incubator-teaclave-sgx-sdk/sgx_alloc" }
-sgx_crypto = { path = "../incubator-teaclave-sgx-sdk/sgx_crypto" }
-sgx_libc = { path = "../incubator-teaclave-sgx-sdk/sgx_libc", default-features = false }
-sgx_no_tstd = { path = "../incubator-teaclave-sgx-sdk/sgx_no_tstd", optional = true }
-sgx_rand = { path = "../incubator-teaclave-sgx-sdk/sgx_rand", optional = true }
-sgx_tdh = { path = "../incubator-teaclave-sgx-sdk/sgx_tdh" }
-# sgx_tstd = { path = "../incubator-teaclave-sgx-sdk/sgx_tstd", default-features = false, optional = true }
-sgx_trts = { path = "../incubator-teaclave-sgx-sdk/sgx_trts", optional = true }
-sgx_tse = { path = "../incubator-teaclave-sgx-sdk/sgx_tse" }
-sgx_tseal = { path = "../incubator-teaclave-sgx-sdk/sgx_tseal", optional = true }
-sgx_types = { path = "../incubator-teaclave-sgx-sdk/sgx_types" }
+sgx_alloc = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk.git", branch = "v2.0.0-preview", package = "sgx_alloc" }
+sgx_crypto = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk.git", branch = "v2.0.0-preview", package = "sgx_crypto" }
+sgx_libc = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk.git", branch = "v2.0.0-preview", package = "sgx_libc", default-features = false }
+sgx_no_tstd = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk.git", branch = "v2.0.0-preview", package = "sgx_no_tstd", optional = true }
+sgx_rand = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk.git", branch = "v2.0.0-preview", package = "sgx_rand", optional = true }
+sgx_tdh = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk.git", branch = "v2.0.0-preview", package = "sgx_tdh" }
+# sgx_tstd = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk.git", branch = "v2.0.0-preview", package = "sgx_tstd", default-features = false, optional = true }
+sgx_trts = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk.git", branch = "v2.0.0-preview", package = "sgx_trts", optional = true }
+sgx_tse = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk.git", branch = "v2.0.0-preview", package = "sgx_tse" }
+sgx_tseal = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk.git", branch = "v2.0.0-preview", package = "sgx_tseal", optional = true }
+sgx_types = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk.git", branch = "v2.0.0-preview", package = "sgx_types" }
 webpki = { version = "0.22.0", features = [ "alloc" ] }
 
 # External dependencies: SGX compatible (or) crates.

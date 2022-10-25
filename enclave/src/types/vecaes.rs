@@ -95,6 +95,7 @@ impl AES128Key {
         Ok(ret)
     }
     
+    // Deprecate.
     pub fn from_sealed_buffer(sealed_buffer: &[u8]) -> SgxResult<Self> {
         assert!(sealed_buffer.len() <= BUFFER_SIZE);
         let buffer = sealed_buffer.to_vec();

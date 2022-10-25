@@ -21,8 +21,8 @@ SGX_SDK ?= /opt/intel/sgxsdk
 SGX_MODE ?= HW
 SGX_ARCH ?= x64
 
-TOP_DIR := ./incubator-teaclave-sgx-sdk
-include $(TOP_DIR)/buildenv.mk
+# TOP_DIR := ./incubator-teaclave-sgx-sdk
+include ./buildenv.mk
 
 ifeq ($(shell getconf LONG_BIT), 32)
 	SGX_ARCH := x86
@@ -53,8 +53,8 @@ endif
 CUSTOM_LIBRARY_PATH := ./lib
 CUSTOM_BIN_PATH := ./bin
 CUSTOM_SYSROOT_PATH := ./sysroot
-CUSTOM_EDL_PATH := $(ROOT_DIR)/sgx_edl/edl
-CUSTOM_COMMON_PATH := $(ROOT_DIR)/common
+CUSTOM_EDL_PATH := $(SGX_SDK)/include
+CUSTOM_COMMON_PATH := $(SGX_SDK)
 
 ######## EDL Settings ########
 
@@ -64,7 +64,7 @@ Enclave_EDL_Files := enclave/enclave_t.c enclave/enclave_t.h app/enclave_u.c app
 
 App_Rust_Flags := --release
 App_Src_Files := $(shell find app/ -type f -name '*.rs') $(shell find app/ -type f -name 'Cargo.toml')
-App_Include_Paths := -I ./app -I$(SGX_SDK)/include -I$(CUSTOM_COMMON_PATH)/inc -I$(CUSTOM_EDL_PATH)
+App_Include_Paths := -I ./app -I$(SGX_SDK)/include -I$(CUSTOM_EDL_PATH)
 App_C_Flags := $(CFLAGS) -fPIC -Wno-attributes $(App_Include_Paths)
 
 App_Rust_Path := ./app/target/release
@@ -91,7 +91,7 @@ endif
 
 RustEnclave_Build_Flags := --release
 RustEnclave_Src_Files := $(shell find enclave/ -type f -name '*.rs') $(shell find enclave/ -type f -name 'Cargo.toml')
-RustEnclave_Include_Paths := -I$(CUSTOM_COMMON_PATH)/inc -I$(CUSTOM_COMMON_PATH)/inc/tlibc -I$(CUSTOM_EDL_PATH)
+RustEnclave_Include_Paths := -I$(CUSTOM_COMMON_PATH)/include -I$(CUSTOM_COMMON_PATH)/include/tlibc -I$(CUSTOM_EDL_PATH)
 
 RustEnclave_Link_Libs := -L$(CUSTOM_LIBRARY_PATH) -lenclave
 RustEnclave_Compile_Flags := $(ENCLAVE_CFLAGS) $(RustEnclave_Include_Paths)
@@ -113,7 +113,7 @@ RustEnclave_Name := $(CUSTOM_BIN_PATH)/enclave.so
 RustEnclave_Signed_Name := $(CUSTOM_BIN_PATH)/enclave.signed.so
 
 .PHONY: all
-all: $(Enclave_EDL_Files) $(App_Name) $(RustEnclave_Signed_Name)
+all: $(Enclave_EDL_Files) $(App_Name) $(RustEnclave_Signed_Name) DataProvider
 
 ######## EDL Objects ########
 
@@ -184,10 +184,18 @@ run: $(App_Name) $(RustEnclave_Signed_Name)
 	@echo -e '\n===== Run Enclave =====\n'
 	@cd bin && ./app
 
+####### Data Owner #######
+DataProvider_Rust_Flags := --release
+
+.PHONY: DataProvider
+DataProvider:
+	@cd data_provider && cargo build $(DataProvider_Rust_Flags)
+	@cd data_provider && cp target/release/data_provider ../bin
+
 .PHONY: clean
 clean:
 	@rm -f $(App_Name) $(RustEnclave_Name) $(RustEnclave_Signed_Name) enclave/*_t.* app/*_u.*
 	@cd enclave && cargo clean
 	@cd app && cargo clean
-	@cd $(Rust_Target_Path)/std && cargo clean
+	@cd data_provider && cargo clean
 	@rm -rf $(CUSTOM_BIN_PATH) $(CUSTOM_LIBRARY_PATH) $(CUSTOM_SYSROOT_PATH)
