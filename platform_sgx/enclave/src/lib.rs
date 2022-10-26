@@ -34,7 +34,7 @@ use pobf::*;
 
 use sgx_types::{error::SgxStatus, types::*};
 
-use crate::dh::*;
+use crate::{dh::*, vecaes::VecAESData};
 
 static DEFAULT_PAGE_SIZE_ENTRY: usize = 0x4;
 static DEFAULT_PAGE_SIZE_LEAF: usize = 0x1;
@@ -48,10 +48,6 @@ pub extern "C" fn private_computing_entry(
     public_key_len: u32,
     signature_ptr: *const u8,
     signature_len: u32,
-    sealed_key_ptr: *mut u8,
-    sealed_key_size: u32,
-    encrypted_input_ptr: *mut u8,
-    encrypted_input_size: u32,
     encrypted_output_buffer_ptr: *mut u8,
     encrypted_output_buffer_size: u32,
     encrypted_output_size: *mut u32,
@@ -65,52 +61,51 @@ pub extern "C" fn private_computing_entry(
             .try_into()
             .unwrap();
     let signature = unsafe { slice::from_raw_parts(signature_ptr, signature_len as usize) };
-    let sealed_key = unsafe { slice::from_raw_parts_mut(sealed_key_ptr, sealed_key_size as usize) };
-    let encrypted_input =
-        unsafe { slice::from_raw_parts_mut(encrypted_input_ptr, encrypted_input_size as usize) };
 
+    let result = pobf_workflow(socket_fd, spid, linkable, public_key, signature);
+    
     // Remote attestation callback.
     let remote_attestation_callback =
         || pobf_remote_attestation(socket_fd, spid, linkable, public_key, signature);
     let receive_data_callback = || pobf_receive_data(socket_fd);
     // PoBF main entry callback.
-    let pobf_private_computing_callback = || {
-        pobf_private_computing(
-            encrypted_input,
-            sealed_key,
-            &remote_attestation_callback,
-            &receive_data_callback,
-        )
-    };
-    let res =
-        clear_stack_and_regs_on_return(DEFAULT_PAGE_SIZE_ENTRY, pobf_private_computing_callback);
+    // let pobf_private_computing_callback = || {
+    //     pobf_private_computing(
+    //         encrypted_input,
+    //         sealed_key,
+    //         &remote_attestation_callback,
+    //         &receive_data_callback,
+    //     )
+    // };
+    // let res =
+    //     clear_stack_and_regs_on_return(DEFAULT_PAGE_SIZE_ENTRY, pobf_private_computing_callback);
 
-    let encrypted_output = match res {
-        Ok(x) => x,
-        Err(e) => {
-            println!("Error occurs when invoking pobf_sample_task_aaes");
-            return e;
-        }
-    };
+    // let encrypted_output = match res {
+    //     Ok(x) => x,
+    //     Err(e) => {
+    //         println!("Error occurs when invoking pobf_sample_task_aaes");
+    //         return e;
+    //     }
+    // };
 
-    let encrypted_output_buffer_size = encrypted_output_buffer_size as usize;
-    let encrypted_output_slice = encrypted_output.as_ref();
-    let encrypted_output_length = encrypted_output_slice.len();
-    unsafe {
-        core::ptr::write(encrypted_output_size, encrypted_output_length as u32);
-    }
-    if encrypted_output_length > encrypted_output_buffer_size {
-        return SgxStatus::Unexpected;
-    }
+    // let encrypted_output_buffer_size = encrypted_output_buffer_size as usize;
+    // let encrypted_output_slice = encrypted_output.as_ref();
+    // let encrypted_output_length = encrypted_output_slice.len();
+    // unsafe {
+    //     core::ptr::write(encrypted_output_size, encrypted_output_length as u32);
+    // }
+    // if encrypted_output_length > encrypted_output_buffer_size {
+    //     return SgxStatus::Unexpected;
+    // }
 
-    let encrypted_output_buffer = unsafe {
-        slice::from_raw_parts_mut(encrypted_output_buffer_ptr, encrypted_output_buffer_size)
-    };
-    encrypted_output_buffer[..encrypted_output_length].copy_from_slice(encrypted_output_slice);
+    // let encrypted_output_buffer = unsafe {
+    //     slice::from_raw_parts_mut(encrypted_output_buffer_ptr, encrypted_output_buffer_size)
+    // };
+    // encrypted_output_buffer[..encrypted_output_length].copy_from_slice(encrypted_output_slice);
     SgxStatus::Success
 }
 
-/// Legacy function.
+/// To be deprecated.
 #[allow(unused)]
 #[no_mangle]
 pub extern "C" fn start_remote_attestation(

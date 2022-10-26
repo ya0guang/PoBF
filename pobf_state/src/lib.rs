@@ -1,5 +1,7 @@
 #![no_std]
 #![forbid(unsafe_code)]
+#![allow(incomplete_features)]
+#![feature(unsized_locals, unsized_fn_params)]
 
 pub mod asset;
 pub mod task;

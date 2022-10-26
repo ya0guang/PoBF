@@ -291,7 +291,7 @@ where
 
     pub fn compute(
         self,
-        compute_callback: &dyn Fn(&D) -> D,
+        compute_callback: &dyn Fn(D) -> D,
     ) -> ComputingTask<ResultEncrypted, K, D> {
         let decrypted = self.decrypt_data().unwrap();
         let result = decrypted.do_compute(compute_callback).unwrap();
@@ -299,16 +299,26 @@ where
     }
 }
 
+impl<K, D> ComputingTask<ResultEncrypted, K, D>
+where
+K: Zeroize + Default,
+D: EncDec<K>,
+{
+    pub fn take_result(self) -> D{
+        self.data.raw
+    }
+} 
+
 impl<K, D> ComputingTask<DataDecrypted, K, D>
 where
     K: Zeroize + Default,
     D: EncDec<K>,
 {
-    fn do_compute(self, task: &dyn Fn(&D) -> D) -> Result<ComputingTask<ResultDecrypted, K, D>> {
+    fn do_compute(self, task: &dyn Fn(D) -> D) -> Result<ComputingTask<ResultDecrypted, K, D>> {
         Ok(ComputingTask {
             key: self.key,
             data: Data {
-                raw: task(&self.data.raw),
+                raw: task(self.data.raw),
                 _state: DecryptedOutput,
                 _key_type: PhantomData,
             },
