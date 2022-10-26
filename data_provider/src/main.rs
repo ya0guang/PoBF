@@ -69,7 +69,7 @@ fn main() {
             let mut reader = BufReader::new(socket);
             let mut writer = BufWriter::new(socket_clone);
             let sp_information =
-                parse_sp_manifest(&sp_manifest_path).expect("[-] Sp manifest file IO error.");
+                parse_manifest(&sp_manifest_path).expect("[-] Sp manifest file IO error.");
 
             exec_full_workflow(&mut reader, &mut writer, &mut key_pair, &sp_information)
                 .expect("[-] Failed to execute workflow.");

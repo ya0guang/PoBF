@@ -12,10 +12,11 @@ use log::error;
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize)]
-pub struct SpInformation {
+pub struct DpInformation {
     pub spid: String,
     pub ias_key: String,
     pub linkable: bool,
+    pub data_path: String,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -126,17 +127,20 @@ pub fn init_logger() {
     env_logger::init();
 }
 
-pub fn parse_sp_manifest(path: &String) -> Result<SpInformation> {
+pub fn parse_manifest(path: &String) -> Result<DpInformation> {
     let f = File::open(path).or_else(|_| File::open(DEFAULT_MANIFEST_PATH))?;
-    let sp_information: SpInformation =
+    let dp_information: DpInformation =
         serde_json::from_reader(f).expect("[-] Failed to parse the manifest json file.");
 
     // Check lengths.
-    if sp_information.spid.is_empty() || sp_information.ias_key.is_empty() {
+    if dp_information.spid.is_empty()
+        || dp_information.ias_key.is_empty()
+        || dp_information.data_path.is_empty()
+    {
         error!("[-] Found empty field which is expected to be non-empty");
 
         Err(Error::from(ErrorKind::InvalidData))
     } else {
-        Ok(sp_information)
+        Ok(dp_information)
     }
 }

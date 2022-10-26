@@ -15,7 +15,8 @@ To run the compiled binary, you will need to provide with a valid manifest file 
   // Can be found at https://api.portal.trustedservices.intel.com/developer
   "spid": "1234567890ABCDEF1234567890ABCDEF",
   "ias_key": "1234567890abcdef1234567890abcdef",
-  "linkable": true
+  "linkable": true,
+  "data_path": "../../data/data.bin"
 }
 ```
 

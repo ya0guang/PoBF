@@ -5,6 +5,7 @@ use crate::{IAS_CONTENT_TYPE_HEADER, IAS_KEY_HEADER};
 use curl::easy::{Easy, List};
 use log::{debug, error, info};
 
+use std::fs;
 use std::io::*;
 use std::mem;
 use std::net::TcpStream;
@@ -192,14 +193,14 @@ pub fn exec_full_workflow(
     reader: &mut BufReader<TcpStream>,
     writer: &mut BufWriter<TcpStream>,
     key_pair: &mut KeyPair,
-    sp_information: &SpInformation,
+    dp_information: &DpInformation,
 ) -> Result<()> {
     // Send Spid and public key to the application enclave.
     info!("[+] Sending initial messages including SPID and public key.");
     send_initial_messages(
         writer,
-        &sp_information.spid,
-        sp_information.linkable,
+        &dp_information.spid,
+        dp_information.linkable,
         &key_pair.pub_k,
         &key_pair.signature,
     )
@@ -207,7 +208,7 @@ pub fn exec_full_workflow(
     info!("[+] Succeeded.");
 
     info!("[+] Waiting for Extended Group ID.");
-    let sigrl = handle_epid(reader, &sp_information.ias_key)?;
+    let sigrl = handle_epid(reader, &dp_information.ias_key)?;
     info!("[+] Succeeded.");
 
     info!("[+] Waiting for public key of the enclave.");
@@ -227,7 +228,7 @@ pub fn exec_full_workflow(
 
     // Handle quote.
     info!("[+] Verifying quote.");
-    handle_quote(reader, writer, &sp_information.ias_key)?;
+    handle_quote(reader, writer, &dp_information.ias_key)?;
     info!("[+] Succeeded.");
 
     // Compute shared key.
@@ -239,7 +240,7 @@ pub fn exec_full_workflow(
 
     // Send initial encrypted data. Trivial data 1,2,3 are just for test.
     info!("[+] Sending encrypted vector data.");
-    send_vecaes_data(writer, &vec![1, 2, 3], &key_pair)?;
+    send_vecaes_data(writer, &dp_information.data_path, &key_pair)?;
     info!("[+] Succeeded.");
 
     Ok(())
@@ -324,11 +325,14 @@ pub fn handle_quote(
 
 pub fn send_vecaes_data(
     writer: &mut BufWriter<TcpStream>,
-    data: &Vec<u8>,
+    path: &String,
     key: &KeyPair,
 ) -> Result<()> {
+    // Read from the given path.
+    let data = fs::read(path)?;
+    info!("{:?}", data);
     // Encrypt the data first.
-    let encrypted_input = key.encrypt_with_smk(data).map_err(|_| {
+    let encrypted_input = key.encrypt_with_smk(&data).map_err(|_| {
         error!("[-] Cannot encrypt the input.");
         Error::from(ErrorKind::InvalidData)
     })?;
