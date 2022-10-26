@@ -14,16 +14,14 @@ PlatformSGX: platform_sgx
 
 ######## Run Service ########
 
-DataProvider_Spid ?= CF40B7D491912AB03C2E396E6690325F
-DataProvider_Ias_Key ?= ""
-DataProvider_Key_Linkable ?= false
+DataProvider_Manifest_Path ?= ../manifest.json
 # Bind address and port.
 Server_Address := 127.0.0.1
 Server_Port := 1234
 # CI arguments for the enclave.
 Enclave_App_Arguments := cal $(Server_Address) $(Server_Port)
 # CI arguments for data provider.
-DataProvider_Arguments := run $(Server_Address) $(Server_Port) $(DataProvider_Spid) $(DataProvider_Ias_Key) $(DataProvider_Key_Linkable)
+DataProvider_Arguments := run $(Server_Address) $(Server_Port) $(DataProvider_Manifest_Path)
 
 .PHONY: run
 run: $(App_Name) $(RustEnclave_Signed_Name)

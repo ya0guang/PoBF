@@ -1,12 +1,21 @@
 use crate::{
-    IAS_BASE_REQUEST, IAS_BASE_URL, IAS_QUOTE_TIMESTAMP, IAS_XIAS_SIGNCERT_HEADER,
-    IAS_XIAS_SIG_HEADER, ISV_ENCLAVE_QUOTE_BODY, ISV_ENCLAVE_QUOTE_STATUS, PLATFORM_INFO_BLOB,
+    DEFAULT_MANIFEST_PATH, IAS_BASE_REQUEST, IAS_BASE_URL, IAS_QUOTE_TIMESTAMP,
+    IAS_XIAS_SIGNCERT_HEADER, IAS_XIAS_SIG_HEADER, ISV_ENCLAVE_QUOTE_BODY,
+    ISV_ENCLAVE_QUOTE_STATUS, PLATFORM_INFO_BLOB,
 };
 
 use std::env;
+use std::fs::*;
 use std::io::*;
 
 use serde::{Deserialize, Serialize};
+
+#[derive(Deserialize, Serialize)]
+pub struct SpInformation {
+    pub spid: String,
+    pub ias_key: String,
+    pub linkable: bool,
+}
 
 #[derive(Serialize, Deserialize)]
 pub struct IasQuoteReport {
@@ -114,4 +123,12 @@ pub fn init_logger() {
     }
 
     env_logger::init();
+}
+
+pub fn parse_sp_manifest(path: &String) -> Result<SpInformation> {
+    let f = File::open(path).or_else(|_| File::open(DEFAULT_MANIFEST_PATH))?;
+    let sp_information =
+        serde_json::from_reader(f).map_err(|_| Error::from(ErrorKind::InvalidData))?;
+
+    Ok(sp_information)
 }

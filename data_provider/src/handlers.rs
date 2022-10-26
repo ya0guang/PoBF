@@ -192,17 +192,22 @@ pub fn exec_full_workflow(
     reader: &mut BufReader<TcpStream>,
     writer: &mut BufWriter<TcpStream>,
     key_pair: &mut KeyPair,
-    spid: &String,
-    linkable: bool,
-    key: &String,
+    sp_information: &SpInformation,
 ) -> Result<()> {
     // Send Spid and public key to the application enclave.
     info!("[+] Sending initial messages including SPID and public key.");
-    send_initial_messages(writer, spid, linkable, &key_pair.pub_k, &key_pair.signature).unwrap();
+    send_initial_messages(
+        writer,
+        &sp_information.spid,
+        sp_information.linkable,
+        &key_pair.pub_k,
+        &key_pair.signature,
+    )
+    .unwrap();
     info!("[+] Succeeded.");
 
     info!("[+] Waiting for Extended Group ID.");
-    let sigrl = handle_epid(reader, &key)?;
+    let sigrl = handle_epid(reader, &sp_information.ias_key)?;
     info!("[+] Succeeded.");
 
     info!("[+] Waiting for public key of the enclave.");
@@ -222,7 +227,7 @@ pub fn exec_full_workflow(
 
     // Handle quote.
     info!("[+] Verifying quote.");
-    handle_quote(reader, writer, &key)?;
+    handle_quote(reader, writer, &sp_information.ias_key)?;
     info!("[+] Succeeded.");
 
     // Compute shared key.

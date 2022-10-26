@@ -35,10 +35,7 @@ enum Commands {
     Run {
         address: String,
         port: u16,
-        spid: String,
-        key: String,
-        // Whether this subscription allows multiple requests from one platform.
-        linkable: bool,
+        sp_manifest_path: String,
     },
 }
 
@@ -54,6 +51,7 @@ const IAS_QUOTE_TIMESTAMP: &'static str = "\"timestamp\"";
 const ISV_ENCLAVE_QUOTE_STATUS: &'static str = "\"isvEnclaveQuoteStatus\"";
 const PLATFORM_INFO_BLOB: &'static str = "\"platformInfoBlob\"";
 const ISV_ENCLAVE_QUOTE_BODY: &'static str = "\"isvEnclaveQuoteBody\"";
+const DEFAULT_MANIFEST_PATH: &'static str = "manifest.json";
 
 fn main() {
     init_logger();
@@ -64,24 +62,17 @@ fn main() {
         Commands::Run {
             address,
             port,
-            spid,
-            key,
-            linkable,
+            sp_manifest_path,
         } => {
             let socket = connect(&address, &port).expect("[-] Cannot connect to the given address");
             let socket_clone = socket.try_clone().unwrap();
             let mut reader = BufReader::new(socket);
             let mut writer = BufWriter::new(socket_clone);
+            let sp_information =
+                parse_sp_manifest(&sp_manifest_path).expect("[-] Sp manifest file IO error.");
 
-            exec_full_workflow(
-                &mut reader,
-                &mut writer,
-                &mut key_pair,
-                &spid,
-                linkable,
-                &key,
-            )
-            .expect("[-] Failed to execute workflow.");
+            exec_full_workflow(&mut reader, &mut writer, &mut key_pair, &sp_information)
+                .expect("[-] Failed to execute workflow.");
         }
     }
 
