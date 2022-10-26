@@ -144,7 +144,7 @@ impl Encryption<AES128Key> for VecAESData {
 
         let mut aes = AesGcm::new(&key.inner, Nonce::zeroed(), aad)?;
         let mut ciphertext = vec![0u8; self.inner.len()];
-        
+
         // Append the mac tag.
         let mac = aes.encrypt(&self.inner, ciphertext.as_mut_slice())?;
         ciphertext.extend_from_slice(&mac);

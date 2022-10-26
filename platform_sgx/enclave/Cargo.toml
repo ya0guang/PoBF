@@ -34,7 +34,9 @@ base64 = { version = "0.13.0", default-features = false, features = [ "alloc" ] 
 clear_on_drop = { git = "https://github.com/hiroki-chen/clear_on_drop.git", branch = "master" }
 mirai-annotations = { path = "../../MIRAI/annotations" }
 percent-encoding = { git = "https://github.com/mesalock-linux/rust-url-sgx" }
-sgx_alloc = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk.git", branch = "v2.0.0-preview", package = "sgx_alloc" }
+pobf_state = { path = "../../pobf_state", features = ["sgx"] }
+# Patched version.
+sgx_alloc = { git = "https://github.com/hiroki-chen/incubator-teaclave-sgx-sdk.git", branch = "v2.0.0-preview", package = "sgx_alloc" }
 sgx_crypto = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk.git", branch = "v2.0.0-preview", package = "sgx_crypto" }
 sgx_libc = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk.git", branch = "v2.0.0-preview", package = "sgx_libc", default-features = false }
 sgx_no_tstd = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk.git", branch = "v2.0.0-preview", package = "sgx_no_tstd", optional = true }
@@ -46,7 +48,6 @@ sgx_tse = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk.git", br
 sgx_tseal = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk.git", branch = "v2.0.0-preview", package = "sgx_tseal", optional = true }
 sgx_types = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk.git", branch = "v2.0.0-preview", package = "sgx_types" }
 webpki = { version = "0.22.0", features = [ "alloc" ] }
-pobf_state = { path = "../../pobf_state", features = ["sgx"] }
 
 # External dependencies: SGX compatible (or) crates.
 zeroize = "1.5.7"
