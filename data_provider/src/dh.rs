@@ -102,7 +102,7 @@ impl KeyPair {
 
         match aesctx.encrypt(&nonce, input.as_slice()) {
             Ok(ciphertext) => Ok(ciphertext),
-            Err(e) => {
+            Err(_) => {
                 error!("[-] Failed to encrypt the data!");
                 Err(Unspecified)
             }
@@ -120,7 +120,7 @@ impl KeyPair {
 
         match aesctx.decrypt(&nonce, input.as_slice()) {
             Ok(plaintext) => Ok(plaintext),
-            Err(e) => {
+            Err(_) => {
                 error!("[-] Failed to decrypt the data!");
                 Err(Unspecified)
             }

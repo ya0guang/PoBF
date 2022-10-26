@@ -9,6 +9,7 @@ use alloc::vec::Vec;
 use pobf_state::*;
 use sgx_crypto::aes::gcm::*;
 use sgx_types::error::*;
+use sgx_types::types::MAC_128BIT_SIZE;
 use zeroize::Zeroize;
 
 pub const BUFFER_SIZE: usize = 1024;
@@ -32,9 +33,8 @@ impl From<Vec<u8>> for VecAESData {
 
 impl From<&[u8]> for VecAESData {
     fn from(raw: &[u8]) -> Self {
-        // validity check
-        assert!(raw.len() >= 32);
-        assert!(raw.len() % 16 == 0);
+        // Validity check: should have a mac tag.
+        assert!(raw.len() >= MAC_128BIT_SIZE);
 
         let mut inner = Vec::new();
         inner.extend_from_slice(raw);
@@ -100,6 +100,8 @@ impl AES128Key {
     }
 
     // Deprecate.
+    #[deprecated]
+    #[allow(unused)]
     pub fn from_sealed_buffer(sealed_buffer: &[u8]) -> SgxResult<Self> {
         assert!(sealed_buffer.len() <= BUFFER_SIZE);
         let buffer = sealed_buffer.to_vec();
@@ -110,6 +112,9 @@ impl AES128Key {
         Ok(key)
     }
 
+    // Deprecate.
+    #[deprecated]
+    #[allow(unused)]
     fn unseal(&self) -> SgxResult<Self> {
         let opt = from_sealed_log_for_fixed::<[u8; SEALED_DATA_SIZE]>(&self.buffer);
         let sealed_data = match opt {
@@ -129,38 +134,40 @@ impl AES128Key {
 }
 
 impl Encryption<AES128Key> for VecAESData {
+    /// GCM uses CTR internally. It encrypts a counter value for each block, but it
+    /// only uses as many bits as required from the last block. CTR turns the block
+    /// cipher into a stream cipher so that output length = input length.
     fn encrypt(self, key: &AES128Key) -> SgxResult<Self> {
-        let key = key.unseal()?;
+        // We do not need AAD tag so we set it to zero.
         let aad_array: [u8; 0] = [0; 0];
         let aad = Aad::from(aad_array);
-        let mut aes = AesGcm::new(&key.inner, Nonce::zeroed(), aad)?;
-        let text_len = self.inner.len();
-        let cipher_len = text_len.checked_add(15).unwrap() / 16 * 16;
-        // what if not *16?
-        let plaintext_slice = &self.inner[..];
-        let mut ciphertext_vec: Vec<u8> = vec![0; cipher_len + 16];
 
-        verified_log!("aes_gcm_128_encrypt parameter prepared!");
-        let mac = aes.encrypt(plaintext_slice, &mut ciphertext_vec[..cipher_len])?;
-        ciphertext_vec[cipher_len..(cipher_len + 16)].copy_from_slice(&mac);
-        Ok(VecAESData::from(ciphertext_vec))
+        let mut aes = AesGcm::new(&key.inner, Nonce::zeroed(), aad)?;
+        let mut ciphertext = vec![0u8; self.inner.len() + 16];
+
+        // Append the mac tag.
+        let mac = aes.encrypt(&self.inner, &mut ciphertext[..])?;
+        ciphertext[self.inner.len()..(self.inner.len() + 16)].copy_from_slice(&mac);
+
+        Ok(VecAESData::from(ciphertext))
     }
 }
 
 impl Decryption<AES128Key> for VecAESData {
     fn decrypt(self, key: &AES128Key) -> SgxResult<Self> {
-        let key = key.unseal()?;
         let aad_array: [u8; 0] = [0; 0];
         let aad = Aad::from(aad_array);
+
         let mut aes = AesGcm::new(&key.inner, Nonce::zeroed(), aad)?;
+
         let len = self.inner.len();
         let text_len = len.checked_sub(16).unwrap();
+
         let ciphertext_slice = &self.inner[..text_len];
         let mac_slice = &self.inner[text_len..(text_len + 16)].try_into().unwrap();
         let mut plaintext_vec: Vec<u8> = vec![0; text_len];
         let plaintext_slice = &mut plaintext_vec[..];
 
-        verified_log!("aes_gcm_128_decrypt parameter prepared!");
         aes.decrypt(ciphertext_slice, plaintext_slice, mac_slice)?;
         Ok(VecAESData::from(plaintext_vec))
     }

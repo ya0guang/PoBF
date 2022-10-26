@@ -202,7 +202,7 @@ pub fn exec_full_workflow(
     info!("[+] Succeeded.");
 
     info!("[+] Waiting for Extended Group ID.");
-    let sigrl = handle_epid(reader, writer, &key)?;
+    let sigrl = handle_epid(reader, &key)?;
     info!("[+] Succeeded.");
 
     info!("[+] Waiting for public key of the enclave.");
@@ -234,17 +234,13 @@ pub fn exec_full_workflow(
 
     // Send initial encrypted data. Trivial data 1,2,3 are just for test.
     info!("[+] Sending encrypted vector data.");
-    send_vecaes_data(writer, &vec![0u8; 16], &key_pair)?;
+    send_vecaes_data(writer, &vec![1, 2, 3], &key_pair)?;
     info!("[+] Succeeded.");
 
     Ok(())
 }
 
-pub fn handle_epid(
-    reader: &mut BufReader<TcpStream>,
-    writer: &mut BufWriter<TcpStream>,
-    ias_key: &String,
-) -> Result<Vec<u8>> {
+pub fn handle_epid(reader: &mut BufReader<TcpStream>, ias_key: &String) -> Result<Vec<u8>> {
     let mut s = String::with_capacity(DEFAULT_BUFFER_LEN);
     // Wait for the EPID.
     reader.read_line(&mut s).unwrap();
@@ -332,7 +328,7 @@ pub fn send_vecaes_data(
         Error::from(ErrorKind::InvalidData)
     })?;
 
-    info!("[+] The encrypted data is {:?}.", encrypted_input.len());
+    info!("[+] The encrypted data is {:?}", encrypted_input);
 
     writer
         .write(encrypted_input.len().to_string().as_bytes())
