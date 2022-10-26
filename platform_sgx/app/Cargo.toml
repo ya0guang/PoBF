@@ -11,7 +11,6 @@ env_logger = "0.9.1"
 hex = "0.4.3"
 libc = "0.2.0"
 log = { version = "0.4.17", features = ["max_level_debug", "release_max_level_info"] }
-rustls = "0.20.6"
 serde = { version = "1.0.145", features = ["derive"] }
 serde_json = "1.0.86"
 sgx_types = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk.git", branch = "v2.0.0-preview", package = "sgx_types" }

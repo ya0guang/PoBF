@@ -5,6 +5,7 @@ target
 /md_output
 platform_sgx/bin
 platform_sgx/lib
+data_provider/bin
 
 # intermediate results
 enclave_u.*
