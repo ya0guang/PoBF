@@ -359,12 +359,13 @@ pub fn verify_quote_report(quote_report: &Vec<u8>, sig: &Vec<u8>, cert: &Vec<u8>
     //  * ring: not compatible with SGX; causes duplicate std symbols.
     //  * webpki: not compatible with SGX since it is dependent on low-level implementations of ring.
     //  * patched-ring: OK with SGX SDK v2.0.0.
-    let sig_cert = webpki::EndEntityCert::try_from(cert_decoded.as_slice())
-        .map_err(|e| {
-            ocall_log!("[-] Invalid certificate for IAS. Error: {:?}", e);
+    let sig_cert = match webpki::EndEntityCert::try_from(cert_decoded.as_slice()) {
+        Ok(sig_cert) => sig_cert,
+        Err(e) => {
+            ocall_log!("[-] Invalid certificate for IAS. Error: {}", e.to_string());
             return false;
-        })
-        .unwrap();
+        }
+    };
 
     // We use an OCALL to get the current timestamp.
     let cur_time = unix_time().unwrap();

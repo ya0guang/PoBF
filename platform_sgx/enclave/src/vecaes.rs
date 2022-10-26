@@ -91,10 +91,7 @@ impl AES128Key {
             .as_ref()
             .clone()
             .try_into()
-            .map_err(|_| {
-                return SgxStatus::InvalidParameter;
-            })
-            .unwrap();
+            .or_else(|_| Err(SgxStatus::InvalidParameter))?;
 
         Ok(ret)
     }

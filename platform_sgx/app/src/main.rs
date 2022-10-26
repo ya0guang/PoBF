@@ -139,10 +139,7 @@ fn read_file(path: &String) -> Result<Vec<u8>> {
     Ok(buf)
 }
 
-fn server_run(
-    listener: TcpListener,
-    enclave: &SgxEnclave,
-) -> Result<()> {
+fn server_run(listener: TcpListener, enclave: &SgxEnclave) -> Result<()> {
     match listener.accept() {
         Ok((socket, addr)) => {
             info!("[+] Got connection from {:?}", addr);
@@ -174,17 +171,20 @@ fn receive_ra_message(reader: &mut BufReader<TcpStream>) -> Result<RaMessage> {
     // Read SPID.
     reader.read_line(&mut spid_buf)?;
     // Decode it.
-    let decoded_spid = hex::decode(&spid_buf[..32]).map_err(|_| {
-        error!("[-] Cannot decode the spid received from socket!");
-        return Error::from(ErrorKind::InvalidData);
+    let decoded_spid = hex::decode(&spid_buf[..32]).or_else(|e| {
+        error!(
+            "[-] Cannot decode the spid received from socket! Error: {}",
+            e.to_string()
+        );
+        Err(ErrorKind::InvalidData)
     })?;
     message.spid.id.copy_from_slice(&decoded_spid[..16]);
 
     // Read linkable.
     reader.read_line(&mut str_buf)?;
-    message.linkable = str_buf[..1].parse().map_err(|_| {
-        error!("[-] Cannot parse `linkable`!");
-        return Error::from(ErrorKind::InvalidData);
+    message.linkable = str_buf[..1].parse::<i64>().or_else(|e| {
+        error!("[-] Cannot parse `linkable`! Error: {}", e.to_string());
+        Err(ErrorKind::InvalidData)
     })?;
 
     // Read public key.
@@ -194,9 +194,12 @@ fn receive_ra_message(reader: &mut BufReader<TcpStream>) -> Result<RaMessage> {
     // Read signature.
     str_buf.clear();
     reader.read_line(&mut str_buf)?;
-    let signature_len = str_buf[..str_buf.len() - 1].parse::<usize>().map_err(|_| {
-        error!("[-] Cannot parse signature length!");
-        return Error::from(ErrorKind::InvalidData);
+    let signature_len = str_buf[..str_buf.len() - 1].parse::<usize>().or_else(|e| {
+        error!(
+            "[-] Cannot parse signature length! Error: {}",
+            e.to_string()
+        );
+        Err(ErrorKind::InvalidData)
     })?;
     message.signature.resize(signature_len + 1, 0u8);
     reader.read_exact(&mut message.signature)?;
