@@ -8,6 +8,7 @@ use std::env;
 use std::fs::*;
 use std::io::*;
 
+use log::error;
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize)]
@@ -127,8 +128,15 @@ pub fn init_logger() {
 
 pub fn parse_sp_manifest(path: &String) -> Result<SpInformation> {
     let f = File::open(path).or_else(|_| File::open(DEFAULT_MANIFEST_PATH))?;
-    let sp_information =
-        serde_json::from_reader(f).map_err(|_| Error::from(ErrorKind::InvalidData))?;
+    let sp_information: SpInformation =
+        serde_json::from_reader(f).expect("[-] Failed to parse the manifest json file.");
 
-    Ok(sp_information)
+    // Check lengths.
+    if sp_information.spid.is_empty() || sp_information.ias_key.is_empty() {
+        error!("[-] Found empty field which is expected to be non-empty");
+
+        Err(Error::from(ErrorKind::InvalidData))
+    } else {
+        Ok(sp_information)
+    }
 }

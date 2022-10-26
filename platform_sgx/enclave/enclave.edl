@@ -100,10 +100,6 @@ enclave {
           uint32_t public_key_len,
           [in, size = pubkey_signature_len] uint8_t* pubkey_signature,
           uint32_t pubkey_signature_len,
-          [in, size=sealed_key_size]
-          uint8_t* sealed_key_ptr, uint32_t sealed_key_size, 
-          [in, size=encrypted_input_size] 
-          uint8_t* encrypted_input_ptr, uint32_t encrypted_input_size,
           [out, size=encrypted_output_buffer_size]
           uint8_t* encrypted_output_buffer_ptr, uint32_t encrypted_output_buffer_size,
           [out]

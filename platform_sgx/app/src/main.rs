@@ -45,10 +45,6 @@ extern "C" {
         public_key_len: u32,
         pubkey_signature: *const u8,
         pubkey_signature_len: u32,
-        sealed_key_ptr: *mut u8,
-        sealed_key_size: u32,
-        encrypted_input_ptr: *mut u8,
-        encrypted_input_size: u32,
         encrypted_output_buffer_ptr: *mut u8,
         encrypted_output_buffer_size: u32,
         encrypted_output_size: *mut u32,
@@ -81,12 +77,7 @@ struct Args {
 enum Commands {
     /// do private computation on encrypted data with a sealed key
     /// Also listen to the request from the SP to perform the RA.
-    Cal {
-        key_path: String,
-        data_path: String,
-        address: String,
-        port: u16,
-    },
+    Cal { address: String, port: u16 },
 }
 
 fn main() {
@@ -108,17 +99,7 @@ fn main() {
 
     let args = Args::parse();
     match args.command {
-        Commands::Cal {
-            key_path,
-            data_path,
-            address,
-            port,
-        } => {
-            // Sealed [0] * 16
-            let sealed_key_log = read_file(&key_path).unwrap();
-            // Encrypted [42] * 16
-            let encrypted_data_vec = read_file(&data_path).unwrap();
-
+        Commands::Cal { address, port } => {
             let listener = match listen(&address, &port) {
                 Ok(res) => res,
                 Err(e) => {
@@ -130,7 +111,7 @@ fn main() {
                 }
             };
 
-            match server_run(listener, &enclave, &encrypted_data_vec, &sealed_key_log) {
+            match server_run(listener, &enclave) {
                 Err(e) => {
                     error!("[-] Error running the server due to {}.", e.to_string());
                     return;
@@ -161,8 +142,6 @@ fn read_file(path: &String) -> Result<Vec<u8>> {
 fn server_run(
     listener: TcpListener,
     enclave: &SgxEnclave,
-    data: &Vec<u8>,
-    key: &Vec<u8>,
 ) -> Result<()> {
     match listener.accept() {
         Ok((socket, addr)) => {
@@ -174,7 +153,7 @@ fn server_run(
             let message = receive_ra_message(&mut reader)?;
 
             // Execute the PoBF private computing entry.
-            exec_private_computing(enclave, socket_fd, &message, key, data);
+            exec_private_computing(enclave, socket_fd, &message);
 
             Ok(())
         }
@@ -230,8 +209,6 @@ fn exec_private_computing(
     enclave: &SgxEnclave,
     socket_fd: c_int,
     ra_message: &RaMessage,
-    sealed_key_log: &Vec<u8>,
-    encrypted_input: &Vec<u8>,
 ) -> Vec<u8> {
     let mut retval = SgxStatus::Success;
     let mut encrypted_output: Vec<u8> = vec![0u8; OUTPUT_BUFFER_SIZE];
@@ -248,10 +225,6 @@ fn exec_private_computing(
             ra_message.public_key.len() as u32,
             ra_message.signature.as_ptr() as *const u8,
             ra_message.signature.len() as u32,
-            sealed_key_log.as_ptr() as *mut u8,
-            sealed_key_log.len() as u32,
-            encrypted_input.as_ptr() as *mut u8,
-            encrypted_input.len() as u32,
             encrypted_output.as_mut_ptr(),
             OUTPUT_BUFFER_SIZE as _,
             &mut encrypted_output_size as _,

@@ -301,13 +301,13 @@ where
 
 impl<K, D> ComputingTask<ResultEncrypted, K, D>
 where
-K: Zeroize + Default,
-D: EncDec<K>,
+    K: Zeroize + Default,
+    D: EncDec<K>,
 {
-    pub fn take_result(self) -> D{
+    pub fn take_result(self) -> D {
         self.data.raw
     }
-} 
+}
 
 impl<K, D> ComputingTask<DataDecrypted, K, D>
 where

@@ -73,10 +73,9 @@ pub fn pobf_workflow(
     linkable: i64,
     public_key: &[u8; ECP_COORDINATE_SIZE],
     signature: &[u8],
-) -> VecAESData
-{
-    let ra_callback = move
-    || pobf_remote_attestation(socket_fd, spid, linkable, public_key, signature);
+) -> VecAESData {
+    let ra_callback =
+        move || pobf_remote_attestation(socket_fd, spid, linkable, public_key, signature);
 
     let template = ComputingTaskTemplate::<Initialized>::new();
     let session = ComputingTaskSession::establish_channel(template, &ra_callback);
