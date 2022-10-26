@@ -143,11 +143,11 @@ impl Encryption<AES128Key> for VecAESData {
         let aad = Aad::from(aad_array);
 
         let mut aes = AesGcm::new(&key.inner, Nonce::zeroed(), aad)?;
-        let mut ciphertext = vec![0u8; self.inner.len() + 16];
-
+        let mut ciphertext = vec![0u8; self.inner.len()];
+        
         // Append the mac tag.
-        let mac = aes.encrypt(&self.inner, &mut ciphertext[..])?;
-        ciphertext[self.inner.len()..(self.inner.len() + 16)].copy_from_slice(&mac);
+        let mac = aes.encrypt(&self.inner, ciphertext.as_mut_slice())?;
+        ciphertext.extend_from_slice(&mac);
 
         Ok(VecAESData::from(ciphertext))
     }

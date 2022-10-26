@@ -63,11 +63,22 @@ pub extern "C" fn private_computing_entry(
     let signature = unsafe { slice::from_raw_parts(signature_ptr, signature_len as usize) };
 
     let result = pobf_workflow(socket_fd, spid, linkable, public_key, signature);
-    
+
+    // Copy the result back to the outside world.
+    unsafe {
+        core::ptr::copy(
+            result.as_ref().as_ptr(),
+            encrypted_output_buffer_ptr,
+            result.as_ref().len(),
+        );
+
+        *encrypted_output_size = result.as_ref().len() as u32;
+    }
+
     // Remote attestation callback.
-    let remote_attestation_callback =
-        || pobf_remote_attestation(socket_fd, spid, linkable, public_key, signature);
-    let receive_data_callback = || pobf_receive_data(socket_fd);
+    // let remote_attestation_callback =
+    //     || pobf_remote_attestation(socket_fd, spid, linkable, public_key, signature);
+    // let receive_data_callback = || pobf_receive_data(socket_fd);
     // PoBF main entry callback.
     // let pobf_private_computing_callback = || {
     //     pobf_private_computing(
