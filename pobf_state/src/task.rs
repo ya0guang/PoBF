@@ -615,22 +615,9 @@ where
 {
     // FIXME: Is this logically flawed?
     #[requires((&self)._state.is_allowed_once())]
-    #[ensures((&result)._state.is_allowed_twice())]
-    fn once(mut self) -> Key<K, AllowedTwice> {
-        self.raw.zeroize();
-        Key {
-            raw: K::default(),
-            _state: AllowedTwice,
-        }
-    }
-}
-
-impl<K> Key<K, Invalid>
-where
-    K: Zeroize + Default,
-{
     #[ensures((&result)._state.is_invalid())]
-    pub fn invalid() -> Self {
+    fn once(mut self) -> Key<K, Invalid> {
+        self.raw.zeroize();
         Key {
             raw: K::default(),
             _state: Invalid,
@@ -886,9 +873,9 @@ where
     #[ensures((&result)._state.is_result_encrypted())]
     fn encrypt_result(self) -> ComputingTask<ResultEncrypted, K, D> {
         let data = self.data.raw.encrypt(&self.key.raw).unwrap();
-        self.key.once();
+
         ComputingTask {
-            key: Key::invalid(),
+            key: self.key.once(),
             data: Data {
                 raw: data,
                 _state: EncryptedOutput,
