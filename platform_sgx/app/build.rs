@@ -28,10 +28,33 @@ fn main() {
     println!("cargo:rustc-link-lib=static=enclave_u");
 
     println!("cargo:rustc-link-search=native={}/lib64", sdk_dir);
+
+    // Add some extra libs for RA.
     match mode.as_ref() {
-        "SIM" | "SW" => println!("cargo:rustc-link-lib=dylib=sgx_urts_sim"),
-        "HYPER" => println!("cargo:rustc-link-lib=dylib=sgx_urts_hyper"),
-        "HW" => println!("cargo:rustc-link-lib=dylib=sgx_urts"),
-        _ => println!("cargo:rustc-link-lib=dylib=sgx_urts"),
+        "SIM" | "SW" => {
+            println!("cargo:rustc-link-lib=dylib=sgx_urts_sim");
+            println!("cargo:rustc-link-lib=dylib=sgx_epid_sim");
+            println!("cargo:rustc-link-lib=dylib=sgx_launch_sim");
+            println!("cargo:rustc-link-lib=dylib=sgx_quote_ex_sim");
+        }
+        "HYPER" => {
+            println!("cargo:rustc-link-lib=dylib=sgx_urts_hyper");
+            // Not sure if HYPER should link against uae_service_sim.
+            println!("cargo:rustc-link-lib=dylib=sgx_epid_sim");
+            println!("cargo:rustc-link-lib=dylib=sgx_launch_sim");
+            println!("cargo:rustc-link-lib=dylib=sgx_quote_ex_sim");
+        }
+        "HW" => {
+            println!("cargo:rustc-link-lib=dylib=sgx_urts");
+            println!("cargo:rustc-link-lib=dylib=sgx_epid");
+            println!("cargo:rustc-link-lib=dylib=sgx_launch");
+            println!("cargo:rustc-link-lib=dylib=sgx_quote_ex");
+        }
+        _ => {
+            println!("cargo:rustc-link-lib=dylib=sgx_urts");
+            println!("cargo:rustc-link-lib=dylib=sgx_epid");
+            println!("cargo:rustc-link-lib=dylib=sgx_launch");
+            println!("cargo:rustc-link-lib=dylib=sgx_quote_ex");
+        }
     }
 }

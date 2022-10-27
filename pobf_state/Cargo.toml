@@ -1,0 +1,13 @@
+[package]
+name = "pobf_state"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+sgx = ["sgx_types"]
+
+[dependencies]
+zeroize = "1.5.7"
+sgx_types = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk.git", branch = "v2.0.0-preview", package = "sgx_types", optional = true }

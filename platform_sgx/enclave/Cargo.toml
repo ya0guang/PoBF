@@ -1,0 +1,57 @@
+[package]
+name = "enclave"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "pobfref"
+crate-type = ["lib", "staticlib"]
+
+[features]
+# turn on mirai when veirifying towards mirai
+default = ["leak_log"]
+sgx = ["sgx_no_tstd", "sgx_trts", "sgx_tseal"]
+rand = ["sgx_rand"]
+# potential violations
+violation = ["vio_typestate", "vio_private", "vio_unsafe", "vio_ocall", "sgx"]
+vio_typestate = ["sgx", "disallowed_trans", "rude_copy"]
+disallowed_trans = []
+rude_copy = []
+vio_private = ["sgx", "direct_decrypt", "access_inner", "access_key"]
+direct_decrypt = []
+access_inner = []
+access_key = []
+vio_unsafe = ["sgx", "raw_read", "raw_write"]
+raw_read = []
+raw_write = []
+vio_ocall = ["sgx", "leak_log", "leak_net", "leak_file"]
+leak_log = []
+leak_net = []
+leak_file = []
+
+[dependencies]
+base64 = { version = "0.13.0", default-features = false, features = [ "alloc" ] }
+clear_on_drop = { git = "https://github.com/hiroki-chen/clear_on_drop.git", branch = "master" }
+mirai-annotations = { path = "../../MIRAI/annotations" }
+percent-encoding = { git = "https://github.com/mesalock-linux/rust-url-sgx" }
+pobf_state = { path = "../../pobf_state", features = ["sgx"] }
+# Patched version.
+sgx_alloc = { git = "https://github.com/hiroki-chen/incubator-teaclave-sgx-sdk.git", branch = "v2.0.0-preview", package = "sgx_alloc" }
+sgx_crypto = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk.git", branch = "v2.0.0-preview", package = "sgx_crypto" }
+sgx_libc = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk.git", branch = "v2.0.0-preview", package = "sgx_libc", default-features = false }
+sgx_no_tstd = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk.git", branch = "v2.0.0-preview", package = "sgx_no_tstd", optional = true }
+sgx_rand = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk.git", branch = "v2.0.0-preview", package = "sgx_rand", optional = true }
+sgx_tdh = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk.git", branch = "v2.0.0-preview", package = "sgx_tdh" }
+# sgx_tstd = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk.git", branch = "v2.0.0-preview", package = "sgx_tstd", default-features = false, optional = true }
+sgx_trts = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk.git", branch = "v2.0.0-preview", package = "sgx_trts", optional = true }
+sgx_tse = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk.git", branch = "v2.0.0-preview", package = "sgx_tse" }
+sgx_tseal = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk.git", branch = "v2.0.0-preview", package = "sgx_tseal", optional = true }
+sgx_types = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk.git", branch = "v2.0.0-preview", package = "sgx_types" }
+webpki = { version = "0.22.0", features = [ "alloc" ] }
+
+# External dependencies: SGX compatible (or) crates.
+zeroize = "1.5.7"
+
+[patch.crates-io]
+# Patached version of ring.
+ring = { git = "https://github.com/sccommunity/ring.git", branch = "teaclave-sgx" }
