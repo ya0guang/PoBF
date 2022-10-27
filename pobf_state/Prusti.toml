@@ -1,0 +1,22 @@
+# Configuration file for Prusti runtime.
+# A Prusti.toml is optionally loaded from the current working directory prior to compilation. 
+# This file is used to configure flags in Category B only and these flags apply to the entire
+# compilation.
+# Then, as each individual crate is checked (from the roots of the dependency tree) a Prusti.toml
+# is optionally loaded from the directory where the crate's corresponding Cargo.toml is located.
+# This file is used to configure flags in Category A only — it would not make sense to set e.g.
+# NO_VERIFY_DEPS in a dependency since all of its dependencies have already been verified.
+#
+# Created by Haobin Chen and Hongbo Chen
+# Prusti will load the keys from a cold start and will then cache it to ./target/verify/cache.bin.
+# You may need to clean the cache before the configuration takes effect.
+check_overflows = true
+check_panics = true
+no_verify_deps = true
+print_desugared_specs = true
+print_typeckd_specs = true
+hide_uuids = true
+assert_timeout = 10000
+optimizations = "inline_constant_functions,delete_unused_predicates,optimize_folding,remove_empty_if,purify_vars,remove_unused_vars,remove_trivial_assertions,clean_cfg"
+
+# Run: PRUSTI_LOG=info ~/prusti-dev/target/release/cargo-prusti --features=sgx,use_prusti
