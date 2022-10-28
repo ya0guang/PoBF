@@ -70,16 +70,18 @@ impl Zeroize for AES128Key {
 
 impl AES128Key {}
 
+#[refine_trait_spec]
 impl Encryption<AES128Key> for VecAESData {
-    #[trusted]
-    fn encrypt(self, key: &AES128Key) -> Result<Self> {
+    #[ensures((&result).is_ok())]
+    fn encrypt(self, _key: &AES128Key) -> Result<Self> {
         Ok(self)
     }
 }
 
+#[refine_trait_spec]
 impl Decryption<AES128Key> for VecAESData {
-    #[trusted]
-    fn decrypt(self, key: &AES128Key) -> Result<Self> {
+    #[ensures((&result).is_ok())]
+    fn decrypt(self, _key: &AES128Key) -> Result<Self> {
         Ok(self)
     }
 }
@@ -97,6 +99,7 @@ pub fn pobf_workflow_verify() -> VecAESData {
     use task::*;
 
     let template = ComputingTaskTemplate::<Initialized>::new();
+
     let session: ComputingTaskSession<ChannelEstablished, AES128Key> =
         ComputingTaskSession::establish_channel(template);
 

@@ -1,4 +1,5 @@
 #![forbid(unsafe_code)]
+#![allow(unused_imports)]
 
 use crate::bogus::*;
 use crate::*;
@@ -12,39 +13,61 @@ type Result<T> = core::result::Result<T, ()>;
 
 pub trait TaskState {
     #[pure]
-    fn is_initialized(&self) -> bool;
+    fn is_initialized(&self) -> bool {
+        false
+    }
 
     #[pure]
-    fn is_channel_established(&self) -> bool;
+    fn is_channel_established(&self) -> bool {
+        false
+    }
 
     #[pure]
-    fn is_result_encrypted(&self) -> bool;
+    fn is_result_encrypted(&self) -> bool {
+        false
+    }
 
     #[pure]
-    fn is_result_decrypted(&self) -> bool;
+    fn is_result_decrypted(&self) -> bool {
+        false
+    }
 
     #[pure]
-    fn is_data_decrypted(&self) -> bool;
+    fn is_data_decrypted(&self) -> bool {
+        false
+    }
 
     #[pure]
-    fn is_data_received(&self) -> bool;
+    fn is_data_received(&self) -> bool {
+        false
+    }
 
     #[pure]
-    fn is_finished(&self) -> bool;
+    fn is_finished(&self) -> bool {
+        false
+    }
 }
 pub trait DataState {}
 pub trait KeyState {
     #[pure]
-    fn is_uninitialized(&self) -> bool;
+    fn is_invalid_key(&self) -> bool {
+        false
+    }
 
     #[pure]
-    fn is_invalid(&self) -> bool;
+    fn is_uninitialized(&self) -> bool {
+        false
+    }
 
     #[pure]
-    fn is_allowed_twice(&self) -> bool;
+    fn is_allowed_once(&self) -> bool {
+        false
+    }
 
     #[pure]
-    fn is_allowed_once(&self) -> bool;
+    fn is_allowed_twice(&self) -> bool {
+        false
+    }
 }
 
 // Common States for Data and Key
@@ -58,52 +81,17 @@ impl KeyState for Uninitialized {
     fn is_uninitialized(&self) -> bool {
         true
     }
-
-    #[pure]
-    #[ensures(result == false)]
-    fn is_invalid(&self) -> bool {
-        false
-    }
-
-    #[pure]
-    #[ensures(result == false)]
-    fn is_allowed_twice(&self) -> bool {
-        false
-    }
-
-    #[pure]
-    #[ensures(result == false)]
-    fn is_allowed_once(&self) -> bool {
-        false
-    }
 }
+
 pub struct Invalid;
 impl DataState for Invalid {}
 
 #[refine_trait_spec]
 impl KeyState for Invalid {
     #[pure]
-    #[ensures(result == false)]
-    fn is_uninitialized(&self) -> bool {
-        false
-    }
-
-    #[pure]
     #[ensures(result == true)]
-    fn is_invalid(&self) -> bool {
+    fn is_invalid_key(&self) -> bool {
         true
-    }
-
-    #[pure]
-    #[ensures(result == false)]
-    fn is_allowed_twice(&self) -> bool {
-        false
-    }
-
-    #[pure]
-    #[ensures(result == false)]
-    fn is_allowed_once(&self) -> bool {
-        false
     }
 }
 
@@ -116,173 +104,29 @@ impl TaskState for Initialized {
     fn is_initialized(&self) -> bool {
         true
     }
-
-    #[pure]
-    #[ensures(result == false)]
-    fn is_channel_established(&self) -> bool {
-        false
-    }
-
-    #[pure]
-    #[ensures(result == false)]
-    fn is_result_encrypted(&self) -> bool {
-        false
-    }
-
-    #[pure]
-    #[ensures(result == false)]
-    fn is_data_received(&self) -> bool {
-        false
-    }
-
-    #[pure]
-    #[ensures(result == false)]
-    fn is_finished(&self) -> bool {
-        false
-    }
-
-    #[pure]
-    #[ensures(result == false)]
-    fn is_result_decrypted(&self) -> bool {
-        false
-    }
-
-    #[pure]
-    #[ensures(result == false)]
-    fn is_data_decrypted(&self) -> bool {
-        false
-    }
 }
 pub struct ChannelEstablished;
 #[refine_trait_spec]
 impl TaskState for ChannelEstablished {
     #[pure]
-    #[ensures(result == false)]
-    fn is_initialized(&self) -> bool {
-        false
-    }
-
-    #[pure]
     #[ensures(result == true)]
     fn is_channel_established(&self) -> bool {
         true
-    }
-
-    #[pure]
-    #[ensures(result == false)]
-    fn is_result_encrypted(&self) -> bool {
-        false
-    }
-
-    #[pure]
-    #[ensures(result == false)]
-    fn is_data_received(&self) -> bool {
-        false
-    }
-
-    #[pure]
-    #[ensures(result == false)]
-    fn is_finished(&self) -> bool {
-        false
-    }
-
-    #[pure]
-    #[ensures(result == false)]
-    fn is_result_decrypted(&self) -> bool {
-        false
-    }
-
-    #[pure]
-    #[ensures(result == false)]
-    fn is_data_decrypted(&self) -> bool {
-        false
     }
 }
 pub struct DataReceived;
 #[refine_trait_spec]
 impl TaskState for DataReceived {
     #[pure]
-    #[ensures(result == false)]
-    fn is_initialized(&self) -> bool {
-        false
-    }
-
-    #[pure]
-    #[ensures(result == false)]
-    fn is_channel_established(&self) -> bool {
-        false
-    }
-
-    #[pure]
-    #[ensures(result == false)]
-    fn is_result_encrypted(&self) -> bool {
-        false
-    }
-
-    #[pure]
     #[ensures(result == true)]
     fn is_data_received(&self) -> bool {
         true
-    }
-
-    #[pure]
-    #[ensures(result == false)]
-    fn is_finished(&self) -> bool {
-        false
-    }
-
-    #[pure]
-    #[ensures(result == false)]
-    fn is_result_decrypted(&self) -> bool {
-        false
-    }
-
-    #[pure]
-    #[ensures(result == false)]
-    fn is_data_decrypted(&self) -> bool {
-        false
     }
 }
 //These two states are transient and not permitted to be used by the users!
 struct DataDecrypted;
 #[refine_trait_spec]
 impl TaskState for DataDecrypted {
-    #[pure]
-    #[ensures(result == false)]
-    fn is_initialized(&self) -> bool {
-        false
-    }
-
-    #[pure]
-    #[ensures(result == false)]
-    fn is_channel_established(&self) -> bool {
-        false
-    }
-
-    #[pure]
-    #[ensures(result == false)]
-    fn is_result_encrypted(&self) -> bool {
-        false
-    }
-
-    #[pure]
-    #[ensures(result == false)]
-    fn is_data_received(&self) -> bool {
-        false
-    }
-
-    #[pure]
-    #[ensures(result == false)]
-    fn is_finished(&self) -> bool {
-        false
-    }
-
-    #[pure]
-    #[ensures(result == false)]
-    fn is_result_decrypted(&self) -> bool {
-        false
-    }
-
     #[pure]
     #[ensures(result == true)]
     fn is_data_decrypted(&self) -> bool {
@@ -293,135 +137,27 @@ struct ResultDecrypted;
 #[refine_trait_spec]
 impl TaskState for ResultDecrypted {
     #[pure]
-    #[ensures(result == false)]
-    fn is_initialized(&self) -> bool {
-        false
-    }
-
-    #[pure]
-    #[ensures(result == false)]
-    fn is_channel_established(&self) -> bool {
-        false
-    }
-
-    #[pure]
-    #[ensures(result == false)]
-    fn is_result_encrypted(&self) -> bool {
-        false
-    }
-
-    #[pure]
-    #[ensures(result == false)]
-    fn is_data_received(&self) -> bool {
-        false
-    }
-
-    #[pure]
-    #[ensures(result == false)]
-    fn is_finished(&self) -> bool {
-        false
-    }
-
-    #[pure]
     #[ensures(result == true)]
     fn is_result_decrypted(&self) -> bool {
         true
-    }
-
-    #[pure]
-    #[ensures(result == false)]
-    fn is_data_decrypted(&self) -> bool {
-        false
     }
 }
 pub struct ResultEncrypted;
 #[refine_trait_spec]
 impl TaskState for ResultEncrypted {
     #[pure]
-    #[ensures(result == false)]
-    fn is_initialized(&self) -> bool {
-        false
-    }
-
-    #[pure]
-    #[ensures(result == false)]
-    fn is_channel_established(&self) -> bool {
-        false
-    }
-
-    #[pure]
     #[ensures(result == true)]
     fn is_result_encrypted(&self) -> bool {
         true
-    }
-
-    #[pure]
-    #[ensures(result == false)]
-    fn is_data_received(&self) -> bool {
-        false
-    }
-
-    #[pure]
-    #[ensures(result == false)]
-    fn is_finished(&self) -> bool {
-        false
-    }
-
-    #[pure]
-    #[ensures(result == false)]
-    fn is_result_decrypted(&self) -> bool {
-        false
-    }
-
-    #[pure]
-    #[ensures(result == false)]
-    fn is_data_decrypted(&self) -> bool {
-        false
     }
 }
 pub struct Finished;
 #[refine_trait_spec]
 impl TaskState for Finished {
     #[pure]
-    #[ensures(result == false)]
-    fn is_initialized(&self) -> bool {
-        false
-    }
-
-    #[pure]
-    #[ensures(result == false)]
-    fn is_channel_established(&self) -> bool {
-        false
-    }
-
-    #[pure]
-    #[ensures(result == false)]
-    fn is_result_encrypted(&self) -> bool {
-        false
-    }
-
-    #[pure]
-    #[ensures(result == false)]
-    fn is_data_received(&self) -> bool {
-        false
-    }
-
-    #[pure]
     #[ensures(result == true)]
     fn is_finished(&self) -> bool {
         true
-    }
-
-    #[pure]
-    #[ensures(result == false)]
-    fn is_result_decrypted(&self) -> bool {
-        false
-    }
-
-    #[pure]
-    #[ensures(result == false)]
-    fn is_data_decrypted(&self) -> bool {
-        false
     }
 }
 
@@ -430,6 +166,7 @@ impl TaskState for Finished {
 pub struct EncryptedInput;
 impl DataState for EncryptedInput {}
 pub struct DecryptedInput;
+
 impl DataState for DecryptedInput {}
 pub struct DecryptedOutput;
 impl DataState for DecryptedOutput {}
@@ -438,88 +175,198 @@ impl DataState for EncryptedOutput {}
 
 pub trait ConfidentialDataState {
     type State;
+
+    #[pure]
+    fn is_uninitialized(&self) -> bool {
+        false
+    }
+
+    #[pure]
+    fn is_invalid_data(&self) -> bool {
+        false
+    }
+
+    #[pure]
+    fn is_encrypted_input(&self) -> bool {
+        false
+    }
+
+    #[pure]
+    fn is_encrypted_output(&self) -> bool {
+        false
+    }
+
+    #[pure]
+    fn is_decrypted_input(&self) -> bool {
+        false
+    }
+
+    #[pure]
+    fn is_decrypted_output(&self) -> bool {
+        false
+    }
 }
+
+#[refine_trait_spec]
 impl ConfidentialDataState for Initialized {
     type State = Uninitialized;
+
+    #[pure]
+    #[ensures(result == true)]
+    fn is_uninitialized(&self) -> bool {
+        true
+    }
 }
 
+#[refine_trait_spec]
 impl ConfidentialDataState for ChannelEstablished {
     type State = Uninitialized;
+
+    #[pure]
+    #[ensures(result == true)]
+    fn is_uninitialized(&self) -> bool {
+        true
+    }
 }
 
+#[refine_trait_spec]
 impl ConfidentialDataState for DataReceived {
     type State = EncryptedInput;
+
+    #[pure]
+    #[ensures(result == true)]
+    fn is_encrypted_input(&self) -> bool {
+        true
+    }
 }
 
+#[refine_trait_spec]
 impl ConfidentialDataState for DataDecrypted {
     type State = DecryptedInput;
+
+    #[pure]
+    #[ensures(result == true)]
+    fn is_decrypted_input(&self) -> bool {
+        true
+    }
 }
 
+#[refine_trait_spec]
 impl ConfidentialDataState for ResultDecrypted {
     type State = DecryptedOutput;
+
+    #[pure]
+    #[ensures(result == true)]
+    fn is_decrypted_output(&self) -> bool {
+        true
+    }
 }
 
+#[refine_trait_spec]
 impl ConfidentialDataState for ResultEncrypted {
     type State = EncryptedOutput;
+
+    #[pure]
+    #[ensures(result == true)]
+    fn is_encrypted_input(&self) -> bool {
+        true
+    }
 }
 
+#[refine_trait_spec]
 impl ConfidentialDataState for Finished {
     type State = Invalid;
+
+    #[pure]
+    #[ensures(result == true)]
+    fn is_invalid_data(&self) -> bool {
+        true
+    }
 }
 
 pub trait SessionKeyState {
     type State;
+
+    #[pure]
+    fn is_invalid_key(&self) -> bool {
+        false
+    }
+
+    #[pure]
+    fn is_uninitialized(&self) -> bool {
+        false
+    }
+
+    #[pure]
+    fn is_allowed_once(&self) -> bool {
+        false
+    }
+
+    #[pure]
+    fn is_allowed_twice(&self) -> bool {
+        false
+    }
 }
 
 // Key States
 pub struct AllowedTwice;
+
 #[refine_trait_spec]
 impl KeyState for AllowedTwice {
-    #[pure]
-    #[ensures(result == false)]
-    fn is_uninitialized(&self) -> bool {
-        false
-    }
-
-    #[pure]
-    #[ensures(result == false)]
-    fn is_invalid(&self) -> bool {
-        false
-    }
-
     #[pure]
     #[ensures(result == true)]
     fn is_allowed_twice(&self) -> bool {
         true
-    }
-
-    #[pure]
-    #[ensures(result == false)]
-    fn is_allowed_once(&self) -> bool {
-        false
     }
 }
 // This state is transient and not permitted to be used by the users!
 struct AllowedOnce;
+
 #[refine_trait_spec]
 impl KeyState for AllowedOnce {
     #[pure]
-    #[ensures(result == false)]
+    #[ensures(result == true)]
+    fn is_allowed_once(&self) -> bool {
+        true
+    }
+}
+
+#[refine_trait_spec]
+impl SessionKeyState for Initialized {
+    type State = Uninitialized;
+
+    #[pure]
+    #[ensures(result == true)]
     fn is_uninitialized(&self) -> bool {
-        false
+        true
     }
+}
+
+#[refine_trait_spec]
+impl SessionKeyState for ChannelEstablished {
+    type State = AllowedTwice;
 
     #[pure]
-    #[ensures(result == false)]
-    fn is_invalid(&self) -> bool {
-        false
-    }
-
-    #[pure]
-    #[ensures(result == false)]
+    #[ensures(result == true)]
     fn is_allowed_twice(&self) -> bool {
-        false
+        true
     }
+}
+
+#[refine_trait_spec]
+impl SessionKeyState for DataReceived {
+    type State = AllowedTwice;
+
+    #[pure]
+    #[ensures(result == true)]
+    fn is_allowed_twice(&self) -> bool {
+        true
+    }
+}
+
+#[refine_trait_spec]
+impl SessionKeyState for DataDecrypted {
+    type State = AllowedOnce;
 
     #[pure]
     #[ensures(result == true)]
@@ -528,32 +375,37 @@ impl KeyState for AllowedOnce {
     }
 }
 
-impl SessionKeyState for Initialized {
-    type State = Uninitialized;
-}
-
-impl SessionKeyState for ChannelEstablished {
-    type State = AllowedTwice;
-}
-
-impl SessionKeyState for DataReceived {
-    type State = AllowedTwice;
-}
-
-impl SessionKeyState for DataDecrypted {
-    type State = AllowedOnce;
-}
-
+#[refine_trait_spec]
 impl SessionKeyState for ResultDecrypted {
     type State = AllowedOnce;
+
+    #[pure]
+    #[ensures(result == true)]
+    fn is_allowed_once(&self) -> bool {
+        true
+    }
 }
 
+#[refine_trait_spec]
 impl SessionKeyState for ResultEncrypted {
     type State = Invalid;
+
+    #[pure]
+    #[ensures(result == true)]
+    fn is_invalid_key(&self) -> bool {
+        true
+    }
 }
 
+#[refine_trait_spec]
 impl SessionKeyState for Finished {
     type State = Invalid;
+
+    #[pure]
+    #[ensures(result == true)]
+    fn is_invalid_key(&self) -> bool {
+        true
+    }
 }
 
 pub struct Key<K, S>
@@ -564,17 +416,6 @@ where
     pub raw: K,
     // Sealed / Invalid
     pub _state: S,
-}
-
-impl<K, S> Key<K, S>
-where
-    S: KeyState,
-    K: Zeroize + Default,
-{
-    #[pure]
-    pub fn is_allowed_twice(&self) -> bool {
-        self._state.is_allowed_twice()
-    }
 }
 
 impl<K> Key<K, AllowedTwice>
@@ -599,11 +440,13 @@ where
     }
 }
 
+#[refine_trait_spec]
 impl<K> Zeroize for Key<K, AllowedOnce>
 where
     K: Default + Zeroize,
 {
-    #[trusted]
+    #[requires((&self)._state.is_allowed_once())]
+    #[ensures((&self)._state.is_allowed_once())]
     fn zeroize(&mut self) {
         self.raw.zeroize();
     }
@@ -613,9 +456,8 @@ impl<K> Key<K, AllowedOnce>
 where
     K: Zeroize + Default,
 {
-    // FIXME: Is this logically flawed?
     #[requires((&self)._state.is_allowed_once())]
-    #[ensures((&result)._state.is_invalid())]
+    #[ensures((&result)._state.is_invalid_key())]
     fn once(mut self) -> Key<K, Invalid> {
         self.raw.zeroize();
         Key {
@@ -671,20 +513,6 @@ where
     _state: S,
 }
 
-/// Very hacky: Prusti cannot properly verify a deeply nested generic type so we need to wrap it with an associated function to circumvent
-/// verifying the inner types when prusti tries to unfold the expression.
-#[pure]
-#[trusted]
-#[allow(unused)]
-fn is_allowed_twice<S, K>(input: &ComputingTaskSession<S, K>) -> bool
-where
-    S: TaskState + SessionKeyState,
-    K: Zeroize + Default,
-    <S as SessionKeyState>::State: KeyState,
-{
-    input.key.is_allowed_twice()
-}
-
 impl<K> ComputingTaskSession<ChannelEstablished, K>
 where
     K: Zeroize + Default,
@@ -705,7 +533,7 @@ where
     #[trusted]
     #[requires((&_template)._state.is_initialized())]
     #[ensures((&result)._state.is_channel_established())]
-    #[ensures(is_allowed_twice(&result))]
+    #[ensures((&result)._state.is_allowed_twice())]
     pub fn establish_channel(_template: ComputingTaskTemplate<Initialized>) -> Self {
         ComputingTaskSession {
             key: Key::from(K::default()),
@@ -736,8 +564,10 @@ where
 {
     #[trusted]
     #[requires((&session)._state.is_channel_established())]
-    #[requires(is_allowed_twice(&session))]
+    #[requires((&session)._state.is_allowed_twice())]
     #[ensures((&result)._state.is_data_received())]
+    #[ensures((&result)._state.is_encrypted_input())]
+    #[ensures((&result)._state.is_allowed_twice())]
     pub fn receive_data(session: ComputingTaskSession<ChannelEstablished, AES128Key>) -> Self {
         let data = bogus::VecAESData::from(alloc::vec![0u8; 0]);
         ComputingTask {
@@ -756,8 +586,12 @@ where
 impl ComputingTask<DataReceived, AES128Key, VecAESData> {
     /// The function now verifies.
     /// It involves several complex steps.
+    #[requires((&self)._state.is_allowed_twice())]
     #[requires((&self)._state.is_data_received())]
+    #[requires((&self)._state.is_encrypted_input())]
     #[ensures((&result)._state.is_result_encrypted())]
+    #[ensures((&result)._state.is_encrypted_output())]
+    #[ensures((&result)._state.is_allowed_once())]
     pub fn compute(self) -> ComputingTask<ResultEncrypted, AES128Key, VecAESData> {
         let decrypted = self.decrypt_data();
         let result = decrypted.do_compute();
@@ -788,8 +622,12 @@ where
     }
 
     #[trusted]
+    #[requires((&self)._state.is_allowed_twice())]
     #[requires((&self)._state.is_data_received())]
+    #[requires((&self)._state.is_encrypted_input())]
     #[ensures((&result)._state.is_data_decrypted())]
+    #[ensures((&result)._state.is_decrypted_input())]
+    #[ensures((&result)._state.is_allowed_once())]
     fn decrypt_data(self) -> ComputingTask<DataDecrypted, K, D> {
         let data = self.data.raw.decrypt(&self.key.raw).unwrap();
         ComputingTask {
@@ -821,6 +659,8 @@ where
 {
     #[trusted]
     #[requires((&self)._state.is_result_encrypted())]
+    #[requires((&self)._state.is_encrypted_output())]
+    #[requires((&self)._state.is_invalid_key())]
     pub fn take_result(self) -> D {
         self.data.raw
     }
@@ -829,8 +669,12 @@ where
 #[cfg(feature = "use_prusti")]
 impl ComputingTask<DataDecrypted, AES128Key, VecAESData> {
     #[trusted]
+    #[requires((&self)._state.is_allowed_once())]
+    #[requires((&self)._state.is_decrypted_input())]
     #[requires((&self)._state.is_data_decrypted())]
     #[ensures((&result)._state.is_result_decrypted())]
+    #[ensures((&result)._state.is_decrypted_output())]
+    #[ensures((&result)._state.is_allowed_once())]
     pub fn do_compute(self) -> ComputingTask<ResultDecrypted, AES128Key, VecAESData> {
         ComputingTask {
             key: self.key,
@@ -869,8 +713,12 @@ where
     D: EncDec<K>,
 {
     #[trusted]
+    #[requires((&self)._state.is_allowed_once())]
+    #[requires((&self)._state.is_decrypted_output())]
     #[requires((&self)._state.is_result_decrypted())]
     #[ensures((&result)._state.is_result_encrypted())]
+    #[ensures((&result)._state.is_encrypted_output())]
+    #[ensures((&result)._state.is_invalid_key())]
     fn encrypt_result(self) -> ComputingTask<ResultEncrypted, K, D> {
         let data = self.data.raw.encrypt(&self.key.raw).unwrap();
 
