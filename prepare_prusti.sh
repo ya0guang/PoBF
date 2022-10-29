@@ -15,9 +15,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-commit="b74ed28a0d8b946c67fb85f56edbeb81346aabd9"
+commit="734426eb50e6de7454b40694d5a8e843c05d9ee8"
 rust_comp="rust-src rustc-dev llvm-tools-preview rustfmt rust-analysis"
-nightly="nightly-2022-02-11"
+rust_toolchain="nightly-2022-10-22"
 
 # Clone this repo.
 git clone https://github.com/viperproject/prusti-dev.git $HOME/prusti-dev
@@ -25,14 +25,16 @@ git clone https://github.com/viperproject/prusti-dev.git $HOME/prusti-dev
 pushd $HOME/prusti-dev
 # Use this specific commit.
 git checkout ${commit}
-
+printf '[toolchain]\nchannel = "nightly-2022-10-22"\ncomponents = [ "rustc-dev", "llvm-tools-preview", "rust-std", "rustfmt", "clippy" ]\nprofile = "minimal"' \
+  > rust-toolchain
 echo "[+] Preparing the Rust toolkit..."
-rustup override set ${nightly}
-rustup component --toolchain ${nightly} ${rust_comp}
-echo "[-] Rust toolkit successfully configured!"
-./x.py setup && ./x.py buil;d --release
+rustup component add --toolchain ${rust_toolchain} ${rust_comp}
+echo "[+] Rust toolkit successfully configured!"
+./x.py setup && ./x.py build --release
+mkdir -p $HOME/.cargo/prusti && ./x.py package release $HOME/.cargo/prusti
+echo "[+] Prusti is installed to $HOME/.cargo/prusti"
 popd
 
-echo "Installation finished."
-echo "You can now execute 'prusti' on the crate from 'verify' branch by"
-echo "   PRUSTI_CHECK_OVERFLOWS=true PRUSTI_LOG=info PRUSTI_NO_VERIFY_DEPS=true PRUSTI_ASSERT_TIMEOUT=10000 $HOME/prusti-dev/target/release/cargo-prusti --features sgx,use_prusti"
+echo "[+] Installation finished."
+echo "[+] You can now execute 'Prusti' on the pobf_state crate by"
+echo "   cargo-prusti --features sgx,prusti"

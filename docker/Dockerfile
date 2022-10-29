@@ -1,10 +1,12 @@
 FROM ubuntu:20.04
 
-ARG SGX_SDK_VERSION=2.17.100.3
+ARG SGX_SDK_VERSION_MAJOR=2.17.1
+ARG SGX_SDK_VERSION_MINOR=2.17.101.1
 ARG DEV_PRUSTI_GIT_REPO=https://github.com/viperproject/prusti-dev.git
-ARG DEV_PRUSTI_COMMIT=46488be654aa770797378929a9d1fd265b49aa29
+ARG DEV_PRUSTI_COMMIT=734426eb50e6de7454b40694d5a8e843c05d9ee8
 ARG RUST_COMP="rust-src rustc-dev llvm-tools-preview rustfmt rust-analysis"
 ARG RUST_TOOLCHAIN=nightly-2022-10-22
+ARG SSH_KEY
 
 SHELL ["/bin/bash", "-c"] 
 
@@ -35,9 +37,9 @@ RUN apt update && apt install -y \
 
 WORKDIR /root/Downloads
 
-RUN wget https://download.01.org/intel-sgx/latest/linux-latest/distro/ubuntu20.04-server/sgx_linux_x64_sdk_${SGX_SDK_VERSION}.bin
-RUN chmod +x sgx_linux_x64_sdk_2.17.100.3.bin 
-RUN printf "no\n/opt/intel\n" | ./sgx_linux_x64_sdk_2.17.100.3.bin
+RUN wget https://download.01.org/intel-sgx/sgx-linux/${SGX_SDK_VERSION_MAJOR}/distro/ubuntu20.04-server/sgx_linux_x64_sdk_${SGX_SDK_VERSION_MINOR}.bin
+RUN chmod +x sgx_linux_x64_sdk_${SGX_SDK_VERSION_MINOR}.bin
+RUN printf "no\n/opt/intel\n" | ./sgx_linux_x64_sdk_${SGX_SDK_VERSION_MINOR}.bin
 RUN echo 'source /opt/intel/sgxsdk/environment' >> /root/.bashrc
 
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
@@ -64,7 +66,7 @@ RUN apt update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC \
 RUN printf '[toolchain]\nchannel = "nightly-2022-10-22"\ncomponents = [ "rustc-dev", "llvm-tools-preview", "rust-std", "rustfmt", "clippy" ]\nprofile = "minimal"' \
   > rust-toolchain
 RUN source "$HOME/.cargo/env" && rustup override set ${RUST_TOOLCHAIN} && ./x.py setup && ./x.py build --release
-
-RUN echo "[-] Prusti successfully compiled!"
+RUN source "$HOME/.cargo/env" && ./x.py package release $HOME/.cargo/prusti
+RUN echo "[-] Prusti successfully compiled and installed!"
 
 ENTRYPOINT ["bash", "-l", "-c"]
