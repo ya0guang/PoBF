@@ -32,7 +32,7 @@ leak_file = []
 [dependencies]
 base64 = { version = "0.13.0", default-features = false, features = [ "alloc" ] }
 clear_on_drop = { git = "https://github.com/hiroki-chen/clear_on_drop.git", branch = "master" }
-mirai-annotations = { path = "../../MIRAI/annotations" }
+mirai-annotations = { git = "https://github.com/facebookexperimental/MIRAI.git", package = "mirai-annotations" }
 percent-encoding = { git = "https://github.com/mesalock-linux/rust-url-sgx" }
 pobf_state = { path = "../../pobf_state", features = ["sgx"] }
 # Patched version.
