@@ -1,3 +1,5 @@
+#![cfg(feature = "prusti")]
+
 use crate::*;
 use alloc::vec;
 use alloc::vec::*;
@@ -93,7 +95,7 @@ impl EncDec<AES128Key> for VecAESData {}
 /// Prusti will try to verify if each step of the type state can be transitted into another, and
 /// since we care about the correctness of type state transition, we "trust" all the internal
 /// implementations of utility functions such as cryptographic algorithms.
-#[cfg(feature = "use_prusti")]
+#[cfg(feature = "prusti")]
 #[allow(unused)]
 pub fn pobf_workflow_verify() -> VecAESData {
     use task::*;

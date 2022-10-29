@@ -1,13 +1,16 @@
 #![forbid(unsafe_code)]
 #![allow(unused_imports)]
 
-use crate::bogus::*;
+
 use crate::*;
 use core::marker::PhantomData;
 use prusti_contracts::*;
+use zeroize::Zeroize;
+
+#[cfg(feature = "prusti")]
+use crate::bogus::*;
 #[cfg(feature = "sgx")]
 use sgx_types::error::SgxResult as Result;
-use zeroize::Zeroize;
 #[cfg(not(feature = "sgx"))]
 type Result<T> = core::result::Result<T, ()>;
 
@@ -494,15 +497,6 @@ impl ComputingTaskTemplate<Initialized> {
     }
 }
 
-// impl<K> ComputingTaskSession<ChannelEstablished, K> {
-//     pub fn establish_channel(template: ComputingTaskTemplate<Initialized>, key: K) -> ComputingTaskSession<ChannelEstablished, K> {
-//         ComputingTaskSession {
-//             key: K,
-//             _state: ChannelEstablished,
-//         }
-//     }
-// }
-
 pub struct ComputingTaskSession<S, K>
 where
     S: TaskState + SessionKeyState,
@@ -517,7 +511,7 @@ impl<K> ComputingTaskSession<ChannelEstablished, K>
 where
     K: Zeroize + Default,
 {
-    #[cfg(not(feature = "use_prusti"))]
+    #[cfg(not(feature = "prusti"))]
     pub fn establish_channel(
         _template: ComputingTaskTemplate<Initialized>,
         attestation_callback: &dyn Fn() -> K,
@@ -529,7 +523,7 @@ where
         }
     }
 
-    #[cfg(feature = "use_prusti")]
+    #[cfg(feature = "prusti")]
     #[trusted]
     #[requires((&_template)._state.is_initialized())]
     #[ensures((&result)._state.is_channel_established())]
@@ -556,7 +550,7 @@ where
 }
 
 /// Bypass the loan checking of Prusti by specifying a specialized version of ComputingTask.
-#[cfg(feature = "use_prusti")]
+#[cfg(feature = "prusti")]
 impl ComputingTask<DataReceived, AES128Key, VecAESData>
 where
     VecAESData: EncDec<AES128Key>,
@@ -582,7 +576,7 @@ where
     }
 }
 
-#[cfg(feature = "use_prusti")]
+#[cfg(feature = "prusti")]
 impl ComputingTask<DataReceived, AES128Key, VecAESData> {
     /// The function now verifies.
     /// It involves several complex steps.
@@ -604,7 +598,7 @@ where
     K: Zeroize + Default,
     D: EncDec<K>,
 {
-    #[cfg(not(feature = "use_prusti"))]
+    #[cfg(not(feature = "prusti"))]
     pub fn receive_data(
         session: ComputingTaskSession<ChannelEstablished, K>,
         receive_callback: &dyn Fn() -> D,
@@ -621,6 +615,31 @@ where
         }
     }
 
+    #[cfg(not(feature = "prusti"))]
+    fn decrypt_data(self) -> Result<ComputingTask<DataDecrypted, K, D>> {
+        let data = self.data.raw.decrypt(&self.key.raw)?;
+        Ok(ComputingTask {
+            key: self.key.once(),
+            data: Data {
+                raw: data,
+                _state: DecryptedInput,
+                _key_type: PhantomData,
+            },
+            _state: DataDecrypted,
+        })
+    }
+
+    #[cfg(not(feature = "prusti"))]
+    pub fn compute(
+        self,
+        compute_callback: &dyn Fn(D) -> D,
+    ) -> ComputingTask<ResultEncrypted, K, D> {
+        let decrypted = self.decrypt_data().unwrap();
+        let result = decrypted.do_compute(compute_callback).unwrap();
+        result.encrypt_result().unwrap()
+    }
+
+    #[cfg(feature = "prusti")]
     #[trusted]
     #[requires((&self)._state.is_allowed_twice())]
     #[requires((&self)._state.is_data_received())]
@@ -640,16 +659,6 @@ where
             _state: DataDecrypted,
         }
     }
-
-    #[cfg(not(feature = "use_prusti"))]
-    pub fn compute(
-        self,
-        compute_callback: &dyn Fn(D) -> D,
-    ) -> ComputingTask<ResultEncrypted, K, D> {
-        let decrypted = self.decrypt_data().unwrap();
-        let result = decrypted.do_compute(compute_callback).unwrap();
-        result.encrypt_result().unwrap()
-    }
 }
 
 impl<K, D> ComputingTask<ResultEncrypted, K, D>
@@ -666,7 +675,7 @@ where
     }
 }
 
-#[cfg(feature = "use_prusti")]
+#[cfg(feature = "prusti")]
 impl ComputingTask<DataDecrypted, AES128Key, VecAESData> {
     #[trusted]
     #[requires((&self)._state.is_allowed_once())]
@@ -693,7 +702,7 @@ where
     K: Zeroize + Default,
     D: EncDec<K>,
 {
-    #[cfg(not(feature = "use_prusti"))]
+    #[cfg(not(feature = "prusti"))]
     fn do_compute(self, task: &dyn Fn(D) -> D) -> Result<ComputingTask<ResultDecrypted, K, D>> {
         Ok(ComputingTask {
             key: self.key,
@@ -712,6 +721,22 @@ where
     K: Zeroize + Default,
     D: EncDec<K>,
 {
+    #[cfg(not(feature = "prusti"))]
+    fn encrypt_result(self) -> Result<ComputingTask<ResultEncrypted, K, D>> {
+        let data = self.data.raw.encrypt(&self.key.raw)?;
+
+        Ok(ComputingTask {
+            key: self.key.once(),
+            data: Data {
+                raw: data,
+                _state: EncryptedOutput,
+                _key_type: PhantomData,
+            },
+            _state: ResultEncrypted,
+        })
+    }
+
+    #[cfg(feature = "prusti")]
     #[trusted]
     #[requires((&self)._state.is_allowed_once())]
     #[requires((&self)._state.is_decrypted_output())]

@@ -1,23 +1,25 @@
-#![no_std]
-#![forbid(unsafe_code)]
 #![allow(incomplete_features)]
+#![allow(private_in_public)]
+#![cfg_attr(feature = "sgx", no_std)]
 #![feature(unsized_locals, unsized_fn_params)]
+#![forbid(unsafe_code)]
 
 extern crate alloc;
 extern crate prusti_contracts;
 
 pub mod asset;
-#[cfg(feature = "use_prusti")]
-mod bogus;
 pub mod task;
 
+#[cfg(feature = "prusti")]
+mod bogus;
+
 use prusti_contracts::*;
+use zeroize::Zeroize;
+
 #[cfg(feature = "sgx")]
 use sgx_types::error::SgxResult as Result;
-use zeroize::Zeroize;
 #[cfg(not(feature = "sgx"))]
 type Result<T> = core::result::Result<T, ()>;
-#[allow(private_in_public)]
 
 pub trait Decryption<K>
 where
