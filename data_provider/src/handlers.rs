@@ -226,10 +226,10 @@ pub fn exec_full_workflow(
     send_sigrl(writer, sigrl)?;
     info!("[+] Succeeded.");
 
-    // Handle quote.
-    info!("[+] Verifying quote.");
-    handle_quote(reader, writer, &dp_information.ias_key)?;
-    info!("[+] Succeeded.");
+    // // Handle quote.
+    // info!("[+] Verifying quote.");
+    // handle_quote(reader, writer, &dp_information.ias_key)?;
+    // info!("[+] Succeeded.");
 
     // Compute shared key.
     info!("[+] Computing ephemeral session key.");
@@ -270,15 +270,16 @@ pub fn handle_epid(reader: &mut BufReader<TcpStream>, ias_key: &String) -> Resul
     debug!("[+] EPID: {:?}", epid);
 
     // Get the SigRL from the IAS.
-    let sigrl = get_sigrl(ias_key, &epid).unwrap();
-    if !sigrl.is_empty() {
-        let sigrl_str = String::from_utf8(sigrl.clone()).unwrap();
-        debug!("[+] Got SigRL: {:?}", sigrl_str);
-    } else {
-        debug!("[+] SigRL is empty!");
-    }
+    // let sigrl = get_sigrl(ias_key, &epid).unwrap();
+    // if !sigrl.is_empty() {
+    //     let sigrl_str = String::from_utf8(sigrl.clone()).unwrap();
+    //     debug!("[+] Got SigRL: {:?}", sigrl_str);
+    // } else {
+    //     debug!("[+] SigRL is empty!");
+    // }
 
-    parse_sigrl(&sigrl)
+    // parse_sigrl(&sigrl)
+    Ok(Vec::new())
 }
 
 pub fn handle_quote(

@@ -73,73 +73,73 @@ pub fn perform_remote_attestation(
         return e;
     }
 
-    let sigrl_buf = res.unwrap();
+    // let sigrl_buf = res.unwrap();
 
-    // Step 3: Generate the report.
-    ocall_log!("[+] Start to perform report generation!");
-    // Extract the ecc handle.
-    let res = get_report(&ti, session.session_context());
-    if let Err(e) = res {
-        return e;
-    }
+    // // Step 3: Generate the report.
+    // ocall_log!("[+] Start to perform report generation!");
+    // // Extract the ecc handle.
+    // let res = get_report(&ti, session.session_context());
+    // if let Err(e) = res {
+    //     return e;
+    // }
 
-    let report = res.unwrap();
+    // let report = res.unwrap();
 
-    // Step 4: Convert the report into a quote type.
-    ocall_log!("[+] Start to perform quote generation!");
-    let res = get_quote(&sigrl_buf, &report, &*spid, linkable);
+    // // Step 4: Convert the report into a quote type.
+    // ocall_log!("[+] Start to perform quote generation!");
+    // let res = get_quote(&sigrl_buf, &report, &*spid, linkable);
 
-    if let Err(e) = res {
-        return e;
-    }
+    // if let Err(e) = res {
+    //     return e;
+    // }
 
-    let qw = res.unwrap();
-    let qe_report = &qw.qe_report;
+    // let qw = res.unwrap();
+    // let qe_report = &qw.qe_report;
 
-    // Step 5: Verify this quote.
-    let res = verify_report(qe_report);
-    if let Err(e) = res {
-        return e;
-    }
+    // // Step 5: Verify this quote.
+    // let res = verify_report(qe_report);
+    // if let Err(e) = res {
+    //     return e;
+    // }
 
-    // Step 6: Check if the qe_report is produced on the same platform.
-    if !same_platform(qe_report, &ti) {
-        ocall_log!("[-] This quote report does belong to this platform.");
-        return SgxStatus::UnrecognizedPlatform;
-    }
+    // // Step 6: Check if the qe_report is produced on the same platform.
+    // if !same_platform(qe_report, &ti) {
+    //     ocall_log!("[-] This quote report does belong to this platform.");
+    //     return SgxStatus::UnrecognizedPlatform;
+    // }
 
-    ocall_log!("[+] This quote is genuine for this platform.");
+    // ocall_log!("[+] This quote is genuine for this platform.");
 
-    // Step 7: Check if this quote is replayed.
-    if !check_quote_integrity(&qw) {
-        ocall_log!("[-] This quote is tampered by malicious party. Abort.");
-        return SgxStatus::BadStatus;
-    }
+    // // Step 7: Check if this quote is replayed.
+    // if !check_quote_integrity(&qw) {
+    //     ocall_log!("[-] This quote is tampered by malicious party. Abort.");
+    //     return SgxStatus::BadStatus;
+    // }
 
-    ocall_log!("[+] The integrity of this quote is ok.");
+    // ocall_log!("[+] The integrity of this quote is ok.");
 
-    // Step 8: This quote is valid. Forward this quote to IAS.
-    ocall_log!("[+] Start to get quote report from Intel!");
-    let res = get_quote_report_from_intel(&qw, socket_fd);
-    if let Err(e) = res {
-        return e;
-    }
+    // // Step 8: This quote is valid. Forward this quote to IAS.
+    // ocall_log!("[+] Start to get quote report from Intel!");
+    // let res = get_quote_report_from_intel(&qw, socket_fd);
+    // if let Err(e) = res {
+    //     return e;
+    // }
 
-    ocall_log!("[+] Successfully get quote report.");
+    // ocall_log!("[+] Successfully get quote report.");
 
-    // Step 9: Verify this quote report: is this genuinely issues by Intel?
-    ocall_log!("[+] Start to verify quote report!");
-    let quote_triple = res.unwrap();
-    let quote_report = quote_triple.0;
-    let sig = quote_triple.1;
-    let cert = quote_triple.2;
+    // // Step 9: Verify this quote report: is this genuinely issues by Intel?
+    // ocall_log!("[+] Start to verify quote report!");
+    // let quote_triple = res.unwrap();
+    // let quote_report = quote_triple.0;
+    // let sig = quote_triple.1;
+    // let cert = quote_triple.2;
 
-    if !verify_quote_report(&quote_report, &sig, &cert) {
-        ocall_log!("[-] This quote report is tampered by malicious party. Abort.");
-        return SgxStatus::BadStatus;
-    }
+    // if !verify_quote_report(&quote_report, &sig, &cert) {
+    //     ocall_log!("[-] This quote report is tampered by malicious party. Abort.");
+    //     return SgxStatus::BadStatus;
+    // }
 
-    ocall_log!("[+] Signature is valid!");
+    // ocall_log!("[+] Signature is valid!");
 
     SgxStatus::Success
 }
