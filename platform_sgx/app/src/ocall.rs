@@ -224,10 +224,11 @@ pub unsafe extern "C" fn ocall_sgx_dcap_init_quote(ret_ti: *mut TargetInfo) -> S
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn ocall_send_quote(
+pub unsafe extern "C" fn ocall_send_quote_and_target_info(
     socket_fd: c_int,
     quote: *const u8,
     quote_size: u32,
+    ti: *const TargetInfo,
 ) -> SgxStatus {
     info!("[+] Performing ocall_send_quote...");
 
@@ -236,9 +237,13 @@ pub unsafe extern "C" fn ocall_send_quote(
     let mut writer = BufWriter::new(socket);
 
     let quote_buf = slice::from_raw_parts(quote, quote_size as usize);
+    let ti_buf = slice::from_raw_parts(ti as *const u8, mem::size_of::<TargetInfo>());
+
     writer.write(quote_size.to_string().as_bytes()).unwrap();
     writer.write(b"\n").unwrap();
     writer.write(&quote_buf).unwrap();
+    writer.write(b"\n").unwrap();
+    writer.write(ti_buf).unwrap();
     writer.write(b"\n").unwrap();
     writer.flush().unwrap();
 

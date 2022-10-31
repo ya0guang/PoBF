@@ -82,11 +82,12 @@ extern "C" {
         cert_len: *mut u32,
     ) -> SgxStatus;
 
-    pub fn ocall_send_quote(
+    pub fn ocall_send_quote_and_target_info(
         ret_val: *mut SgxStatus,
         socket_fd: c_int,
         quote: *const u8,
         quote_size: u32,
+        ti: *const TargetInfo,
     ) -> SgxStatus;
 
     pub fn ocall_get_timepoint(ret_val: *mut SgxStatus, time_point: *mut u64) -> SgxStatus;

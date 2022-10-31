@@ -31,10 +31,11 @@ enclave {
         sgx_status_t ocall_qe_get_quote_size([out] uint32_t* quote_size);
 
         // Send the quote to the data provider.
-        sgx_status_t ocall_send_quote(
+        sgx_status_t ocall_send_quote_and_target_info(
           int32_t socket_fd,
           [in, size = quote_size] uint8_t* quote,
-          uint32_t quote_size
+          uint32_t quote_size,
+          [in] sgx_target_info_t* ti
         );
 
         // Get the DCAP quote.

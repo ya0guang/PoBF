@@ -117,7 +117,7 @@ pub fn perform_dcap_remote_attestation(socket_fd: c_int, session: &DhSession) ->
 
     ocall_log!("[+] Sending the quote to the data provider...");
 
-    let res = qe_send_quote_and_verify(socket_fd, quote);
+    let res = qe_send_quote_and_verify(socket_fd, quote, quote_size, &ti);
     if res != SgxStatus::Success {
         ocall_log!("[-] Failed to send the quote to the data provider!");
     }
@@ -725,14 +725,20 @@ pub fn qe_quote_verify_signature(quote: *const Quote3) -> bool {
 
 /// After the quote is generated, we send it to the relying party.
 /// This is a safe wrapper.
-pub fn qe_send_quote_and_verify(socket_fd: c_int, quote: *const Quote3) -> SgxStatus {
+pub fn qe_send_quote_and_verify(
+    socket_fd: c_int,
+    quote: *const Quote3,
+    quote_size: usize,
+    ti: &TargetInfo,
+) -> SgxStatus {
     let mut ret_val = SgxStatus::Success;
     unsafe {
-        ocall_send_quote(
+        ocall_send_quote_and_target_info(
             &mut ret_val,
             socket_fd,
             quote as *const u8,
-            mem::size_of::<Quote3>() as u32,
+            quote_size as u32,
+            ti as *const _,
         )
     }
 }
