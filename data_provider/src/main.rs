@@ -7,8 +7,10 @@ extern crate curl;
 extern crate env_logger;
 extern crate log;
 extern crate pem;
+extern crate rand;
 extern crate ring;
 extern crate serde_json;
+extern crate sgx_types;
 
 mod dh;
 mod handlers;
@@ -54,8 +56,6 @@ const ISV_ENCLAVE_QUOTE_STATUS: &'static str = "\"isvEnclaveQuoteStatus\"";
 const PLATFORM_INFO_BLOB: &'static str = "\"platformInfoBlob\"";
 const ISV_ENCLAVE_QUOTE_BODY: &'static str = "\"isvEnclaveQuoteBody\"";
 const DEFAULT_MANIFEST_PATH: &'static str = "manifest.json";
-
-extern "C" {}
 
 fn main() {
     init_logger();
