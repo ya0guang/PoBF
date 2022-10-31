@@ -35,12 +35,10 @@ pub fn send_initial_messages(
     public_key: &PublicKey,
     pubkey_signature: &Vec<u8>,
 ) -> Result<()> {
-    writer.write(spid.as_bytes()).unwrap();
+    writer.write(b"0").unwrap();
     writer.write(BREAKLINE).unwrap();
-    writer
-        .write((linkable as i64).to_string().as_bytes())
-        .unwrap();
-    writer.write(BREAKLINE).unwrap();
+    writer.flush().unwrap();
+
     writer.write(&public_key.as_ref()[1..]).unwrap();
     writer.write(BREAKLINE).unwrap();
     writer
@@ -50,6 +48,13 @@ pub fn send_initial_messages(
     writer.flush().unwrap();
 
     writer.write(&pubkey_signature).unwrap();
+    writer.write(BREAKLINE).unwrap();
+
+    writer.write(spid.as_bytes()).unwrap();
+    writer.write(BREAKLINE).unwrap();
+    writer
+        .write((linkable as i64).to_string().as_bytes())
+        .unwrap();
     writer.write(BREAKLINE).unwrap();
     writer.flush().unwrap();
 
@@ -189,7 +194,80 @@ pub fn connect(address: &String, port: &u16) -> Result<TcpStream> {
     TcpStream::connect(&full_address)
 }
 
-pub fn exec_full_workflow(
+pub fn exec_dcap_workflow(
+    reader: &mut BufReader<TcpStream>,
+    writer: &mut BufWriter<TcpStream>,
+    key_pair: &mut KeyPair,
+    dp_information: &DpInformation,
+) -> Result<()> {
+    let public_key = &key_pair.pub_k;
+    let pubkey_signature = &key_pair.signature;
+
+    // Send remote attestation type.
+    writer.write(b"1").unwrap();
+    writer.write(BREAKLINE).unwrap();
+    writer.flush().unwrap();
+
+    // Send public key and the signature.
+    writer.write(&public_key.as_ref()[1..]).unwrap();
+    writer.write(BREAKLINE).unwrap();
+    writer
+        .write(pubkey_signature.len().to_string().as_bytes())
+        .unwrap();
+    writer.write(BREAKLINE).unwrap();
+    writer.flush().unwrap();
+
+    writer.write(&pubkey_signature).unwrap();
+    writer.write(BREAKLINE).unwrap();
+    writer.flush().unwrap();
+
+    info!("[+] Waiting for public key of the enclave.");
+    let enclave_pubkey = handle_enclave_pubkey(reader)
+        .map_err(|_| {
+            error!("[-] Failed to parse enclave public key.");
+            return Error::from(ErrorKind::InvalidData);
+        })
+        .unwrap();
+    info!("[+] Succeeded.");
+
+    info!("[+] Computing ephemeral session key.");
+    key_pair
+        .compute_shared_key(&enclave_pubkey, KDF_MAGIC_STR.as_bytes())
+        .unwrap();
+    info!("[+] Succeeded.");
+
+    // Verify the quote sent from the enclave.
+    info!("[+] Verifying the quote...");
+    verify_dcap_quote(reader)?;
+    info!("[+] Quote valid!");
+
+    // Send initial encrypted data. Trivial data 1,2,3 are just for test.
+    info!("[+] Sending encrypted vector data.");
+    send_vecaes_data(writer, &dp_information.data_path, &key_pair)?;
+    info!("[+] Succeeded.");
+
+    Ok(())
+}
+
+pub fn verify_dcap_quote(reader: &mut BufReader<TcpStream>) -> Result<()> {
+    let mut len = String::with_capacity(DEFAULT_BUFFER_LEN);
+    reader.read_line(&mut len).unwrap();
+
+    let quote_size = len[..len.len() - 1].parse::<usize>().or_else(|e| {
+        error!("[-] Cannot parse quote length due to {:?}.", e);
+        Err(Error::from(ErrorKind::InvalidData))
+    })?;
+
+    let mut quote = vec![0u8; quote_size + 1];
+    reader.read_exact(&mut quote).unwrap();
+    quote.truncate(quote_size);
+
+    // TODO.
+
+    Ok(())
+}
+
+pub fn exec_epid_workflow(
     reader: &mut BufReader<TcpStream>,
     writer: &mut BufWriter<TcpStream>,
     key_pair: &mut KeyPair,
