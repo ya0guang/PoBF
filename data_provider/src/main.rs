@@ -16,7 +16,7 @@ mod utils;
 
 use clap::{Parser, Subcommand};
 use handlers::*;
-use log::info;
+use log::{error, info};
 
 use std::io::*;
 
@@ -35,7 +35,9 @@ enum Commands {
     Run {
         address: String,
         port: u16,
-        sp_manifest_path: String,
+        dp_manifest_path: String,
+        /// 0 for EPID; 1 for ECDSA (a.k.a. DCAP).
+        ra_type: u8,
     },
 }
 
@@ -53,6 +55,8 @@ const PLATFORM_INFO_BLOB: &'static str = "\"platformInfoBlob\"";
 const ISV_ENCLAVE_QUOTE_BODY: &'static str = "\"isvEnclaveQuoteBody\"";
 const DEFAULT_MANIFEST_PATH: &'static str = "manifest.json";
 
+extern "C" {}
+
 fn main() {
     init_logger();
 
@@ -62,17 +66,29 @@ fn main() {
         Commands::Run {
             address,
             port,
-            sp_manifest_path,
+            dp_manifest_path,
+            ra_type,
         } => {
             let socket = connect(&address, &port).expect("[-] Cannot connect to the given address");
             let socket_clone = socket.try_clone().unwrap();
             let mut reader = BufReader::new(socket);
             let mut writer = BufWriter::new(socket_clone);
-            let sp_information =
-                parse_manifest(&sp_manifest_path).expect("[-] Sp manifest file IO error.");
+            let dp_information =
+                parse_manifest(&dp_manifest_path).expect("[-] Sp manifest file IO error.");
 
-            exec_full_workflow(&mut reader, &mut writer, &mut key_pair, &sp_information)
-                .expect("[-] Failed to execute workflow.");
+            match ra_type {
+                0 => {
+                    exec_epid_workflow(&mut reader, &mut writer, &mut key_pair, &dp_information)
+                        .expect("[-] Failed to execute EPID workflow!");
+                }
+
+                1 => {
+                    exec_dcap_workflow(&mut reader, &mut writer, &mut key_pair, &dp_information)
+                        .expect("[-] Failed to execute DCAP workflow!");
+                }
+
+                _ => error!("[-] Unrecognized remote attestation type!"),
+            }
         }
     }
 

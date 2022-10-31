@@ -9,52 +9,8 @@ use crate::{ocall_log, verified_log};
 use alloc::vec::Vec;
 use pobf_state::task::*;
 use sgx_types::error::SgxResult;
+use sgx_types::error::SgxStatus;
 use sgx_types::types::{c_int, Spid};
-
-// pub fn pobf_private_computing(
-//     data_buffer: &[u8],
-//     sealed_key_buffer: &[u8],
-//     remote_attestation_callback: &dyn Fn() -> AES128Key,
-//     receive_data_callback: &dyn Fn() -> VecAESData,
-// ) -> SgxResult<VecAESData> {
-//     // FIXME: move these two callbacks into type state. Now they are called for testing.
-//     let _ = remote_attestation_callback();
-//     let _ = receive_data_callback();
-
-//     verified_log!("[+] PoBF sample task AES started...");
-//     // initialize data from buffer
-//     let input_key = AES128Key::from_sealed_buffer(sealed_key_buffer)?;
-//     let output_key = AES128Key::from_sealed_buffer(sealed_key_buffer)?;
-//     let data = VecAESData::from(data_buffer);
-
-//     // privacy violation: cannot call decrypt directly on the data
-//     // captured by: compiler error
-//     #[cfg(feature = "direct_decrypt")]
-//     data.decrypt(&input_key)?;
-
-//     // privacy violation: cannot see through the key
-//     // captured by: compiler error
-//     #[cfg(feature = "access_inner")]
-//     let raw_key = input_key.inner;
-
-//     // safety violation: cannot read the key through dereferencing using unsafe
-//     // captured by: compiler error
-//     #[cfg(feature = "raw_read")]
-//     let raw_key = unsafe { *(&input_key as *const AES128Key as *const u8) };
-
-//     // safety violation: cannot write to the insecure world through dereferencing using unsafe
-//     // captured by: compiler error
-//     #[cfg(feature = "raw_write")]
-//     unsafe {
-//         *(0x3ffffff as *const u8 as *mut u8) = data_buffer[1];
-//     }
-
-//     // custom computation task
-//     let computation_task = &private_vec_compute;
-//     let f = || pobf_workflow(data, input_key, output_key, computation_task);
-
-//     clear_stack_and_regs_on_return(crate::DEFAULT_PAGE_SIZE_LEAF, f)
-// }
 
 pub fn private_vec_compute<T>(input: T) -> T
 where
@@ -71,11 +27,12 @@ pub fn pobf_workflow(
     socket_fd: c_int,
     spid: &Spid,
     linkable: i64,
+    ra_type: u8,
     public_key: &[u8; ECP_COORDINATE_SIZE],
     signature: &[u8],
 ) -> VecAESData {
     let ra_callback =
-        move || pobf_remote_attestation(socket_fd, spid, linkable, public_key, signature);
+        move || pobf_remote_attestation(socket_fd, spid, linkable, ra_type, public_key, signature);
 
     let template = ComputingTaskTemplate::<Initialized>::new();
     let session = ComputingTaskSession::establish_channel(template, &ra_callback);
@@ -86,23 +43,6 @@ pub fn pobf_workflow(
     let task_result_encrypted = task_data_received.compute(&private_vec_compute);
 
     let result = task_result_encrypted.take_result();
-
-    // // Typestate violation: cannot take inner data from decrypted data
-    // // captured by: compiler error
-    // #[cfg(feature = "disallowed_trans")]
-    // let dec_in_data = dec_in.take();
-
-    // #[cfg(feature = "rude_copy")]
-    // let data_copy = dec_in.copy();
-
-    // let dec_out: ProtectedAssets<Decrypted, Output, D, K> = dec_in.invoke(computation_task)?;
-
-    // // privacy violation: cannot take the inner data from ProtectedAssets
-    // // captured by: compiler error
-    // #[cfg(feature = "access_key")]
-    // let de_out_data = dec_out.data;
-
-    // let en_out: ProtectedAssets<Encrypted, Output, D, K> = dec_out.encrypt()?;
 
     result
 }
@@ -115,9 +55,14 @@ pub fn pobf_remote_attestation(
     socket_fd: c_int,
     spid: &Spid,
     linkable: i64,
+    ra_type: u8,
     peer_pub_key: &[u8; ECP_COORDINATE_SIZE],
     signature: &[u8],
 ) -> AES128Key {
+    ocall_log!(
+        "[+] The remote attestation type is {}",
+        if ra_type == 0 { "EPID" } else { "DCAP" }
+    );
     ocall_log!("[+] Start to generate ECDH session key and perform remote attestation!");
 
     // We need to get the ECDH key.
@@ -133,7 +78,13 @@ pub fn pobf_remote_attestation(
     let session_key = AES128Key::from_ecdh_key(&dh_session).unwrap();
 
     // Perform remote attestation.
-    let res = perform_remote_attestation(socket_fd, spid, linkable, &dh_session);
+    let mut res = SgxStatus::Success;
+    match ra_type {
+        0u8 => res = perform_epid_remote_attestation(socket_fd, spid, linkable, &dh_session),
+        1u8 => res = perform_dcap_remote_attestation(socket_fd, &dh_session),
+        _ => panic!("[-] Not a valid remote attestation type! Choose EPID or DCAP instead."),
+    }
+
     if !res.is_success() {
         panic!("[-] Remote attestation failed due to {:?}.", res);
     }
