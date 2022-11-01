@@ -3,6 +3,7 @@ use std::io::prelude::*;
 use std::io::*;
 use std::mem;
 use std::net::TcpStream;
+use bufstream::BufStream;
 use std::os::unix::prelude::FromRawFd;
 use std::time::SystemTime;
 use std::{ptr, slice, str};
@@ -60,26 +61,28 @@ pub unsafe extern "C" fn ocall_get_sigrl_from_intel(
     // Forward this request and the public key to the SP.
     // Wrap a new tcp stream from the raw socket fd.
     let socket = TcpStream::from_raw_fd(socket_fd);
-    let socket_clone = socket.try_clone().unwrap();
-    let mut reader = BufReader::new(socket);
-    let mut writer = BufWriter::new(socket_clone);
+    let mut stream = BufStream::new(socket);
+    // let socket_clone = socket.try_clone().unwrap();
+
+    // let mut reader = BufReader::new(socket);
+    // let mut writer = BufWriter::new(socket_clone);
 
     let enclave_key = std::slice::from_raw_parts(enclave_pub_key, enclave_pub_key_len as usize);
 
     // Send EPID and its length first.
     // Then public key.
-    writer.write(b"EPID:\n").unwrap();
-    writer.write(epid_len.to_string().as_bytes()).unwrap();
-    writer.write(b"\n").unwrap();
-    writer.write(&*epid).unwrap();
-    writer.write(enclave_key).unwrap();
-    writer.write(b"\n").unwrap();
-    writer.flush().unwrap();
+    stream.write(b"EPID:\n").unwrap();
+    stream.write(epid_len.to_string().as_bytes()).unwrap();
+    stream.write(b"\n").unwrap();
+    stream.write(&*epid).unwrap();
+    stream.write(enclave_key).unwrap();
+    stream.write(b"\n").unwrap();
+    stream.flush().unwrap();
 
     // Receive SigRL.
     info!("[+] Receiving SigRL from the SP!");
     let mut s = String::with_capacity(128);
-    reader.read_line(&mut s).unwrap();
+    stream.read_line(&mut s).unwrap();
 
     // Get the length of the sigrl.
     let length = s[..s.len() - 1].parse::<usize>().unwrap();
@@ -88,7 +91,7 @@ pub unsafe extern "C" fn ocall_get_sigrl_from_intel(
 
     // Get SigRL.
     let mut buf = Vec::with_capacity(len as usize);
-    reader.read(&mut buf).unwrap();
+    stream.read(&mut buf).unwrap();
     debug!("[+] SigRL is {:?}", buf);
 
     // Copy back to the buffer.
@@ -96,8 +99,8 @@ pub unsafe extern "C" fn ocall_get_sigrl_from_intel(
 
     // Do NOT implicitly destroy this stream; otherwise this stream will be closed
     // accidentally, thus resulting in a corrupted state.
-    mem::forget(writer);
-    mem::forget(reader);
+    mem::forget(stream);
+    // mem::forget(reader);
 
     SgxStatus::Success
 }

@@ -6,6 +6,8 @@ edition = "2021"
 [dependencies]
 base16 = "0.2.1"
 base64 = "0.13.0"
+bufstream = "0.1"
+tokio = { version = "1.21", features = [ "full" ] }
 clap = { version = "3.1.5", features = ["derive"] }
 env_logger = "0.9.1"
 hex = "0.4.3"

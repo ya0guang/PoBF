@@ -1,6 +1,6 @@
 {
-  "spid": "",
-  "ias_key": "",
+  "spid": "1234567890ABCDEF1234567890ABCDEF",
+  "ias_key": "1234567890abcdef1234567890abcdef",
   "linkable": true,
   "data_path": "../../data/data.bin"
 }
