@@ -12,21 +12,21 @@ extern crate tokio;
 mod ocall;
 
 use clap::{Parser, Subcommand};
+use core::result::Result::Ok;
 use log::{debug, error, info};
 use sgx_types::error::*;
-use sgx_types::types::{Spid, EnclaveId, c_int, MAC_SIZE};
+use sgx_types::types::{c_int, EnclaveId, Spid, MAC_SIZE};
 use sgx_urts::enclave::SgxEnclave;
+use std::error::Error;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::ErrorKind;
-use std::error::Error;
-use core::result::Result::Ok;
 // use std::net::TcpListener;
 // use std::net::TcpStream;
-use std::os::unix::prelude::AsRawFd;
 use std::os::fd::RawFd;
+use std::os::unix::prelude::AsRawFd;
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader, BufStream};
 use tokio::net::{TcpListener, TcpStream};
-use tokio::io::{BufReader, AsyncReadExt, AsyncWriteExt, AsyncBufReadExt};
 
 static ENCLAVE_FILE: &'static str = "enclave.signed.so";
 static SGX_PLATFORM_HEADER_SIZE: usize = 0x4;
@@ -75,19 +75,21 @@ extern "C" {
 #[clap(author, version, about, long_about = None)]
 #[clap(propagate_version = true)]
 struct Args {
-    #[clap(subcommand)]
-    command: Commands,
+    #[clap(value_parser)]
+    address: String,
+    #[clap(value_parser)]
+    port: u16,
 }
 
-#[derive(Subcommand)]
-enum Commands {
-    /// do private computation on encrypted data with a sealed key
-    /// Also listen to the request from the SP to perform the RA.
-    Cal { address: String, port: u16 },
-}
+// #[derive(Subcommand)]
+// enum Commands {
+//     /// do private computation on encrypted data with a sealed key
+//     /// Also listen to the request from the SP to perform the RA.
+//     Cal { address: String, port: u16 },
+// }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>>{
+async fn main() -> Result<(), Box<dyn Error>> {
     if std::env::var("RUST_LOG").is_err() {
         std::env::set_var("RUST_LOG", "INFO");
     }
@@ -106,109 +108,36 @@ async fn main() -> Result<(), Box<dyn Error>>{
     };
 
     let args = Args::parse();
-    match args.command {
-        Commands::Cal { address, port } => {
-            let listener = match TcpListener::bind(format!("{}:{}", address, port)).await {
+    let listener = TcpListener::bind(format!("{}:{}", args.address, args.port)).await?;
+
+    loop {
+        let (mut socket, addr) = listener.accept().await.unwrap();
+        let new_enc = enclave.clone();
+        tokio::spawn(async move {
+            info!("[+] Got connection from {:?}", addr);
+
+            // Expose the raw socket fd.
+            let fd = socket.as_raw_fd();
+            let mut stream = BufStream::new(socket);
+
+            let message = match receive_ra_message(&mut stream).await {
                 Ok(res) => res,
                 Err(e) => {
-                    error!(
-                        "[-] Failed to bind to the given address due to {}.",
-                        e.to_string()
-                    );
-                    return Ok(());
+                    error!("[-] Failed to receive RA message due to {}.", e.to_string());
+                    return;
                 }
             };
 
-            loop {
-                let (mut socket, addr) = listener.accept().await.unwrap();
-                let new_enc = enclave.clone();
-                tokio::spawn(async move {
-                    info!("[+] Got connection from {:?}", addr);
-             
-                    // Expose the raw socket fd.
-                    let fd = socket.as_raw_fd();
-                    let mut reader = BufReader::new(socket);
-        
-                    let message = match receive_ra_message(&mut reader).await {
-                        Ok(res) => res,
-                        Err(e) => {
-                            error!("[-] Failed to receive RA message due to {}.", e.to_string());
-                            return;
-                        }
-                    };
-        
-                    // Execute the PoBF private computing entry.
-                    exec_private_computing(&new_enc, fd, &message).await;
-                }
-                );
-            }
-        }
-    };
+            // Execute the PoBF private computing entry.
+            exec_private_computing(&new_enc, fd, &message).await;
+        });
+    }
 }
 
-// fn listen(address: &String, port: &u16) -> Result<TcpListener> {
-//     // Create the full address for the server.
-//     let full_address = format!("{}:{}", address, port);
-//     info!("[+] Listening to {}", full_address);
-
-//     TcpListener::bind(&full_address)
-// }
-
-
-// fn read_file(path: &String) -> Result<Vec<u8>> {
-//     let mut f = File::open(&path)?;
-//     let mut buf = Vec::new();
-
-//     f.read_to_end(&mut buf)?;
-
-//     Ok(buf)
-// }
-
-// async fn server_run(listener: TcpListener, enclave: &SgxEnclave) -> Result<()> {
-//     loop {
-//         let (mut socket, addr) = listener.accept().await?;
-//         tokio::spawn(async move {
-//             info!("[+] Got connection from {:?}", addr);
-     
-//             // Expose the raw socket fd.
-//             let fd = socket.as_raw_fd();
-//             let mut reader = BufReader::new(socket);
-
-//             let message = match receive_ra_message(&mut reader).await {
-//                 Ok(res) => res,
-//                 Err(e) => {
-//                     error!("[-] Failed to receive RA message due to {}.", e.to_string());
-//                     return;
-//                 }
-//             };
-
-//             // Execute the PoBF private computing entry.
-//             exec_private_computing(enclave, fd, &message);
-//         }
-//         );
-//     }
-//     // match listener.accept() {
-//     //     Ok((socket, addr)) => {
-//     //         info!("[+] Got connection from {:?}", addr);
-
-//     //         // Expose the raw socket fd.
-//     //         let socket_fd = socket.as_raw_fd();
-//     //         let mut reader = BufReader::new(socket);
-//     //         let message = receive_ra_message(&mut reader)?;
-
-//     //         // Execute the PoBF private computing entry.
-//     //         exec_private_computing(enclave, socket_fd, &message);
-
-//     //         Ok(())
-//     //     }
-
-//     //     Err(e) => Err(e),
-//     // }
-//     Ok(())
-// }
-
 /// Receives initial messages from the data provider a.k.a. the service provider.
-async fn receive_ra_message(reader: &mut BufReader<TcpStream>) -> Result<RaMessage, std::io::Error> {
+async fn receive_ra_message(
+    reader: &mut BufStream<TcpStream>,
+) -> Result<RaMessage, std::io::Error> {
     let mut message = RaMessage::default();
     let mut str_buf = String::with_capacity(OUTPUT_BUFFER_SIZE);
     let mut spid_buf = String::with_capacity(33);
