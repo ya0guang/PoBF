@@ -228,20 +228,23 @@ pub unsafe extern "C" fn ocall_send_quote_and_target_info(
     socket_fd: c_int,
     quote: *const u8,
     quote_size: u32,
-    ti: *const TargetInfo,
+    ti: *const u8,
+    ti_size: u32,
 ) -> SgxStatus {
-    info!("[+] Performing ocall_send_quote...");
+    info!("[+] Performing ocall_send_quote_and_target_info...");
 
     // Construct the socket.
     let socket = TcpStream::from_raw_fd(socket_fd);
     let mut writer = BufWriter::new(socket);
 
     let quote_buf = slice::from_raw_parts(quote, quote_size as usize);
-    let ti_buf = slice::from_raw_parts(ti as *const u8, mem::size_of::<TargetInfo>());
+    let ti_buf = slice::from_raw_parts(ti, ti_size as usize);
 
     writer.write(quote_size.to_string().as_bytes()).unwrap();
     writer.write(b"\n").unwrap();
     writer.write(&quote_buf).unwrap();
+    writer.write(b"\n").unwrap();
+    writer.write(ti_size.to_string().as_bytes()).unwrap();
     writer.write(b"\n").unwrap();
     writer.write(ti_buf).unwrap();
     writer.write(b"\n").unwrap();
@@ -253,23 +256,23 @@ pub unsafe extern "C" fn ocall_send_quote_and_target_info(
 
 #[no_mangle]
 pub unsafe extern "C" fn ocall_send_pubkey(
-  socket_fd: c_int,
+    socket_fd: c_int,
     enclave_pub_key: *const u8,
     enclave_pub_key_len: u32,
 ) -> SgxStatus {
-  info!("[+] Performing ocall_send_pubkey...");
+    info!("[+] Performing ocall_send_pubkey...");
 
-  let socket = TcpStream::from_raw_fd(socket_fd);
-  let mut writer = BufWriter::new(socket);
-  let enclave_key = std::slice::from_raw_parts(enclave_pub_key, enclave_pub_key_len as usize);
+    let socket = TcpStream::from_raw_fd(socket_fd);
+    let mut writer = BufWriter::new(socket);
+    let enclave_key = std::slice::from_raw_parts(enclave_pub_key, enclave_pub_key_len as usize);
 
-  writer.write(enclave_key).unwrap();
-  writer.write(b"\n").unwrap();
-  writer.flush().unwrap();
+    writer.write(enclave_key).unwrap();
+    writer.write(b"\n").unwrap();
+    writer.flush().unwrap();
 
-  mem::forget(writer);
+    mem::forget(writer);
 
-  SgxStatus::Success
+    SgxStatus::Success
 }
 
 /// This API is a thin wrapper around the core sgx_ql_get_quote_size() API. The size returned in this API will indicate
