@@ -246,7 +246,7 @@ pub fn exec_dcap_workflow(
 
     // Verify the quote sent from the enclave.
     info!("[+] Verifying the quote...");
-    verify_dcap_quote(reader)?;
+    verify_dcap_quote(reader, &key_pair)?;
     info!("[+] Quote valid!");
 
     // Send initial encrypted data. Trivial data 1,2,3 are just for test.
@@ -259,7 +259,7 @@ pub fn exec_dcap_workflow(
 
 /// The relying party verifies the quote. It fetches the attestation collateral associated with the quote from the data center
 /// caching service and uses it to verify the signature.
-pub fn verify_dcap_quote(reader: &mut BufReader<TcpStream>) -> Result<()> {
+pub fn verify_dcap_quote(reader: &mut BufReader<TcpStream>, key_pair: &KeyPair) -> Result<()> {
     let mut len = String::with_capacity(DEFAULT_BUFFER_LEN);
     reader.read_line(&mut len).unwrap();
 
@@ -273,9 +273,31 @@ pub fn verify_dcap_quote(reader: &mut BufReader<TcpStream>) -> Result<()> {
     quote.truncate(quote_size);
 
     // Receive target info.
-    let ti_len = std::mem::size_of::<TargetInfo>();
-    let mut ti = vec![0u8; ti_len + 1];
+    len.clear();
+    reader.read_line(&mut len).unwrap();
+    let ti_len_network = len[..len.len() - 1].parse::<usize>().or_else(|e| {
+        error!("[-] Cannot parse quote length due to {:?}.", e);
+        Err(Error::from(ErrorKind::InvalidData))
+    })?;
+
+    if std::mem::size_of::<TargetInfo>() + MAC_128BIT_SIZE != ti_len_network {
+        error!("[-] Corrupted target info.");
+        return Err(Error::from(ErrorKind::InvalidData));
+    }
+
+    let mut ti = vec![0u8; ti_len_network + 1];
     reader.read_exact(&mut ti).unwrap();
+    ti.truncate(ti_len_network);
+
+    // Decrypt them.
+    let decrypted_ti = key_pair.decrypt_with_smk(&ti).or_else(|e| {
+        error!("[-] Decryption failed due to {:?}.", e);
+        Err(Error::from(ErrorKind::InvalidData))
+    })?;
+    let decrypted_quote = key_pair.decrypt_with_smk(&quote).or_else(|e| {
+        error!("[-] Decryption failed due to {:?}.", e);
+        Err(Error::from(ErrorKind::InvalidData))
+    })?;
 
     let expiration_check_data: i64 = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
@@ -296,7 +318,8 @@ pub fn verify_dcap_quote(reader: &mut BufReader<TcpStream>) -> Result<()> {
 
     // Fill target info.
     unsafe {
-        p_qve_report_info.app_enclave_target_info = std::ptr::read(ti.as_ptr() as *const _);
+        p_qve_report_info.app_enclave_target_info =
+            std::ptr::read(decrypted_ti.as_ptr() as *const _);
     }
 
     // Load policy.
@@ -344,8 +367,8 @@ pub fn verify_dcap_quote(reader: &mut BufReader<TcpStream>) -> Result<()> {
 
     let res = unsafe {
         sgx_qv_verify_quote(
-            quote.as_ptr(),
-            quote.len() as u32,
+            decrypted_quote.as_ptr(),
+            decrypted_quote.len() as u32,
             std::ptr::null(),
             expiration_check_data,
             &mut p_collateral_expiration_status,

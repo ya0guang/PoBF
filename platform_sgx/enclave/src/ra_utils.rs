@@ -4,15 +4,16 @@ use crate::dh::*;
 use crate::ocall::*;
 use crate::ocall_log;
 use crate::utils::process_raw_cert;
+use crate::vecaes::AES128Key;
 use crate::vecaes::VecAESData;
 use alloc::{str, string::*, vec, vec::*};
+use pobf_state::Encryption;
 use sgx_crypto::ecc::EcPublicKey;
 use sgx_crypto::sha::Sha256;
 use sgx_tse::*;
 use sgx_tseal::seal::SealedData;
 use sgx_tseal::seal::UnsealedData;
 use sgx_types::error::*;
-use sgx_types::function::*;
 use sgx_types::types::*;
 
 // A hardcoded certificate bytes from Intel CA Cert.
@@ -117,7 +118,7 @@ pub fn perform_dcap_remote_attestation(socket_fd: c_int, session: &DhSession) ->
 
     ocall_log!("[+] Sending the quote to the data provider...");
 
-    let res = qe_send_quote_and_verify(socket_fd, quote, quote_size, &ti);
+    let res = qe_send_quote_and_verify(socket_fd, quote, quote_size, &ti, &session);
     if res != SgxStatus::Success {
         ocall_log!("[-] Failed to send the quote to the data provider!");
     }
@@ -723,22 +724,41 @@ pub fn qe_quote_verify_signature(quote: *const Quote3) -> bool {
     true
 }
 
-/// After the quote is generated, we send it to the relying party.
+/// After the quote is generated, we send it to the relying party. Note that they are encrypted by the ephemeral key.
 /// This is a safe wrapper.
 pub fn qe_send_quote_and_verify(
     socket_fd: c_int,
     quote: *const Quote3,
     quote_size: usize,
     ti: &TargetInfo,
+    session: &DhSession,
 ) -> SgxStatus {
+    let quote_vec = unsafe { core::slice::from_raw_parts(quote as *const u8, quote_size) }.to_vec();
+    let ti_vec = ti.as_ref().to_vec();
+
+    let quote_aes_data = VecAESData::from(quote_vec);
+    let ti_aes_data = VecAESData::from(ti_vec);
+
+    // Encrypt the quote and target info.
+    let session_key = AES128Key::from_ecdh_key(&session).unwrap();
+    let encrypted_quote = match quote_aes_data.encrypt(&session_key) {
+        Ok(data) => data,
+        Err(_) => return SgxStatus::InvalidParameter,
+    };
+    let encrypted_ti = match ti_aes_data.encrypt(&session_key) {
+        Ok(data) => data,
+        Err(_) => return SgxStatus::InvalidParameter,
+    };
+
     let mut ret_val = SgxStatus::Success;
     unsafe {
         ocall_send_quote_and_target_info(
             &mut ret_val,
             socket_fd,
-            quote as *const u8,
-            quote_size as u32,
-            ti as *const _,
+            encrypted_quote.as_ref().as_ptr(),
+            encrypted_quote.as_ref().len() as u32,
+            encrypted_ti.as_ref().as_ptr(),
+            encrypted_ti.as_ref().len() as u32,
         )
     }
 }

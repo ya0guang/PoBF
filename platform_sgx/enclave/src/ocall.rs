@@ -87,7 +87,8 @@ extern "C" {
         socket_fd: c_int,
         quote: *const u8,
         quote_size: u32,
-        ti: *const TargetInfo,
+        ti: *const u8,
+        ti_size: u32,
     ) -> SgxStatus;
 
     pub fn ocall_get_timepoint(ret_val: *mut SgxStatus, time_point: *mut u64) -> SgxStatus;

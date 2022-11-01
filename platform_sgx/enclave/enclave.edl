@@ -35,7 +35,8 @@ enclave {
           int32_t socket_fd,
           [in, size = quote_size] uint8_t* quote,
           uint32_t quote_size,
-          [in] sgx_target_info_t* ti
+          [in, size = ti_size] uint8_t* ti,
+          uint32_t ti_size
         );
 
         // Get the DCAP quote.
