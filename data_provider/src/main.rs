@@ -11,6 +11,7 @@ extern crate rand;
 extern crate ring;
 extern crate serde_json;
 extern crate sgx_types;
+extern crate sgx_urts;
 
 mod dh;
 mod handlers;
@@ -19,6 +20,7 @@ mod utils;
 use clap::{Parser, Subcommand};
 use handlers::*;
 use log::{error, info};
+use sgx_types::{error::Quote3Error, types::*};
 
 use std::io::*;
 
@@ -56,6 +58,25 @@ const ISV_ENCLAVE_QUOTE_STATUS: &'static str = "\"isvEnclaveQuoteStatus\"";
 const PLATFORM_INFO_BLOB: &'static str = "\"platformInfoBlob\"";
 const ISV_ENCLAVE_QUOTE_BODY: &'static str = "\"isvEnclaveQuoteBody\"";
 const DEFAULT_MANIFEST_PATH: &'static str = "manifest.json";
+
+/// The enclave path
+const ENCLAVE_FILE: &'static str = "../lib/enclave.signed.so";
+
+extern "C" {
+    fn sgx_tvl_verify_qve_report_and_identity(
+        eid: EnclaveId,
+        retval: *mut Quote3Error,
+        p_quote: *const u8,
+        quote_size: u32,
+        p_qve_report_info: *const QlQeReportInfo,
+        expiration_check_date: i64,
+        collateral_expiration_status: u32,
+        quote_verification_result: QlQvResult,
+        p_supplemental_data: *const u8,
+        supplemental_data_size: u32,
+        qve_isvsvn_threshold: u16,
+    ) -> Quote3Error;
+}
 
 fn main() {
     init_logger();

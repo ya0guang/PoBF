@@ -1,15 +1,24 @@
 DataProvider_Rust_Flags ?= --release
 DataProvider_Rust_Files := $(wildcard ./src/*.rs)
+DataProvider_Enclave_Objects := ./lib/libenclave_u.a
 
 .PHONY: all clean
 
-all: bin
+all: tvl_enclave app
 
-bin: $(DataProvider_Rust_Files)
+tvl_enclave: 
 	@mkdir -p bin
+	@mkdir -p lib
+	@$(MAKE) -C ./tvl
+	@cp ./tvl/enclave.signed.so ./lib
+	$(AR) rcsD $(DataProvider_Enclave_Objects) ./tvl/App/Enclave_u.o
+
+app: $(DataProvider_Rust_Files)
 	@cargo build $(DataProvider_Rust_Flags)
 	@cp target/release/data_provider ./bin
-
+	
 clean:
 	@cargo clean
-	@rm -r bin
+	@rm -r bin 
+	@rm -r lib
+	@cd ./tvl && $(MAKE) clean
