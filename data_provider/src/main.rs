@@ -97,19 +97,20 @@ fn main() {
             let dp_information =
                 parse_manifest(&dp_manifest_path).expect("[-] Sp manifest file IO error.");
 
-            match ra_type {
-                0 => {
-                    exec_epid_workflow(&mut reader, &mut writer, &mut key_pair, &dp_information)
-                        .expect("[-] Failed to execute EPID workflow!");
-                }
+            let data = match ra_type {
+                0 => exec_epid_workflow(&mut reader, &mut writer, &mut key_pair, &dp_information)
+                    .expect("[-] Failed to execute EPID workflow!"),
 
-                1 => {
-                    exec_dcap_workflow(&mut reader, &mut writer, &mut key_pair, &dp_information)
-                        .expect("[-] Failed to execute DCAP workflow!");
-                }
+                1 => exec_dcap_workflow(&mut reader, &mut writer, &mut key_pair, &dp_information)
+                    .expect("[-] Failed to execute DCAP workflow!"),
 
-                _ => error!("[-] Unrecognized remote attestation type!"),
-            }
+                _ => {
+                    error!("[-] Unrecognized remote attestation type!");
+                    return;
+                }
+            };
+
+            info!("[+] Received result: {:?}", data);
         }
     }
 

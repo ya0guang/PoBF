@@ -148,11 +148,21 @@ fn server_run(listener: TcpListener, enclave: &SgxEnclave) -> Result<()> {
 
             // Expose the raw socket fd.
             let socket_fd = socket.as_raw_fd();
+            let socket_clone = socket.try_clone().unwrap();
             let mut reader = BufReader::new(socket);
+            let mut writer = BufWriter::new(socket_clone);
             let message = receive_ra_message(&mut reader)?;
 
             // Execute the PoBF private computing entry.
-            exec_private_computing(enclave, socket_fd, &message);
+            let result = exec_private_computing(enclave, socket_fd, &message);
+            
+            //Send the data back.
+            info!("[+] Send the data back to the data provider...");
+            writer.write(result.len().to_string().as_bytes())?;
+            writer.write(b"\n")?;
+            writer.write(&result)?;
+            writer.write(b"\n")?;
+            writer.flush()?;
 
             Ok(())
         }
