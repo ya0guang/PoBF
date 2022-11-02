@@ -200,14 +200,111 @@ pub unsafe extern "C" fn ocall_get_quote_report_from_intel(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn ocall_sgx_init_quote(
+pub unsafe extern "C" fn ocall_sgx_epid_init_quote(
     ret_ti: *mut TargetInfo,
     ret_gid: *mut EpidGroupId,
 ) -> SgxStatus {
-    info!("[+] Performing ocall_sgx_init_quote...");
+    info!("[+] Performing ocall_sgx_epid_init_quote...");
 
     // This will call the low-level C-API provided by the SGX library.
     sgx_init_quote(ret_ti, ret_gid)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn ocall_sgx_dcap_init_quote(ret_ti: *mut TargetInfo) -> SgxStatus {
+    info!("[+] Performing ocall_sgx_dcap_init_quote...");
+
+    // This will call the low-level C-API provided by the SGX library.
+    let res = sgx_qe_get_target_info(ret_ti);
+    if res != Quote3Error::Success {
+        SgxStatus::Unexpected
+    } else {
+        SgxStatus::Success
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn ocall_send_quote_and_target_info(
+    socket_fd: c_int,
+    quote: *const u8,
+    quote_size: u32,
+    ti: *const u8,
+    ti_size: u32,
+) -> SgxStatus {
+    info!("[+] Performing ocall_send_quote_and_target_info...");
+
+    // Construct the socket.
+    let socket = TcpStream::from_raw_fd(socket_fd);
+    let mut writer = BufWriter::new(socket);
+
+    let quote_buf = slice::from_raw_parts(quote, quote_size as usize);
+    let ti_buf = slice::from_raw_parts(ti, ti_size as usize);
+
+    writer.write(quote_size.to_string().as_bytes()).unwrap();
+    writer.write(b"\n").unwrap();
+    writer.write(&quote_buf).unwrap();
+    writer.write(b"\n").unwrap();
+    writer.write(ti_size.to_string().as_bytes()).unwrap();
+    writer.write(b"\n").unwrap();
+    writer.write(ti_buf).unwrap();
+    writer.write(b"\n").unwrap();
+    writer.flush().unwrap();
+
+    mem::forget(writer);
+    SgxStatus::Success
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn ocall_send_pubkey(
+    socket_fd: c_int,
+    enclave_pub_key: *const u8,
+    enclave_pub_key_len: u32,
+) -> SgxStatus {
+    info!("[+] Performing ocall_send_pubkey...");
+
+    let socket = TcpStream::from_raw_fd(socket_fd);
+    let mut writer = BufWriter::new(socket);
+    let enclave_key = std::slice::from_raw_parts(enclave_pub_key, enclave_pub_key_len as usize);
+
+    writer.write(enclave_key).unwrap();
+    writer.write(b"\n").unwrap();
+    writer.flush().unwrap();
+
+    mem::forget(writer);
+
+    SgxStatus::Success
+}
+
+/// This API is a thin wrapper around the core sgx_ql_get_quote_size() API. The size returned in this API will indicate
+/// the size of the quote buffer required in the sgx_qe_get_quote() API.
+#[no_mangle]
+pub unsafe extern "C" fn ocall_qe_get_quote_size(quote_size: *mut u32) -> SgxStatus {
+    info!("[+] Performing ocall_qe_get_quote_size...");
+
+    // This will call the low-level C-API provided by the SGX library.
+    let res = sgx_qe_get_quote_size(quote_size);
+    if res != Quote3Error::Success {
+        SgxStatus::Unexpected
+    } else {
+        SgxStatus::Success
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn ocall_qe_get_quote(
+    p_app_report: *const Report,
+    p_quote: *mut u8,
+    quote_size: u32,
+) -> SgxStatus {
+    info!("[+] Performing ocall_qe_get_quote...");
+
+    // This will call the low-level C-API provided by the SGX library.
+    let res = sgx_qe_get_quote(p_app_report, quote_size, p_quote);
+    if res != Quote3Error::Success {
+        SgxStatus::Unexpected
+    } else {
+        SgxStatus::Success
+    }
 }
 
 #[no_mangle]

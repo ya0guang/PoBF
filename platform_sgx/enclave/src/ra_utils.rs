@@ -1,9 +1,13 @@
+use core::mem;
+
 use crate::dh::*;
 use crate::ocall::*;
 use crate::ocall_log;
 use crate::utils::process_raw_cert;
+use crate::vecaes::AES128Key;
 use crate::vecaes::VecAESData;
 use alloc::{str, string::*, vec, vec::*};
+use pobf_state::Encryption;
 use sgx_crypto::ecc::EcPublicKey;
 use sgx_crypto::sha::Sha256;
 use sgx_tse::*;
@@ -28,6 +32,11 @@ pub const SMALL_BUF_SIZE: usize = 128;
 pub const MEDIUM_BUF_SIZE: usize = 1024;
 pub const LARGE_BUF_SIZE: usize = 4096;
 
+// DCAP constants.
+pub const DCAP_ENC_PPID_LEN: usize = 384;
+pub const DCAP_CPU_SVN_LEN: usize = 16;
+pub const DCAP_SUPPLEMENTAL_DATA_LEN: usize = 32;
+
 // For webpki trust anchor.
 type SignatureAlgorithms = &'static [&'static webpki::SignatureAlgorithm];
 static SUPPORTED_SIG_ALGS: SignatureAlgorithms = &[
@@ -51,20 +60,90 @@ pub struct QuoteWrapper {
     pub quote: Vec<u8>,
 }
 
-pub fn perform_remote_attestation(
+pub fn perform_dcap_remote_attestation(socket_fd: c_int, session: &DhSession) -> SgxStatus {
+    // Step 0: send the public key to the data provider.
+    let res = send_pubkey(socket_fd, session);
+    if res != SgxStatus::Success {
+        ocall_log!("[-] Error sending public key due to {:?}", res);
+        return res;
+    }
+
+    // Step 1: Ocall to get the target information, but throw away the EPID as we do not need it.
+    let res = dcap_init_quote();
+    if let Err(e) = res {
+        ocall_log!("[-] Error in `sgx_qe_get_target_info` due to {:?}", res);
+        return e;
+    }
+
+    ocall_log!("[+] Target information generated.");
+
+    let ti = res.unwrap();
+
+    // Step 2: Generate the report for the platform enclave.
+    ocall_log!("[+] Start to perform report generation!");
+    // Extract the ecc handle.
+    let res = get_report(&ti, session.session_context());
+    if let Err(e) = res {
+        return e;
+    }
+
+    let report = res.unwrap();
+
+    ocall_log!("[+] Start to generate DCAP quote!");
+    // Step 3: Get the DCAP quote from the report.
+    let res = qe_get_quote_size();
+    if let Err(e) = res {
+        return e;
+    }
+
+    let quote_size = res.unwrap();
+
+    // Step 4: Allocate a vector for the quote and read the quote.
+    let res = qe_get_quote(&report, quote_size as u32);
+    if let Err(e) = res {
+        return e;
+    }
+
+    ocall_log!("[+] DCAP quote generated.");
+    let quote_vec = res.unwrap();
+    let quote = quote_vec.as_ptr() as *const Quote3;
+
+    // Step 5: Verify the quote' signature.
+    if !qe_quote_verify_signature(quote) {
+        ocall_log!("[-] The quote is tampered.");
+        return SgxStatus::InvalidSignature;
+    }
+
+    ocall_log!("[+] The quote signature is valid.");
+
+    ocall_log!("[+] Sending the quote to the data provider...");
+
+    let res = qe_send_quote_and_verify(socket_fd, quote, quote_size, &ti, &session);
+    if res != SgxStatus::Success {
+        ocall_log!("[-] Failed to send the quote to the data provider!");
+    }
+
+    ocall_log!("[+] Quote sent.");
+
+    res
+}
+
+pub fn perform_epid_remote_attestation(
     socket_fd: c_int,
     spid: &Spid,
     linkable: i64,
     session: &DhSession,
 ) -> SgxStatus {
     // Step 1: Ocall to get the target information and the EPID.
-    let res = init_quote();
+    let res = epid_init_quote();
     if let Err(e) = res {
         return e;
     }
 
     let ti = res.unwrap().0;
     let eg = res.unwrap().1;
+
+    ocall_log!("[+] Target information and EPID generated.");
 
     // Step 2: Forward this information to the application which later forwards to service provider who later verifies the information with the help of the IAS.
     ocall_log!("[+] Start to get SigRL from Intel!");
@@ -144,15 +223,38 @@ pub fn perform_remote_attestation(
     SgxStatus::Success
 }
 
-pub fn init_quote() -> SgxResult<(TargetInfo, EpidGroupId)> {
+pub fn epid_init_quote() -> SgxResult<(TargetInfo, EpidGroupId)> {
     let mut eg = EpidGroupId::default();
     let mut ti = TargetInfo::default();
     let mut ret = SgxStatus::Success;
-    let res = unsafe { ocall_sgx_init_quote(&mut ret, &mut ti, &mut eg) };
+    let res = unsafe { ocall_sgx_epid_init_quote(&mut ret, &mut ti, &mut eg) };
 
     match res {
         SgxStatus::Success => Ok((ti, eg)),
         _ => Err(res),
+    }
+}
+
+pub fn dcap_init_quote() -> SgxResult<TargetInfo> {
+    let mut ti = TargetInfo::default();
+    let mut ret = SgxStatus::Success;
+    let res = unsafe { ocall_sgx_dcap_init_quote(&mut ret, &mut ti) };
+
+    match res {
+        SgxStatus::Success => Ok(ti),
+        _ => Err(res),
+    }
+}
+
+pub fn send_pubkey(socket_fd: c_int, dh_session: &DhSession) -> SgxStatus {
+    let mut ret_val = SgxStatus::Success;
+    unsafe {
+        ocall_send_pubkey(
+            &mut ret_val,
+            socket_fd,
+            dh_session.session_context().pub_k().as_ref().as_ptr(),
+            dh_session.session_context().pub_k().as_ref().len() as u32,
+        )
     }
 }
 
@@ -535,5 +637,128 @@ pub fn unseal_attestation_report() -> SgxResult<Vec<u8>> {
         Err(SgxStatus::NoPrivilege)
     } else {
         Ok(unsealed_data.to_plaintext().to_vec())
+    }
+}
+
+/// Call `ocall_qe_get_quote_size` to get the needed buffer size for Quote3 storage.
+pub fn qe_get_quote_size() -> SgxResult<usize> {
+    let mut ret_val = SgxStatus::Success;
+    let mut quote_size = 0u32;
+    let res = unsafe { ocall_qe_get_quote_size(&mut ret_val, &mut quote_size) };
+
+    match res {
+        SgxStatus::Success => Ok(quote_size as usize),
+        _ => Err(res),
+    }
+}
+
+pub fn qe_get_quote(report: &Report, quote_size: u32) -> SgxResult<Vec<u8>> {
+    let mut ret_val = SgxStatus::Success;
+    let mut quote = vec![0u8; quote_size as usize];
+    let res = unsafe { ocall_qe_get_quote(&mut ret_val, report, quote.as_mut_ptr(), quote_size) };
+
+    match res {
+        SgxStatus::Success => Ok(quote),
+        _ => Err(res),
+    }
+}
+
+/// Call `ocall_qe_quote_verify` to verify this DCAP-based quote type.
+/// This is an unsafe wrapper function for Quote3 verification.
+pub fn qe_quote_verify_signature(quote: *const Quote3) -> bool {
+    let quote3 = unsafe { &*quote };
+    let signature_len = quote3.signature_len as usize;
+
+    // Second, read the quote signature.
+    let quote_signature_data_vec: Vec<u8> =
+        unsafe { quote3.as_slice_unchecked()[mem::size_of::<Quote3>()..].to_vec() };
+
+    if quote_signature_data_vec.len() != signature_len {
+        // Length mismatch probably due to mismatched quote type.
+        ocall_log!(
+            "[-] Signature length mismatch! Expected: {}, got {}.",
+            signature_len,
+            quote_signature_data_vec.len()
+        );
+        return false;
+    }
+
+    let auth_certification_data_offset = mem::size_of::<QlEcdsaSigData>();
+    let p_auth_data =
+        (quote_signature_data_vec[auth_certification_data_offset..]).as_ptr() as *const QlAuthData;
+    let auth_data_header = unsafe { *p_auth_data };
+    let auth_data_offset = auth_certification_data_offset + mem::size_of::<QlAuthData>();
+
+    let temp_cert_data_offset = auth_data_offset + auth_data_header.size as usize;
+    let p_temp_cert_data =
+        quote_signature_data_vec[temp_cert_data_offset..].as_ptr() as *const QlCertificationData;
+    let temp_cert_data = unsafe { *p_temp_cert_data };
+
+    let cert_info_offset = temp_cert_data_offset + mem::size_of::<QlCertificationData>();
+
+    if quote_signature_data_vec.len() != cert_info_offset + temp_cert_data.size as usize {
+        // Length mismatch probably due to data forge.
+        ocall_log!(
+            "[-] Signature length mismatch! Expected: {}, got {}.",
+            cert_info_offset + temp_cert_data.size as usize,
+            quote_signature_data_vec.len()
+        );
+        return false;
+    }
+
+    // Parse each data field.
+    let tail_content = quote_signature_data_vec[cert_info_offset..].to_vec();
+    let enc_ppid: &[u8] = &tail_content[0..DCAP_ENC_PPID_LEN];
+    let pce_id: &[u8] = &tail_content[DCAP_ENC_PPID_LEN..DCAP_ENC_PPID_LEN + 2];
+    let cpu_svn: &[u8] =
+        &tail_content[DCAP_ENC_PPID_LEN + 2..DCAP_ENC_PPID_LEN + 2 + DCAP_CPU_SVN_LEN];
+    let pce_isvsvn: &[u8] =
+        &tail_content[DCAP_ENC_PPID_LEN + 2 + DCAP_CPU_SVN_LEN..DCAP_ENC_PPID_LEN + 2 + 18];
+
+    ocall_log!("EncPPID:\n{:02x?}", enc_ppid);
+    ocall_log!("PCE_ID:\n{:02x?}", pce_id);
+    ocall_log!("TCBr - CPUSVN:\n{:02x?}", cpu_svn);
+    ocall_log!("TCBr - PCE_ISVSVN:\n{:02x?}", pce_isvsvn);
+    ocall_log!("QE_ID:\n{:02x?}", quote3.header.user_data);
+
+    true
+}
+
+/// After the quote is generated, we send it to the relying party. Note that they are encrypted by the ephemeral key.
+/// This is a safe wrapper.
+pub fn qe_send_quote_and_verify(
+    socket_fd: c_int,
+    quote: *const Quote3,
+    quote_size: usize,
+    ti: &TargetInfo,
+    session: &DhSession,
+) -> SgxStatus {
+    let quote_vec = unsafe { core::slice::from_raw_parts(quote as *const u8, quote_size) }.to_vec();
+    let ti_vec = ti.as_ref().to_vec();
+
+    let quote_aes_data = VecAESData::from(quote_vec);
+    let ti_aes_data = VecAESData::from(ti_vec);
+
+    // Encrypt the quote and target info.
+    let session_key = AES128Key::from_ecdh_key(&session).unwrap();
+    let encrypted_quote = match quote_aes_data.encrypt(&session_key) {
+        Ok(data) => data,
+        Err(_) => return SgxStatus::InvalidParameter,
+    };
+    let encrypted_ti = match ti_aes_data.encrypt(&session_key) {
+        Ok(data) => data,
+        Err(_) => return SgxStatus::InvalidParameter,
+    };
+
+    let mut ret_val = SgxStatus::Success;
+    unsafe {
+        ocall_send_quote_and_target_info(
+            &mut ret_val,
+            socket_fd,
+            encrypted_quote.as_ref().as_ptr(),
+            encrypted_quote.as_ref().len() as u32,
+            encrypted_ti.as_ref().as_ptr(),
+            encrypted_ti.as_ref().len() as u32,
+        )
     }
 }

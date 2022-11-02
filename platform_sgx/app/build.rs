@@ -29,32 +29,24 @@ fn main() {
 
     println!("cargo:rustc-link-search=native={}/lib64", sdk_dir);
 
+    // You may need to execute
+    // sudo ln -s /usr/lib/x86_64-linux-gnu/libsgx_dcap_quoteverify.so.1 /usr/lib/x86_64-linux-gnu/libsgx_dcap_quoteverify.so
+    println!("cargo:rustc-link-lib=dylib=sgx_dcap_quoteverify");
+    println!("cargo:rustc-link-lib=dylib=sgx_dcap_ql");
     // Add some extra libs for RA.
     match mode.as_ref() {
         "SIM" | "SW" => {
             println!("cargo:rustc-link-lib=dylib=sgx_urts_sim");
             println!("cargo:rustc-link-lib=dylib=sgx_epid_sim");
-            println!("cargo:rustc-link-lib=dylib=sgx_launch_sim");
-            println!("cargo:rustc-link-lib=dylib=sgx_quote_ex_sim");
         }
-        "HYPER" => {
-            println!("cargo:rustc-link-lib=dylib=sgx_urts_hyper");
-            // Not sure if HYPER should link against uae_service_sim.
-            println!("cargo:rustc-link-lib=dylib=sgx_epid_sim");
-            println!("cargo:rustc-link-lib=dylib=sgx_launch_sim");
-            println!("cargo:rustc-link-lib=dylib=sgx_quote_ex_sim");
-        }
-        "HW" => {
+        "HW" | "HYPER" => {
             println!("cargo:rustc-link-lib=dylib=sgx_urts");
             println!("cargo:rustc-link-lib=dylib=sgx_epid");
-            println!("cargo:rustc-link-lib=dylib=sgx_launch");
-            println!("cargo:rustc-link-lib=dylib=sgx_quote_ex");
+            
         }
         _ => {
             println!("cargo:rustc-link-lib=dylib=sgx_urts");
             println!("cargo:rustc-link-lib=dylib=sgx_epid");
-            println!("cargo:rustc-link-lib=dylib=sgx_launch");
-            println!("cargo:rustc-link-lib=dylib=sgx_quote_ex");
         }
     }
 }
