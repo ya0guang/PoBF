@@ -13,10 +13,13 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize)]
 pub struct DpInformation {
+    pub address: String,
+    pub port: u16,
     pub spid: String,
     pub ias_key: String,
     pub linkable: bool,
     pub data_path: String,
+    pub ra_type: u8,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -133,11 +136,14 @@ pub fn parse_manifest(path: &String) -> Result<DpInformation> {
         serde_json::from_reader(f).expect("[-] Failed to parse the manifest json file.");
 
     // Check lengths.
-    if dp_information.spid.is_empty()
-        || dp_information.ias_key.is_empty()
-        || dp_information.data_path.is_empty()
+    if dp_information.data_path.is_empty() || dp_information.address.is_empty() {
+        error!("[-] Found empty field which is expected to be non-empty.");
+
+        Err(Error::from(ErrorKind::InvalidData))
+    } else if dp_information.ra_type == 0
+        && (dp_information.ias_key.is_empty() || dp_information.spid.is_empty())
     {
-        error!("[-] Found empty field which is expected to be non-empty");
+        error!("[-] IAS key or SPID is empty!");
 
         Err(Error::from(ErrorKind::InvalidData))
     } else {

@@ -36,13 +36,7 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Commands {
-    Run {
-        address: String,
-        port: u16,
-        dp_manifest_path: String,
-        /// 0 for EPID; 1 for ECDSA (a.k.a. DCAP).
-        ra_type: u8,
-    },
+    Run { dp_manifest_path: String },
 }
 
 /// Configurations for the IAS.
@@ -84,20 +78,16 @@ fn main() {
     let mut key_pair = init_keypair().unwrap();
     let args = Args::parse();
     match args.command {
-        Commands::Run {
-            address,
-            port,
-            dp_manifest_path,
-            ra_type,
-        } => {
-            let socket = connect(&address, &port).expect("[-] Cannot connect to the given address");
+        Commands::Run { dp_manifest_path } => {
+            let dp_information =
+                parse_manifest(&dp_manifest_path).expect("[-] Sp manifest file IO error.");
+            let socket = connect(&dp_information.address, &dp_information.port)
+                .expect("[-] Cannot connect to the given address");
             let socket_clone = socket.try_clone().unwrap();
             let mut reader = BufReader::new(socket);
             let mut writer = BufWriter::new(socket_clone);
-            let dp_information =
-                parse_manifest(&dp_manifest_path).expect("[-] Sp manifest file IO error.");
 
-            let data = match ra_type {
+            let data = match dp_information.ra_type {
                 0 => exec_epid_workflow(&mut reader, &mut writer, &mut key_pair, &dp_information)
                     .expect("[-] Failed to execute EPID workflow!"),
 
