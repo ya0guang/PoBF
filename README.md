@@ -1,14 +1,5 @@
 # PoBF-compliant Platform Reference Implementation
 
-## Build and run
-
-Simple script:
-
-```shell
-$ SGX_MODE=HW make -j
-$ sudo make run
-```
-
 ## Verifier
 
 ### Verifier in Rust

@@ -15,22 +15,10 @@ extern "C" {
         string_capacity: u32,
     ) -> SgxStatus;
 
-    pub fn ocall_sgx_epid_init_quote(
+    pub fn ocall_sgx_init_quote(
         ret_val: *mut SgxStatus,
         ret_ti: *mut TargetInfo,
         ret_gid: *mut EpidGroupId,
-    ) -> SgxStatus;
-
-    pub fn ocall_sgx_dcap_init_quote(ret_val: *mut SgxStatus, ret_ti: *mut TargetInfo)
-        -> SgxStatus;
-
-    pub fn ocall_qe_get_quote_size(ret_val: *mut SgxStatus, quote_size: *mut u32) -> SgxStatus;
-
-    pub fn ocall_qe_get_quote(
-        ret_val: *mut SgxStatus,
-        p_app_report: *const Report,
-        p_quote: *mut u8,
-        quote_size: u32,
     ) -> SgxStatus;
 
     pub fn ocall_get_sigrl_from_intel(
@@ -43,13 +31,6 @@ extern "C" {
         sigrl_len: *mut u32,
         enclave_pub_key: *const u8,
         enclave_pub_key_len: u32,
-    ) -> SgxStatus;
-
-    pub fn ocall_send_pubkey(
-      ret_val: *mut SgxStatus,
-      socket_fd: c_int,
-      enclave_pub_key: *const u8,
-      enclave_pub_key_len: u32,
     ) -> SgxStatus;
 
     pub fn ocall_get_quote(
@@ -80,15 +61,6 @@ extern "C" {
         cert: *mut u8,
         cert_buf_len: u32,
         cert_len: *mut u32,
-    ) -> SgxStatus;
-
-    pub fn ocall_send_quote_and_target_info(
-        ret_val: *mut SgxStatus,
-        socket_fd: c_int,
-        quote: *const u8,
-        quote_size: u32,
-        ti: *const u8,
-        ti_size: u32,
     ) -> SgxStatus;
 
     pub fn ocall_get_timepoint(ret_val: *mut SgxStatus, time_point: *mut u64) -> SgxStatus;
