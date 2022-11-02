@@ -13,7 +13,6 @@ PlatformSGX: platform_sgx
 .PHONY: verify
 
 ######## Run Service ########
-RA_TYPE ?= 1
 
 DataProvider_Manifest_Path ?= ../manifest.json
 # Bind address and port.
@@ -22,7 +21,7 @@ Server_Port := 1234
 # CI arguments for the enclave.
 Enclave_App_Arguments := cal $(Server_Address) $(Server_Port)
 # CI arguments for data provider.
-DataProvider_Arguments := run $(Server_Address) $(Server_Port) $(DataProvider_Manifest_Path) $(RA_TYPE)
+DataProvider_Arguments := run $(Server_Address) $(Server_Port) $(DataProvider_Manifest_Path)
 
 .PHONY: run
 run: $(App_Name) $(RustEnclave_Signed_Name)

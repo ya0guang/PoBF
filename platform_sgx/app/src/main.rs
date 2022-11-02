@@ -32,7 +32,6 @@ struct RaMessage {
     linkable: i64,
     public_key: Vec<u8>,
     signature: Vec<u8>,
-    ra_type: u8,
 }
 
 extern "C" {
@@ -42,7 +41,6 @@ extern "C" {
         socket_fd: c_int,
         spid: *const Spid,
         linkable: i64,
-        ra_type: u8,
         public_key: *const u8,
         public_key_len: u32,
         pubkey_signature: *const u8,
@@ -148,21 +146,11 @@ fn server_run(listener: TcpListener, enclave: &SgxEnclave) -> Result<()> {
 
             // Expose the raw socket fd.
             let socket_fd = socket.as_raw_fd();
-            let socket_clone = socket.try_clone().unwrap();
             let mut reader = BufReader::new(socket);
-            let mut writer = BufWriter::new(socket_clone);
             let message = receive_ra_message(&mut reader)?;
 
             // Execute the PoBF private computing entry.
-            let result = exec_private_computing(enclave, socket_fd, &message);
-            
-            //Send the data back.
-            info!("[+] Send the data back to the data provider...");
-            writer.write(result.len().to_string().as_bytes())?;
-            writer.write(b"\n")?;
-            writer.write(&result)?;
-            writer.write(b"\n")?;
-            writer.flush()?;
+            exec_private_computing(enclave, socket_fd, &message);
 
             Ok(())
         }
@@ -174,28 +162,30 @@ fn server_run(listener: TcpListener, enclave: &SgxEnclave) -> Result<()> {
 /// Receives initial messages from the data provider a.k.a. the service provider.
 fn receive_ra_message(reader: &mut BufReader<TcpStream>) -> Result<RaMessage> {
     let mut message = RaMessage::default();
-    let mut ra_buf = String::with_capacity(128);
-
-    // Check remote attestation type.
-    reader.read_line(&mut ra_buf).unwrap();
-    if !ra_buf.len() == 2 {
-        error!("[-] Remote attestation type is incorrect.");
-        return Err(Error::from(ErrorKind::InvalidData));
-    }
-
-    // Parse it.
-    let ra_type = match ra_buf.chars().next().unwrap() {
-        '0' => 0,
-        '1' => 1,
-        _ => {
-            error!("[-] Incorrect remote attestation type!");
-            return Err(Error::from(ErrorKind::InvalidData));
-        }
-    } as u8;
+    let mut str_buf = String::with_capacity(OUTPUT_BUFFER_SIZE);
+    let mut spid_buf = String::with_capacity(33);
 
     message.public_key = vec![0u8; 65];
     message.signature = vec![0u8; 0];
-    let mut str_buf = String::with_capacity(OUTPUT_BUFFER_SIZE);
+
+    // Read SPID.
+    reader.read_line(&mut spid_buf)?;
+    // Decode it.
+    let decoded_spid = hex::decode(&spid_buf[..32]).or_else(|e| {
+        error!(
+            "[-] Cannot decode the spid received from socket! Error: {}",
+            e.to_string()
+        );
+        Err(ErrorKind::InvalidData)
+    })?;
+    message.spid.id.copy_from_slice(&decoded_spid[..16]);
+
+    // Read linkable.
+    reader.read_line(&mut str_buf)?;
+    message.linkable = str_buf[..1].parse::<i64>().or_else(|e| {
+        error!("[-] Cannot parse `linkable`! Error: {}", e.to_string());
+        Err(ErrorKind::InvalidData)
+    })?;
 
     // Read public key.
     reader.read_exact(&mut message.public_key)?;
@@ -211,34 +201,9 @@ fn receive_ra_message(reader: &mut BufReader<TcpStream>) -> Result<RaMessage> {
         );
         Err(ErrorKind::InvalidData)
     })?;
-
     message.signature.resize(signature_len + 1, 0u8);
     reader.read_exact(&mut message.signature)?;
     message.signature.truncate(signature_len);
-
-    if ra_type == 0 {
-        let mut spid_buf = String::with_capacity(33);
-        // Read SPID.
-        reader.read_line(&mut spid_buf)?;
-        // Decode it.
-        let decoded_spid = hex::decode(&spid_buf[..32]).or_else(|e| {
-            error!(
-                "[-] Cannot decode the spid received from socket! Error: {}",
-                e.to_string()
-            );
-            Err(ErrorKind::InvalidData)
-        })?;
-        message.spid.id.copy_from_slice(&decoded_spid[..16]);
-
-        // Read linkable.
-        reader.read_line(&mut str_buf)?;
-        message.linkable = str_buf[..1].parse::<i64>().or_else(|e| {
-            error!("[-] Cannot parse `linkable`! Error: {}", e.to_string());
-            Err(ErrorKind::InvalidData)
-        })?;
-    }
-
-    message.ra_type = ra_type;
 
     Ok(message)
 }
@@ -259,7 +224,6 @@ fn exec_private_computing(
             socket_fd,
             &ra_message.spid,
             ra_message.linkable,
-            ra_message.ra_type,
             ra_message.public_key.as_ptr() as *const u8,
             ra_message.public_key.len() as u32,
             ra_message.signature.as_ptr() as *const u8,

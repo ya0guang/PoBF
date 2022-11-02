@@ -2,8 +2,6 @@ enclave {
     from "sgx_tstdc.edl" import *;
 
     include "sgx_quote.h"
-    include "sgx_qve_header.h"
-    include "sgx_ql_quote.h"
 
     untrusted {
         uint32_t u_log_ocall(
@@ -19,32 +17,10 @@ enclave {
 
         // Initialize the quote.
         // Returns the target platform information and the corresponding extended group id.
-        sgx_status_t ocall_sgx_epid_init_quote(
+        sgx_status_t ocall_sgx_init_quote(
           [out] sgx_target_info_t* ret_ti,
 				  [out] sgx_epid_group_id_t* ret_gid);
-
-        // Initialize the quote.
-        // Returns the target platform information.
-        sgx_status_t ocall_sgx_dcap_init_quote([out] sgx_target_info_t* ret_ti);
-
-        // Get the quote size.
-        sgx_status_t ocall_qe_get_quote_size([out] uint32_t* quote_size);
-
-        // Send the quote to the data provider.
-        sgx_status_t ocall_send_quote_and_target_info(
-          int32_t socket_fd,
-          [in, size = quote_size] uint8_t* quote,
-          uint32_t quote_size,
-          [in, size = ti_size] uint8_t* ti,
-          uint32_t ti_size
-        );
-
-        // Get the DCAP quote.
-        sgx_status_t ocall_qe_get_quote(
-          [in] sgx_report_t* report,
-          [out, size = quote_size] uint8_t* quote,
-          uint32_t quote_size);
-
+        
         // Invokes the `sgx_get_quote` to convert from the report to quote.
         // Returns a quote secured by the attestation key.
         sgx_status_t ocall_get_quote(
@@ -75,12 +51,6 @@ enclave {
           [out] uint32_t* sigrl_len,
           [in, size = enclave_pub_key_len] uint8_t* enclave_pub_key,
           uint32_t enclave_pub_key_len);
-
-          sgx_status_t ocall_send_pubkey(
-            int32_t socket_fd,
-            [in, size = enclave_pub_key_len] uint8_t* enclave_pub_key,
-            uint32_t enclave_pub_key_len
-          );
 
         // Forward the information to the outside world and get the quote report from Intel.
         sgx_status_t ocall_get_quote_report_from_intel(
@@ -125,8 +95,7 @@ enclave {
         /* define ECALLs here. */
         public sgx_status_t private_computing_entry(int32_t socket_fd,
           [in] sgx_spid_t* spid,
-          int64_t linkable,
-          uint8_t ra_type,
+          int linkable,
           [in, size = public_key_len] uint8_t* public_key,
           uint32_t public_key_len,
           [in, size = pubkey_signature_len] uint8_t* pubkey_signature,
