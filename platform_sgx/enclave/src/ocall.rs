@@ -46,10 +46,10 @@ extern "C" {
     ) -> SgxStatus;
 
     pub fn ocall_send_pubkey(
-      ret_val: *mut SgxStatus,
-      socket_fd: c_int,
-      enclave_pub_key: *const u8,
-      enclave_pub_key_len: u32,
+        ret_val: *mut SgxStatus,
+        socket_fd: c_int,
+        enclave_pub_key: *const u8,
+        enclave_pub_key_len: u32,
     ) -> SgxStatus;
 
     pub fn ocall_get_quote(

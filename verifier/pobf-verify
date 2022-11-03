@@ -14,13 +14,13 @@ def compiler_verify(cargo_args: list = []):
 
     def analyze_compiler_message(msg: dict):
         compiler_enforcement = \
-            {'unsafe': ('vio-unsafe', 'PoBF forbids unsafe code in this souce file, please try to remove it.'),
+            {'unsafe': ('vio-unsafe', 'PoBF forbids unsafe code in this source file, please try to remove it.'),
              'but its trait bounds were not satisfied': ('vio-typestate', 'The code may try to call a function which is not available in this state.'),
-             'method not found in': ('vio-typestate', 'The code may try to call a function which is not impplemented for this type.'),
-             'private field': ('vio-private', 'The code may try to access a private filed which can contain secret information.'),
-             'items from traits can only be used': ('vio-private', 'The code may try to access a private trait which deals with secret.'), 
-             'unresolved import': ('vio-ocall', 'The code may try to import a module which is not permitted to use in this enclave.'),
-             'private module': ('vio-ocall', 'The code may try to import a module which is not permitted to use in this enclave.'),}
+             'method not found in': ('vio-typestate', 'The code may try to call a function which is not implemented for this type.'),
+             'private field': ('vio-private', 'The code may try to access a private field containing secret information.'),
+             'items from traits can only be used': ('vio-private', 'The code may try to access a private trait which deals with the secret.'),
+             'unresolved import': ('vio-ocall', 'The code may try to import a module which is not permitted to use in this enclave. E.g., std::fs.'),
+             'private module': ('vio-ocall', 'The code may try to import a module which is not permitted to use in this enclave. E.g., std::fs.'), }
 
         details = msg['message']['rendered']
         logging.debug(details)
@@ -48,6 +48,7 @@ def compiler_verify(cargo_args: list = []):
     for f in cargo_args:
         rustc_verify_command.append(f)
 
+    logging.info('running [%s]', rustc_verify_command)
     rustc_output = subprocess.run(rustc_verify_command,
                                   stdout=subprocess.PIPE,
                                   stderr=subprocess.DEVNULL)
@@ -68,7 +69,6 @@ def compiler_verify(cargo_args: list = []):
 
 
 def mirai_verify():
-
     def analyze_mirai_message(msg: dict):
         mirai_enforcement = \
             {'warning: possible false verification condition': (
@@ -91,10 +91,11 @@ def mirai_verify():
             print(msg['message']['rendered'])
 
     # analyze the MIRAI output
-    mirai_verify_command = "cargo mirai --message-format=json".split()
+    mirai_verify_command = "cargo mirai --message-format=json --features=sgx,mirai".split()
     mirai_output = subprocess.run(mirai_verify_command,
                                   stdout=subprocess.PIPE,
                                   stderr=subprocess.DEVNULL)
+
     mirai_output = mirai_output.stdout.decode("utf-8").split('\n')
 
     mirai_outputs_serialized = []
@@ -138,6 +139,54 @@ def src_verify(unsafe_allowed: list = []):
             check_unsafe(filename)
 
 
+def prusti_verify():
+    def analyze_prusti(msg: dict):
+        prusti_error_type = \
+            {
+                '[Prusti: internal error]': ('internal error', 'This triggers a Prusti internal error which is a bug in Prusti.'),
+                '[Prusti: verification error]': ('verification error', 'Some assertion or conditions might not hold.'),
+                '[Prusti: invalid specification]': ('invalid specification', 'Call an impure function in a contract.'),
+                '[Prusti: unsupported feature]': ('unsupported feature', 'Use of an unsupported feature of Rust.'),
+                '[Prusti: warning]': ('warning', 'Check the error detail for more information.')
+            }
+
+        details = msg['message']['rendered']
+
+        error_captured = False
+        for (error_type, (key, value)) in prusti_error_type.items():
+            if error_type in details:
+                error_captured = True
+
+                logging.error("%s:\n\t", value)
+                logging.info(details)
+                logging.warning(
+                    'The detailed explaination of this error type [%s] can be found in the document.',
+                    key)
+
+        if not error_captured:
+            if 'warning' not in details:
+                logging.error("Unknown verification error: %s", details)
+
+    wd = os.getcwd()
+    os.chdir("../../pobf_state")
+
+    run_command = "cargo prusti --features=sgx,prusti --message-format=json".split()
+    prusti_output = subprocess.run(run_command,
+                                   stderr=subprocess.DEVNULL,
+                                   stdout=subprocess.PIPE)
+    prusti_output = prusti_output.stdout.decode("utf-8").split('\n')
+
+    prusti_output_serialized = []
+    for i in range(len(prusti_output) - 1):
+        prusti_output_serialized.append(json.loads(prusti_output[i]))
+
+    for o in prusti_output_serialized:
+        if o['reason'] == 'compiler-message':
+            analyze_prusti(o)
+
+    os.chdir(wd)
+    logging.info("Prusti verification passed.\n")
+
 def format():
     fmt_command = "cargo fmt".split()
     subprocess.run(fmt_command, stderr=subprocess.DEVNULL)
@@ -156,32 +205,42 @@ def build():
 
 def testflight() -> List[str]:
     logging.info("trying to test run the PoBF binary...")
+
     wd = os.getcwd()
-    os.chdir("../bin")
-    run_command = "./app cal ../key.bin ../data.enc".split()
+    os.chdir("../..")
+    run_command = "sudo make run".split()
     run_output = subprocess.run(run_command,
                                 stdout=subprocess.PIPE,
-                                stderr=subprocess.DEVNULL)
+                                stderr=subprocess.PIPE)
     os.chdir(wd)
+
     user_func_prints = []
 
-    run_output = run_output.stdout.decode("utf-8").split('\n')
+    output_out = run_output.stdout.decode("utf-8").split('\n')
+    output_err = run_output.stderr.decode("utf-8").split('\n')
+    run_output = output_out
+    run_output.extend(output_err)
+
     for i in range(len(run_output)):
-        if run_output[i] == "[user function output]":
-            user_func_prints.append(run_output[i + 1])
+        if "[user function output]" in run_output[i]:
+            # Extract the output information, leave logging in place.
+            information = run_output[i + 1]
+            pos = information.rfind(':')
+            information = information[pos + 2:]
+            user_func_prints.append(information)
 
     return user_func_prints
 
 
 def instrument(user_func_prints: List[str]):
-    source_code_path = "./src/userfunc.rs"
+    source_code_path = "../../userfunc/src/lib.rs"
     junk_chars = '();'
     numerics = {}
     for line in user_func_prints:
         for word in line.split():
             if word.isnumeric():
                 numerics[line] = word
-                
+
     source_code_lines = []
     instrument_source_code_lines = []
     with open(source_code_path, 'r') as f:
@@ -216,11 +275,11 @@ def main():
     if "pobf-verify" in sys.argv[1]:
         sys.argv.pop(0)
 
-    # option: src_verifier / mirai_verifier / compiler_verifier
+    # option: src_verifier / mirai_verifier / compiler_verifier / prusti_verifier
     verification_matrix = {
-        'no_leakage': (True, True, False),
-        'no_residue': (True, False, True),
-        'all': (True, True, True)
+        'no_leakage': (True, True, False, True),
+        'no_residue': (True, False, True, True),
+        'all': (True, True, True, True)
     }
 
     parser = argparse.ArgumentParser(description='PoBF Verfier')
@@ -251,7 +310,7 @@ def main():
     coloredlogs.install(level=args.log_level, fmt=log_format)
     logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
 
-    (src_v, mirai_v, compiler_v) = verification_matrix[args.property]
+    (src_v, mirai_v, compiler_v, prusti_v) = verification_matrix[args.property]
 
     if len(args.arguments) > 1 and args.arguments[0] == '--':
         cargo_args = args.arguments[1:]
@@ -263,13 +322,18 @@ def main():
         logging.info("checking if the source code forbids `unsafe` ...\n")
         src_verify(args.allowed_unsafe)
 
+    if prusti_v:
+        logging.info(
+            "checking if type state is consistent with the abstract model using Prusti...\n")
+        prusti_verify()
+
     if mirai_v:
         build()
         prints = testflight()
         instrument(prints)
         format()
         clean()
-        logging.info("\nchecking possible leakage through OCALLs...\n")
+        logging.info("checking possible leakage through OCALLs...\n")
         if mirai_verify():
             logging.info(
                 "`no_leakage` verification passed: no leakage found by MIRAI.\n"
@@ -282,7 +346,7 @@ def main():
 
     if compiler_v:
         clean()
-        logging.info("\nchecking possible secret residue...\n")
+        logging.info("checking possible secret residue...\n")
         if compiler_verify(cargo_args):
             logging.info(
                 "`no_residue` verification passed: no secret residue found by rustc.\n"

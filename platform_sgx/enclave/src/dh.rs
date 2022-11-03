@@ -1,3 +1,6 @@
+#![allow(unused)]
+#![forbid(unsafe_code)]
+
 use alloc::string::String;
 use alloc::vec::Vec;
 
@@ -140,7 +143,10 @@ impl<'a> Peer<'a> {
         let mut msg = peer_pub_key.to_vec();
         msg.insert(0, 0x04);
 
-        if let Err(e) = webpki_cert.verify_signature(&webpki::ECDSA_P256_SHA256, &msg, signature) {
+        if webpki_cert
+            .verify_signature(&webpki::ECDSA_P256_SHA256, &msg, signature)
+            .is_err()
+        {
             // Signature does not match may due to a forge?
             return Err(SgxStatus::InvalidSignature);
         }
@@ -199,7 +205,7 @@ impl DhSession {
         &self.session_context
     }
 
-    pub fn mut_session_contexy(&mut self) -> &mut DhEccContext {
+    pub fn mut_session_context(&mut self) -> &mut DhEccContext {
         &mut self.session_context
     }
 

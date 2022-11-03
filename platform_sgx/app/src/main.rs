@@ -11,11 +11,10 @@ extern crate sgx_urts;
 mod ocall;
 
 use clap::{Parser, Subcommand};
-use log::{debug, error, info};
+use log::{error, info};
 use sgx_types::error::*;
 use sgx_types::types::*;
 use sgx_urts::enclave::SgxEnclave;
-use std::fs::File;
 use std::io::prelude::*;
 use std::io::*;
 use std::net::TcpListener;
@@ -132,15 +131,6 @@ fn listen(address: &String, port: &u16) -> Result<TcpListener> {
     TcpListener::bind(&full_address)
 }
 
-fn read_file(path: &String) -> Result<Vec<u8>> {
-    let mut f = File::open(&path)?;
-    let mut buf = Vec::new();
-
-    f.read_to_end(&mut buf)?;
-
-    Ok(buf)
-}
-
 fn server_run(listener: TcpListener, enclave: &SgxEnclave) -> Result<()> {
     match listener.accept() {
         Ok((socket, addr)) => {
@@ -155,7 +145,7 @@ fn server_run(listener: TcpListener, enclave: &SgxEnclave) -> Result<()> {
 
             // Execute the PoBF private computing entry.
             let result = exec_private_computing(enclave, socket_fd, &message);
-            
+
             //Send the data back.
             info!("[+] Send the data back to the data provider...");
             writer.write(result.len().to_string().as_bytes())?;
