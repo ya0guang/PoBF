@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use core::mem;
 
 use crate::dh::*;
@@ -297,7 +299,6 @@ pub fn get_sigrl_from_intel(
 /// A safe wrapper for `ocall_receive_data`.
 pub fn receive_data(socket_fd: c_int) -> SgxResult<VecAESData> {
     let mut encrypted_data_buf = vec![0u8; 2048];
-    let mut str_len = String::with_capacity(512);
     let mut data_size = 0u32;
 
     // Perform an ocall.
@@ -323,7 +324,6 @@ pub fn receive_data(socket_fd: c_int) -> SgxResult<VecAESData> {
 }
 
 pub fn get_report(ti: &TargetInfo, ecc: &DhEccContext) -> SgxResult<Report> {
-    let prv_k = &ecc.prv_k();
     let pub_k = &ecc.pub_k();
 
     // Fill ecc256 public key into report_data. This is the attestation key.

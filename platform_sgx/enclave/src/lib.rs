@@ -1,3 +1,4 @@
+#![allow(unused)]
 #![crate_name = "pobfref"]
 #![crate_type = "staticlib"]
 #![cfg_attr(feature = "sgx", no_std)]
@@ -8,7 +9,7 @@ extern crate alloc;
 extern crate base64;
 extern crate clear_on_drop;
 extern crate percent_encoding;
-#[cfg(feature = "sgx")]
+#[cfg(all(feature = "sgx", not(feature = "mirai")))]
 extern crate sgx_no_tstd;
 extern crate sgx_trts;
 extern crate sgx_tse;
@@ -31,10 +32,11 @@ use alloc::slice;
 use clear_on_drop::clear_stack_and_regs_on_return;
 use ocall::*;
 use pobf::*;
+use zeroize::*;
 
 use sgx_types::{error::SgxStatus, types::*};
 
-use crate::{dh::*, vecaes::VecAESData};
+use crate::dh::*;
 
 static DEFAULT_PAGE_SIZE_ENTRY: usize = 0x4;
 static DEFAULT_PAGE_SIZE_LEAF: usize = 0x1;
@@ -50,7 +52,7 @@ pub extern "C" fn private_computing_entry(
     signature_ptr: *const u8,
     signature_len: u32,
     encrypted_output_buffer_ptr: *mut u8,
-    encrypted_output_buffer_size: u32,
+    _encrypted_output_buffer_size: u32,
     encrypted_output_size: *mut u32,
 ) -> SgxStatus {
     ocall_log!("[+] private_computing_entry");
@@ -63,7 +65,8 @@ pub extern "C" fn private_computing_entry(
             .unwrap();
     let signature = unsafe { slice::from_raw_parts(signature_ptr, signature_len as usize) };
 
-    let result = pobf_workflow(socket_fd, spid, linkable, ra_type, public_key, signature);
+    let f = || pobf_workflow(socket_fd, spid, linkable, ra_type, public_key, signature);
+    let mut result = clear_stack_and_regs_on_return(DEFAULT_PAGE_SIZE_ENTRY, f);
 
     // Copy the result back to the outside world.
     unsafe {
@@ -75,6 +78,9 @@ pub extern "C" fn private_computing_entry(
 
         *encrypted_output_size = result.as_ref().len() as u32;
     }
+
+    // Clear result.
+    result.zeroize();
 
     SgxStatus::Success
 }

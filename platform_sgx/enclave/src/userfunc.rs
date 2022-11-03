@@ -1,6 +1,8 @@
+#![allow(unused_imports)]
 #![forbid(unsafe_code)]
 
 use crate::pobf_verifier::*;
+use crate::println;
 use alloc::vec::Vec;
 
 pub fn vec_inc(input: Vec<u8>) -> Vec<u8> {
@@ -9,6 +11,8 @@ pub fn vec_inc(input: Vec<u8>) -> Vec<u8> {
     // this can be proven true by MIRAI
     #[cfg(feature = "leak_log")]
     {
+        #[cfg(mirai)]
+        verify!(step == 1);
         println!("The step is {} in computation_enc", step);
     }
 
@@ -23,7 +27,7 @@ pub fn vec_inc(input: Vec<u8>) -> Vec<u8> {
     #[cfg(feature = "leak_log")]
     {
         #[cfg(mirai)]
-        verify!(output[0] == 1);
+        verify!(output[0] == 10);
         println!("after increasing, the 0th data is {}", output[0]);
     }
 

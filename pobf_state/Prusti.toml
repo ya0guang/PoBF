@@ -13,10 +13,8 @@
 check_overflows = true
 check_panics = true
 no_verify_deps = true
-log = "info"
+log = "error"
 log_dir = "./log"
-print_desugared_specs = true
-print_typeckd_specs = true
 hide_uuids = true
 assert_timeout = 10000
 optimizations = "inline_constant_functions,delete_unused_predicates,optimize_folding,remove_empty_if,purify_vars,remove_unused_vars,remove_trivial_assertions,clean_cfg"

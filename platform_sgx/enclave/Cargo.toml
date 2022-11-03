@@ -28,6 +28,7 @@ vio_ocall = ["sgx", "leak_log", "leak_net", "leak_file"]
 leak_log = []
 leak_net = []
 leak_file = []
+mirai = []
 
 [dependencies]
 base64 = { version = "0.13.0", default-features = false, features = [ "alloc" ] }

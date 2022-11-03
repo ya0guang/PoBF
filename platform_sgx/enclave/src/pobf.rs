@@ -8,7 +8,6 @@ use crate::vecaes::{AES128Key, VecAESData};
 use crate::{ocall_log, verified_log};
 use alloc::vec::Vec;
 use pobf_state::task::*;
-use sgx_types::error::SgxResult;
 use sgx_types::error::SgxStatus;
 use sgx_types::types::{c_int, Spid};
 
