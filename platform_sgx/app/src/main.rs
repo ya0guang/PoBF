@@ -242,7 +242,7 @@ fn exec_private_computing(
     let mut encrypted_output: Vec<u8> = vec![0u8; OUTPUT_BUFFER_SIZE];
     let mut encrypted_output_size: u32 = 0;
 
-    unsafe {
+    let res = unsafe {
         private_computing_entry(
             enclave.eid(),
             &mut retval,
@@ -259,7 +259,7 @@ fn exec_private_computing(
             &mut encrypted_output_size as _,
         )
     };
-    match retval {
+    match res {
         SgxStatus::Success => {
             info!(
                 "[+] ECALL Successful, returned size: {}",
