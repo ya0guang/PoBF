@@ -42,7 +42,6 @@ fn main() {
         "HW" | "HYPER" => {
             println!("cargo:rustc-link-lib=dylib=sgx_urts");
             println!("cargo:rustc-link-lib=dylib=sgx_epid");
-            
         }
         _ => {
             println!("cargo:rustc-link-lib=dylib=sgx_urts");

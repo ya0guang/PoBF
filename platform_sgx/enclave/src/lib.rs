@@ -52,7 +52,7 @@ pub extern "C" fn private_computing_entry(
     signature_ptr: *const u8,
     signature_len: u32,
     encrypted_output_buffer_ptr: *mut u8,
-    _encrypted_output_buffer_size: u32,
+    encrypted_output_buffer_size: u32,
     encrypted_output_size: *mut u32,
 ) -> SgxStatus {
     ocall_log!("[+] private_computing_entry");
@@ -68,21 +68,26 @@ pub extern "C" fn private_computing_entry(
     let f = || pobf_workflow(socket_fd, spid, linkable, ra_type, public_key, signature);
     let mut result = clear_stack_and_regs_on_return(DEFAULT_PAGE_SIZE_ENTRY, f);
 
-    // Copy the result back to the outside world.
-    unsafe {
-        core::ptr::copy(
-            result.as_ref().as_ptr(),
-            encrypted_output_buffer_ptr,
-            result.as_ref().len(),
-        );
+    let output_size = result.as_ref().len() as u32;
+    let rv = if output_size <= encrypted_output_buffer_size {
+        // Copy the result back to the outside world.
+        unsafe {
+            core::ptr::copy(
+                result.as_ref().as_ptr(),
+                encrypted_output_buffer_ptr,
+                result.as_ref().len(),
+            );
 
-        *encrypted_output_size = result.as_ref().len() as u32;
-    }
+            *encrypted_output_size = output_size;
+        }
+        SgxStatus::Success
+    } else {
+        SgxStatus::InvalidParameter
+    };
 
     // Clear result.
     result.zeroize();
-
-    SgxStatus::Success
+    rv
 }
 
 /// To be deprecated.
