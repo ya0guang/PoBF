@@ -18,7 +18,7 @@ DataProvider_Manifest_Path ?= ../manifest.json
 Server_Address := 127.0.0.1
 Server_Port := 1234
 # CI arguments for the enclave.
-Enclave_App_Arguments := cal $(Server_Address) $(Server_Port)
+Enclave_App_Arguments := $(Server_Address) $(Server_Port)
 # CI arguments for data provider.
 DataProvider_Arguments := run $(DataProvider_Manifest_Path)
 

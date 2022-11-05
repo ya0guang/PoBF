@@ -10,20 +10,22 @@ extern crate sgx_urts;
 
 mod ocall;
 
-use clap::{Parser, Subcommand};
+use clap::Parser;
 use log::{error, info};
 use sgx_types::error::*;
 use sgx_types::types::*;
 use sgx_urts::enclave::SgxEnclave;
 use std::io::prelude::*;
 use std::io::*;
-use std::net::TcpListener;
-use std::net::TcpStream;
+use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::os::unix::prelude::AsRawFd;
+use std::sync::{mpsc, Arc, Mutex};
+use std::thread;
 
 static ENCLAVE_FILE: &'static str = "enclave.signed.so";
 static SGX_PLATFORM_HEADER_SIZE: usize = 0x4;
 const OUTPUT_BUFFER_SIZE: usize = 2048;
+const ENCLAVE_TCS_NUM: usize = 10;
 
 #[derive(Default)]
 struct RaMessage {
@@ -32,6 +34,86 @@ struct RaMessage {
     public_key: Vec<u8>,
     signature: Vec<u8>,
     ra_type: u8,
+}
+
+struct ThreadPool {
+    workers: Vec<Worker>,
+    sender: Option<mpsc::Sender<Job>>,
+}
+
+type Job = Box<dyn FnOnce() + Send + 'static>;
+
+impl ThreadPool {
+    pub fn new(size: usize) -> ThreadPool {
+        assert!(size > 0);
+        let (sender, receiver) = mpsc::channel();
+
+        let receiver = Arc::new(Mutex::new(receiver));
+
+        let mut workers = Vec::with_capacity(size);
+
+        for id in 0..size {
+            workers.push(Worker::new(id, Arc::clone(&receiver)));
+        }
+
+        ThreadPool {
+            workers,
+            sender: Some(sender),
+        }
+    }
+
+    pub fn execute<F>(&self, f: F)
+    where
+        F: FnOnce() + Send + 'static,
+    {
+        let job = Box::new(f);
+
+        self.sender.as_ref().unwrap().send(job).unwrap();
+    }
+}
+
+impl Drop for ThreadPool {
+    fn drop(&mut self) {
+        drop(self.sender.take());
+
+        for worker in &mut self.workers {
+            println!("Shutting down worker {}", worker.id);
+
+            if let Some(thread) = worker.thread.take() {
+                thread.join().unwrap();
+            }
+        }
+    }
+}
+
+struct Worker {
+    id: usize,
+    thread: Option<thread::JoinHandle<()>>,
+}
+
+impl Worker {
+    fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Job>>>) -> Worker {
+        let thread = thread::spawn(move || loop {
+            let message = receiver.lock().unwrap().recv();
+
+            match message {
+                Ok(job) => {
+                    println!("Worker {id} got a job; executing.");
+
+                    job();
+                }
+                Err(_) => {
+                    println!("Worker {id} disconnected; shutting down.");
+                    break;
+                }
+            }
+        });
+
+        Worker {
+            id,
+            thread: Some(thread),
+        }
+    }
 }
 
 extern "C" {
@@ -70,22 +152,32 @@ extern "C" {
 #[clap(author, version, about, long_about = None)]
 #[clap(propagate_version = true)]
 struct Args {
-    #[clap(subcommand)]
-    command: Commands,
-}
-
-#[derive(Subcommand)]
-enum Commands {
-    /// do private computation on encrypted data with a sealed key
-    /// Also listen to the request from the SP to perform the RA.
-    Cal { address: String, port: u16 },
+    #[clap(value_parser)]
+    address: String,
+    #[clap(value_parser)]
+    port: u16,
 }
 
 fn main() {
+    let args = Args::parse();
+
     if std::env::var("RUST_LOG").is_err() {
         std::env::set_var("RUST_LOG", "INFO");
     }
     env_logger::init();
+
+    let full_address = format!("{}:{}", &args.address, &args.port);
+    info!("[+] Listening to {}", full_address);
+    let listener = match TcpListener::bind(&full_address) {
+        Ok(res) => res,
+        Err(e) => {
+            error!(
+                "[-] Failed to bind to the given address due to {}.",
+                e.to_string()
+            );
+            return;
+        }
+    };
 
     let enclave = match SgxEnclave::create(ENCLAVE_FILE, false) {
         Ok(r) => {
@@ -98,67 +190,50 @@ fn main() {
         }
     };
 
-    let args = Args::parse();
-    match args.command {
-        Commands::Cal { address, port } => {
-            let listener = match listen(&address, &port) {
-                Ok(res) => res,
-                Err(e) => {
-                    error!(
-                        "[-] Failed to bind to the given address due to {}.",
-                        e.to_string()
-                    );
-                    return;
-                }
-            };
-
-            match server_run(listener, &enclave) {
-                Err(e) => {
-                    error!("[-] Error running the server due to {}.", e.to_string());
-                    return;
-                }
-                _ => (),
-            }
-        }
-    };
+    server_run(listener, &enclave);
 }
 
-fn listen(address: &String, port: &u16) -> Result<TcpListener> {
-    // Create the full address for the server.
-    let full_address = format!("{}:{}", address, port);
-    info!("[+] Listening to {}", full_address);
-
-    TcpListener::bind(&full_address)
-}
-
+// May need a mutex on enclave
 fn server_run(listener: TcpListener, enclave: &SgxEnclave) -> Result<()> {
-    match listener.accept() {
-        Ok((socket, addr)) => {
-            info!("[+] Got connection from {:?}", addr);
+    // incoming() is an iterator that returns an infinite sequence of streams.
 
-            // Expose the raw socket fd.
-            let socket_fd = socket.as_raw_fd();
-            let socket_clone = socket.try_clone().unwrap();
-            let mut reader = BufReader::new(socket);
-            let mut writer = BufWriter::new(socket_clone);
-            let message = receive_ra_message(&mut reader)?;
-
-            // Execute the PoBF private computing entry.
-            let result = exec_private_computing(enclave, socket_fd, &message);
-
-            //Send the data back.
-            info!("[+] Send the data back to the data provider...");
-            writer.write(result.len().to_string().as_bytes())?;
-            writer.write(b"\n")?;
-            writer.write(&result)?;
-            writer.write(b"\n")?;
-            writer.flush()?;
-
-            Ok(())
+    let pool = ThreadPool::new(8);
+    loop {
+        match listener.accept() {
+            Ok((stream, addr)) => {
+                let encalve_cp = enclave.clone();
+                pool.execute(move || {
+                    handle_client(stream, addr, encalve_cp);
+                });
+            }
+            Err(e) => return Err(e),
         }
-
-        Err(e) => Err(e),
     }
+
+    Ok(())
+}
+
+fn handle_client(stream: TcpStream, addr: SocketAddr, enclave: SgxEnclave) -> Result<()> {
+    info!("[+] Got connection from {:?}", addr);
+    // Expose the raw socket fd.
+    let socket_fd = stream.as_raw_fd();
+    let socket_clone = stream.try_clone().unwrap();
+    let mut reader = BufReader::new(stream);
+    let mut writer = BufWriter::new(socket_clone);
+    let message = receive_ra_message(&mut reader)?;
+
+    // Execute the PoBF private computing entry.
+    let result = exec_private_computing(&enclave, socket_fd, &message);
+
+    //Send the data back.
+    info!("[+] Send the data back to the data provider...");
+    writer.write(result.len().to_string().as_bytes())?;
+    writer.write(b"\n")?;
+    writer.write(&result)?;
+    writer.write(b"\n")?;
+    writer.flush()?;
+
+    Ok(())
 }
 
 /// Receives initial messages from the data provider a.k.a. the service provider.
