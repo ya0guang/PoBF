@@ -202,7 +202,7 @@ fn main() {
 fn server_run(listener: TcpListener, enclave: Arc<SgxEnclave>) -> Result<()> {
     // incoming() is an iterator that returns an infinite sequence of streams.
 
-    let pool = ThreadPool::new(8);
+    let pool = ThreadPool::new(ENCLAVE_TCS_NUM);
     loop {
         match listener.accept() {
             Ok((stream, addr)) => {
