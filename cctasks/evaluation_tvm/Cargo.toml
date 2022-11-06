@@ -1,5 +1,5 @@
 [package]
-name = "userfunc"
+name = "evaluation_tvm"
 version = "0.1.0"
 edition = "2021"
 

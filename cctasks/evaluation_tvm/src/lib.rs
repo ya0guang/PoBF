@@ -1,6 +1,9 @@
+#![no_std]
+extern crate alloc;
+
 use alloc::vec::Vec;
 
-pub fn vec_inc(input: Vec<u8>) -> Vec<u8> {
+pub fn private_computation(input: Vec<u8>) -> Vec<u8> {
     let step = 1;
 
     // this can be proven true by MIRAI

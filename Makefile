@@ -28,7 +28,11 @@ run: $(App_Name) $(RustEnclave_Signed_Name)
 	@cd ./platform_sgx/bin && ./app $(Enclave_App_Arguments) &
 	@sleep 1
 	@printf '\n\e[0;36m===== Run Data Provider =====\e[0m\n'
+# TODO: Run in parallel.
 	@cd ./data_provider/bin && ./data_provider $(DataProvider_Arguments)
+	@cd ./data_provider/bin && ./data_provider $(DataProvider_Arguments)
+	@pkill app
+
 
 ####### Data Owner #######
 .PHONY: DataProvider

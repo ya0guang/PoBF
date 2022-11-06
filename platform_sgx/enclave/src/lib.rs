@@ -24,7 +24,6 @@ mod ocall;
 mod pobf;
 mod pobf_verifier;
 mod ra_utils;
-mod userfunc;
 mod utils;
 mod vecaes;
 

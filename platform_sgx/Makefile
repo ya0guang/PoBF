@@ -179,11 +179,6 @@ endif
 
 ######## Run Enclave ########
 
-.PHONY: run
-run: $(App_Name) $(RustEnclave_Signed_Name)
-	@echo -e '\n===== Run Enclave =====\n'
-	@cd bin && ./app
-
 .PHONY: clean
 clean:
 	@rm -f $(App_Name) $(RustEnclave_Name) $(RustEnclave_Signed_Name) enclave/*_t.* app/*_u.*

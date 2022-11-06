@@ -9,8 +9,8 @@ crate-type = ["lib", "staticlib"]
 
 [features]
 # turn on mirai when veirifying towards mirai
-default = ["leak_log"]
-sgx = ["sgx_no_tstd", "sgx_trts", "sgx_tseal"]
+default = ["leak_log", "task"]
+sgx = ["sgx_no_tstd", "sgx_trts", "sgx_tseal", "task"]
 rand = ["sgx_rand"]
 # potential violations
 violation = ["vio_typestate", "vio_private", "vio_unsafe", "vio_ocall", "sgx"]
@@ -29,6 +29,10 @@ leak_log = []
 leak_net = []
 leak_file = []
 mirai = []
+# computing tasks
+task = ["evaluation_tvm"]
+task_sample = ["sample_add"]
+task_tvm = ["evaluation_tvm"]
 
 [dependencies]
 base64 = { version = "0.13.0", default-features = false, features = [ "alloc" ] }
@@ -50,8 +54,13 @@ sgx_tseal = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk.git", 
 sgx_types = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk.git", branch = "v2.0.0-preview", package = "sgx_types" }
 webpki = { version = "0.22.0", features = [ "alloc" ] }
 
+# Uploaded Private Computing Task
+sample_add = {path = "../../cctasks/sample_add", optional = true}
+evaluation_tvm = {path = "../../cctasks/evaluation_tvm", optional = true}
+
 # External dependencies: SGX compatible (or) crates.
 zeroize = "1.5.7"
+
 
 [patch.crates-io]
 # Patached version of ring.

@@ -189,12 +189,13 @@ fn main() {
             return;
         }
     };
+    let enclave = Arc::new(enclave);
 
-    server_run(listener, &enclave);
+    server_run(listener, enclave);
 }
 
 // May need a mutex on enclave
-fn server_run(listener: TcpListener, enclave: &SgxEnclave) -> Result<()> {
+fn server_run(listener: TcpListener, enclave: Arc<SgxEnclave>) -> Result<()> {
     // incoming() is an iterator that returns an infinite sequence of streams.
 
     let pool = ThreadPool::new(8);
@@ -203,7 +204,7 @@ fn server_run(listener: TcpListener, enclave: &SgxEnclave) -> Result<()> {
             Ok((stream, addr)) => {
                 let encalve_cp = enclave.clone();
                 pool.execute(move || {
-                    handle_client(stream, addr, encalve_cp);
+                    handle_client(stream, addr, &encalve_cp);
                 });
             }
             Err(e) => return Err(e),
@@ -213,7 +214,7 @@ fn server_run(listener: TcpListener, enclave: &SgxEnclave) -> Result<()> {
     Ok(())
 }
 
-fn handle_client(stream: TcpStream, addr: SocketAddr, enclave: SgxEnclave) -> Result<()> {
+fn handle_client(stream: TcpStream, addr: SocketAddr, enclave: &SgxEnclave) -> Result<()> {
     info!("[+] Got connection from {:?}", addr);
     // Expose the raw socket fd.
     let socket_fd = stream.as_raw_fd();
