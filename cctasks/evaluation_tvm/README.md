@@ -32,4 +32,11 @@ You should follow the guide to let it work in the enclave.
 $ export PYTHONPATH=$TVM_HOME/python:$TVM_HOME/topi/python:$TVM_HOME/nnvm/python:${PYTHONPATH}
 ```
 
-You can check `$TVL_HOME/apps/bundle_deploy` for more details on how to build a standalone library.
+5. Build the standalone library for enclave, which will automatically copies the `libmodel_entry.a` to `./platform_sgx/lib`.
+
+```shell
+$ cd ./model_deploy
+$ make
+```
+
+6. Then rebuild the enclave. Now everything works.
