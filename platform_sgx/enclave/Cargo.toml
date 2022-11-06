@@ -33,13 +33,21 @@ mirai = []
 task = ["evaluation_tvm"]
 task_sample = ["sample_add"]
 task_tvm = ["evaluation_tvm"]
+task_polybench = ["polybench"]
+task_fann = ["fann"]
+task_fasta = ["fasta"]
 
 [dependencies]
 base64 = { version = "0.13.0", default-features = false, features = [ "alloc" ] }
 clear_on_drop = { git = "https://github.com/hiroki-chen/clear_on_drop.git", branch = "master" }
-mirai-annotations = { git = "https://github.com/facebookexperimental/MIRAI.git", package = "mirai-annotations" }
-percent-encoding = { git = "https://github.com/mesalock-linux/rust-url-sgx" }
-pobf_state = { path = "../../pobf_state", features = ["sgx"] }
+
+# Evaluations.
+evaluation_tvm = { path = "../../cctasks/evaluation_tvm", optional = true }
+fann = { path = "../../cctasks/fann", optional = true }
+fasta = { path = "../../cctasks/fasta", optional = true }
+polybench = { path = "../../cctasks/polybench", optional = true }
+sample_add = { path = "../../cctasks/sample_add", optional = true }
+
 # Patched version.
 sgx_alloc = { git = "https://github.com/hiroki-chen/incubator-teaclave-sgx-sdk.git", branch = "v2.0.0-preview", package = "sgx_alloc" }
 sgx_crypto = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk.git", branch = "v2.0.0-preview", package = "sgx_crypto" }
@@ -54,13 +62,11 @@ sgx_tseal = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk.git", 
 sgx_types = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk.git", branch = "v2.0.0-preview", package = "sgx_types" }
 webpki = { version = "0.22.0", features = [ "alloc" ] }
 
-# Uploaded Private Computing Task
-sample_add = {path = "../../cctasks/sample_add", optional = true}
-evaluation_tvm = {path = "../../cctasks/evaluation_tvm", optional = true}
-
 # External dependencies: SGX compatible (or) crates.
+mirai-annotations = { git = "https://github.com/facebookexperimental/MIRAI.git", package = "mirai-annotations" }
+pobf_state = { path = "../../pobf_state", features = ["sgx"] }
+percent-encoding = { git = "https://github.com/mesalock-linux/rust-url-sgx" }
 zeroize = "1.5.7"
-
 
 [patch.crates-io]
 # Patached version of ring.
