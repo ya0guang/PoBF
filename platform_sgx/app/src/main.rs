@@ -62,13 +62,17 @@ impl ThreadPool {
         }
     }
 
-    pub fn execute<F>(&self, f: F)
+    pub fn execute<F>(&self, f: F) -> Result<()>
     where
         F: FnOnce() + Send + 'static,
     {
         let job = Box::new(f);
 
-        self.sender.as_ref().unwrap().send(job).unwrap();
+        self.sender
+            .as_ref()
+            .unwrap()
+            .send(job)
+            .or_else(|_| Err(Error::from(ErrorKind::Other)))
     }
 }
 
@@ -191,7 +195,7 @@ fn main() {
     };
     let enclave = Arc::new(enclave);
 
-    server_run(listener, enclave);
+    server_run(listener, enclave).unwrap();
 }
 
 // May need a mutex on enclave
@@ -203,9 +207,14 @@ fn server_run(listener: TcpListener, enclave: Arc<SgxEnclave>) -> Result<()> {
         match listener.accept() {
             Ok((stream, addr)) => {
                 let encalve_cp = enclave.clone();
-                pool.execute(move || {
-                    handle_client(stream, addr, &encalve_cp);
-                });
+
+                if pool
+                    .execute(move || handle_client(stream, addr, &encalve_cp).unwrap())
+                    .is_err()
+                {
+                    error!("[-] Job execution failed.");
+                    break;
+                }
             }
             Err(e) => return Err(e),
         }
