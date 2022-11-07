@@ -225,7 +225,7 @@ int32_t tvm_mxnet_run(const uint8_t* json, size_t json_size,
   void* handle = tvm_runtime_create(json_data, params_data, param_size);
 
   // Check input length.
-  if (input_size <= INPUT_LEN * sizeof(float)) {
+  if (input_size < INPUT_LEN * sizeof(float)) {
     return 1;
   }
 
