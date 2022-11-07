@@ -24,7 +24,7 @@ use std::thread;
 
 static ENCLAVE_FILE: &'static str = "enclave.signed.so";
 static SGX_PLATFORM_HEADER_SIZE: usize = 0x4;
-const OUTPUT_BUFFER_SIZE: usize = 2048;
+const OUTPUT_BUFFER_SIZE: usize = 4096;
 const ENCLAVE_TCS_NUM: usize = 10;
 
 #[derive(Default)]

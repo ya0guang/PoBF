@@ -25,9 +25,9 @@ extern "C" {
 
 pub fn private_computation(input: Vec<u8>) -> Vec<u8> {
     let input_byte = input.as_slice();
-    let input_size = input_byte.len();
+    let input_size = 1 * 3 * 224 * 224 * core::mem::size_of::<f32>();
 
-    let mut output = vec![0u8; GRAPH_OUTPUT_LEN];
+    let mut output = vec![0u8; GRAPH_OUTPUT_LEN * core::mem::size_of::<f32>()];
 
     let res = unsafe {
         tvm_mxnet_run(
@@ -38,14 +38,13 @@ pub fn private_computation(input: Vec<u8>) -> Vec<u8> {
             input_byte.as_ptr(),
             input_size,
             output.as_mut_ptr(),
-            GRAPH_OUTPUT_LEN,
+            GRAPH_OUTPUT_LEN * core::mem::size_of::<f32>(),
         )
     };
 
-    // FIXME: Currently the input size does not match.
-    // if res != 0 {
-    //     panic!("[-] Cannot invoke TVM.");
-    // }
+    if res != 0 {
+        panic!("[-] TVM internal error. Check input size?");
+    }
 
-    output[..10].to_vec()
+    output
 }
