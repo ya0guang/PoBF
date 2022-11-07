@@ -19,6 +19,6 @@ app: $(DataProvider_Rust_Files)
 	
 clean:
 	@cargo clean
-	@rm -r bin 
-	@rm -r lib
+	@rm -rf bin 
+	@rm -rf lib
 	@cd ./tvl && $(MAKE) clean
