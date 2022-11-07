@@ -16,6 +16,7 @@ enclave_t.*
 # MISC
 Cargo.lock
 .vscode
+outlib
 
 # Coq
 *.aux

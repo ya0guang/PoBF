@@ -3,8 +3,11 @@ all: PlatformSGX DataProvider
 
 ######## Platform SGX ########
 
-.PHONY: PlatformSGX
-PlatformSGX: platform_sgx
+.PHONY: TVM PlatformSGX
+TVM:
+	$(MAKE) -C cctasks/evaluation_tvm/model_deploy
+
+PlatformSGX: TVM platform_sgx
 	@sudo pkill app || true
 	$(MAKE) -C platform_sgx
 
@@ -45,3 +48,4 @@ DataProvider: data_provider
 clean:
 	@cd platform_sgx && $(MAKE) clean
 	@cd data_provider && $(MAKE) clean
+	@cd cctasks/evaluation_tvm/model_deploy && $(MAKE) clean

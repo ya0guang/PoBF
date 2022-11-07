@@ -46,6 +46,7 @@ PKG_LDFLAGS = -pthread -lm
 OUT_DIR := ../outlib
 BUNDLE := $(OUT_DIR)/libbundle.a
 MODEL_ENTRY_SRC := model_entry.c
+MODEL_TAR := $(OUT_DIR)/model.tar
 MODEL_ENTRY := $(OUT_DIR)/libmodel_entry.a
 PYTHON_MODEL := $(OUT_DIR)/devc.o $(OUT_DIR)/lib0.o $(OUT_DIR)/lib1.o
 LIB_COMMON := $(OUT_DIR)/libcommon.a
@@ -59,11 +60,12 @@ all: $(OUT_DIR) $(MODEL_ENTRY)
 $(OUT_DIR):
 	@mkdir -p $@
 
-$(PYTHON_MODEL): build_model.py
+$(MODEL_TAR): build_model.py
 	@printf "$(MAGENTA)+ Building ML Model with TVM$(NC)\n"
-	@python3 ./build_model.py -o $(OUT_DIR) 1> /dev/null
-	@tar -xvf $(OUT_DIR)/model.tar -C $(OUT_DIR) 
-	@rm -rf $(OUT_DIR)/model.tar
+	@python3 ./build_model.py -o $(OUT_DIR) 2> /dev/null
+
+$(PYTHON_MODEL): $(MODEL_TAR)
+	@tar -xvf $^ -C $(OUT_DIR) 
 	@printf "$(MAGENTA)+ Finished! \n"
 
 $(LIB_MEMORY): $(CRT_SRCS)
@@ -98,6 +100,7 @@ $(MODEL_ENTRY): $(MODEL_ENTRY_SRC) $(BUNDLE) $(PYTHON_MODEL) $(LIB_COMMON) $(LIB
 	@cd $(OUT_DIR)/../tmp && ar -crs $(MODEL_ENTRY) *.o $(PYTHON_MODEL)
 	@rm -rf $(OUT_DIR)/../tmp
 	@rm -rf $(OUT_DIR)/crt
+	@mkdir -p ../../../platform_sgx/lib
 	@cp $@ ../../../platform_sgx/lib
 	@printf "$(MAGENTA)+ Finished! \n"
 

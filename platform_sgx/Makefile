@@ -128,9 +128,8 @@ $(Enclave_EDL_Files): $(SGX_EDGER8R) enclave/enclave.edl
 app/enclave_u.o: $(Enclave_EDL_Files)
 	@$(CC) $(App_C_Flags) -c app/enclave_u.c -o $@
 
-$(App_Enclave_u_Object): app/enclave_u.o
-	@mkdir -p $(CUSTOM_LIBRARY_PATH)
-	@$(AR) rcsD $@ $^
+$(App_Enclave_u_Object):$(CUSTOM_LIBRARY_PATH) app/enclave_u.o
+	@$(AR) rcsD $@ app/enclave_u.o
 
 $(App_Name): $(App_Enclave_u_Object) app
 	@mkdir -p $(CUSTOM_BIN_PATH)
@@ -138,12 +137,13 @@ $(App_Name): $(App_Enclave_u_Object) app
 	@echo "LINK => $@"
 
 ######## Enclave Objects ########
+$(CUSTOM_LIBRARY_PATH):
+	@mkdir -p $(CUSTOM_LIBRARY_PATH)
 
 enclave/enclave_t.o: $(Enclave_EDL_Files)
 	@$(CC) $(RustEnclave_Compile_Flags) -c enclave/enclave_t.c -o $@
 
-$(RustEnclave_Name): enclave/enclave_t.o enclave
-	@mkdir -p $(CUSTOM_LIBRARY_PATH)
+$(RustEnclave_Name): $(CUSTOM_LIBRARY_PATH) enclave/enclave_t.o enclave
 	@mkdir -p $(CUSTOM_BIN_PATH)
 	@cp $(RustEnclave_Lib_Name) $(CUSTOM_LIBRARY_PATH)/libenclave.a
 	@$(CXX) enclave/enclave_t.o -o $@ $(RustEnclave_Link_Flags)
