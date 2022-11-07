@@ -96,7 +96,8 @@ RustEnclave_Include_Paths := -I$(CUSTOM_COMMON_PATH)/include -I$(CUSTOM_COMMON_P
 RustEnclave_Link_Libs := -L$(CUSTOM_LIBRARY_PATH) -lenclave
 RustEnclave_Compile_Flags := $(ENCLAVE_CFLAGS) $(RustEnclave_Include_Paths)
 RustEnclave_Link_Flags := -Wl,--no-undefined -nostdlib -nodefaultlibs -nostartfiles \
-	-Wl,--start-group $(RustEnclave_Link_Libs) -Wl,--end-group \
+	-Wl,--start-group -L$(SGX_LIBRARY_PATH) $(RustEnclave_Link_Libs)  -Wl,--end-group \
+	-Wl,--start-group -L$(CUSTOM_LIBRARY_PATH) -lmodel_entry -lm  -Wl,--end-group \
 	-Wl,--version-script=enclave/enclave.lds \
 	$(ENCLAVE_LDFLAGS)
 
@@ -127,9 +128,8 @@ $(Enclave_EDL_Files): $(SGX_EDGER8R) enclave/enclave.edl
 app/enclave_u.o: $(Enclave_EDL_Files)
 	@$(CC) $(App_C_Flags) -c app/enclave_u.c -o $@
 
-$(App_Enclave_u_Object): app/enclave_u.o
-	@mkdir -p $(CUSTOM_LIBRARY_PATH)
-	@$(AR) rcsD $@ $^
+$(App_Enclave_u_Object):$(CUSTOM_LIBRARY_PATH) app/enclave_u.o
+	@$(AR) rcsD $@ app/enclave_u.o
 
 $(App_Name): $(App_Enclave_u_Object) app
 	@mkdir -p $(CUSTOM_BIN_PATH)
@@ -137,12 +137,13 @@ $(App_Name): $(App_Enclave_u_Object) app
 	@echo "LINK => $@"
 
 ######## Enclave Objects ########
+$(CUSTOM_LIBRARY_PATH):
+	@mkdir -p $(CUSTOM_LIBRARY_PATH)
 
 enclave/enclave_t.o: $(Enclave_EDL_Files)
 	@$(CC) $(RustEnclave_Compile_Flags) -c enclave/enclave_t.c -o $@
 
-$(RustEnclave_Name): enclave/enclave_t.o enclave
-	@mkdir -p $(CUSTOM_LIBRARY_PATH)
+$(RustEnclave_Name): $(CUSTOM_LIBRARY_PATH) enclave/enclave_t.o enclave
 	@mkdir -p $(CUSTOM_BIN_PATH)
 	@cp $(RustEnclave_Lib_Name) $(CUSTOM_LIBRARY_PATH)/libenclave.a
 	@$(CXX) enclave/enclave_t.o -o $@ $(RustEnclave_Link_Flags)
@@ -174,7 +175,7 @@ ifeq ($(BUILD_STD), cargo)
 else ifeq ($(BUILD_STD), xargo)
 	@cd enclave && RUST_TARGET_PATH=$(Rust_Target_Path) xargo build --target $(Rust_Build_Target) $(RustEnclave_Build_Flags)
 else
-	@cd enclave && cargo build $(RustEnclave_Build_Flags) --features "sgx"
+	@cd enclave && cargo build $(RustEnclave_Build_Flags) --features "sgx,task"
 endif
 
 ######## Run Enclave ########

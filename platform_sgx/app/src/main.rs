@@ -11,7 +11,7 @@ extern crate sgx_urts;
 mod ocall;
 
 use clap::Parser;
-use log::{error, info};
+use log::{debug, error, info};
 use sgx_types::error::*;
 use sgx_types::types::*;
 use sgx_urts::enclave::SgxEnclave;
@@ -351,11 +351,11 @@ fn exec_private_computing(
                 encrypted_output_size
             );
             encrypted_output.truncate(encrypted_output_size as _);
-            info!(
+            debug!(
                 "[+] output encrypted data: {:02X?}",
                 &encrypted_output[..(encrypted_output_size as usize - MAC_SIZE) as _]
             );
-            info!(
+            debug!(
                 "[+] output encrypted data mac: {:02X?}",
                 &encrypted_output[(encrypted_output_size as usize - MAC_SIZE) as _..]
             );

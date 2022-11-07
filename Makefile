@@ -3,8 +3,12 @@ all: PlatformSGX DataProvider
 
 ######## Platform SGX ########
 
-.PHONY: PlatformSGX
-PlatformSGX: platform_sgx
+.PHONY: TVM PlatformSGX
+TVM:
+	$(MAKE) -C cctasks/evaluation_tvm/model_deploy
+
+PlatformSGX: TVM platform_sgx
+	@sudo pkill app || true
 	$(MAKE) -C platform_sgx
 
 ######## Verification ########
@@ -24,6 +28,7 @@ DataProvider_Arguments := run $(DataProvider_Manifest_Path)
 
 .PHONY: run
 run: $(App_Name) $(RustEnclave_Signed_Name)
+	@sudo pkill app || true
 	@printf '\n\e[0;36m===== Run Enclave =====\e[0m\n'
 	@cd ./platform_sgx/bin && ./app $(Enclave_App_Arguments) &
 	@sleep 1
@@ -43,3 +48,4 @@ DataProvider: data_provider
 clean:
 	@cd platform_sgx && $(MAKE) clean
 	@cd data_provider && $(MAKE) clean
+	@cd cctasks/evaluation_tvm/model_deploy && $(MAKE) clean

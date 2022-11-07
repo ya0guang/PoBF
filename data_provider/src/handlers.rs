@@ -616,14 +616,14 @@ pub fn send_vecaes_data(
 ) -> Result<()> {
     // Read from the given path.
     let data = fs::read(path)?;
-    info!("{:?}", data);
+    debug!("{:?}", data);
     // Encrypt the data first.
     let encrypted_input = key.encrypt_with_smk(&data).map_err(|_| {
         error!("[-] Cannot encrypt the input.");
         Error::from(ErrorKind::InvalidData)
     })?;
 
-    info!("[+] The encrypted data is {:?}", encrypted_input);
+    debug!("[+] The encrypted data is {:?}", encrypted_input);
 
     writer
         .write(encrypted_input.len().to_string().as_bytes())

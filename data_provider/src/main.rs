@@ -19,7 +19,7 @@ mod utils;
 
 use clap::{Parser, Subcommand};
 use handlers::*;
-use log::{error, info};
+use log::{debug, error, info};
 use sgx_types::{error::Quote3Error, types::*};
 
 use std::io::*;
@@ -100,7 +100,7 @@ fn main() {
                 }
             };
 
-            info!("[+] Received result: {:?}", data);
+            debug!("[+] Received result: {:?}", data);
         }
     }
 

@@ -26,7 +26,6 @@ fn main() {
 
     println!("cargo:rustc-link-search=native=../lib");
     println!("cargo:rustc-link-lib=static=enclave_u");
-
     println!("cargo:rustc-link-search=native={}/lib64", sdk_dir);
 
     // You may need to execute
