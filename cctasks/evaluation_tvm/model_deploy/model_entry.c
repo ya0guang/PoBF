@@ -231,7 +231,7 @@ int32_t tvm_mxnet_run(const uint8_t* json, size_t json_size,
 
   // Convert to the input tensor for storing the image.
   DLTensor input;
-  input.data = (void*)(input_buf);
+  input.data = (float*)(input_buf);
   DLDevice dev = {kDLCPU, 0};
   input.device = dev;
   input.ndim = 4;
@@ -260,7 +260,8 @@ int32_t tvm_mxnet_run(const uint8_t* json, size_t json_size,
   tvm_runtime_set_input(handle, "data", &input);
   // Run the model and get the result.
   tvm_runtime_run(handle);
-  // Get the output.
+  // Get the output. The result is a 1001-element vector of logits, rating the probability of 
+  // each class for the image. You need to check ImageNet for more details.
   tvm_runtime_get_output(handle, 0, &output);
   // Dectroy the handle.
   tvm_runtime_destroy(handle);
