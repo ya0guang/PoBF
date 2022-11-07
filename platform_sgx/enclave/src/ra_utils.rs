@@ -302,6 +302,7 @@ pub fn receive_data(socket_fd: c_int) -> SgxResult<VecAESData> {
     let mut data_size = 0u32;
 
     // Perform an ocall.
+    // FIXME: 2048 is probably not sufficient...
     let mut ret_val = SgxStatus::Success;
     let ret = unsafe {
         ocall_receive_data(

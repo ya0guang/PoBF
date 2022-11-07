@@ -96,7 +96,8 @@ RustEnclave_Include_Paths := -I$(CUSTOM_COMMON_PATH)/include -I$(CUSTOM_COMMON_P
 RustEnclave_Link_Libs := -L$(CUSTOM_LIBRARY_PATH) -lenclave
 RustEnclave_Compile_Flags := $(ENCLAVE_CFLAGS) $(RustEnclave_Include_Paths)
 RustEnclave_Link_Flags := -Wl,--no-undefined -nostdlib -nodefaultlibs -nostartfiles \
-	-Wl,--start-group $(RustEnclave_Link_Libs) -Wl,--end-group \
+	-Wl,--start-group -L$(SGX_LIBRARY_PATH) $(RustEnclave_Link_Libs)  -Wl,--end-group \
+	-Wl,--start-group -L$(CUSTOM_LIBRARY_PATH) -lmodel_entry -lm  -Wl,--end-group \
 	-Wl,--version-script=enclave/enclave.lds \
 	$(ENCLAVE_LDFLAGS)
 
@@ -174,7 +175,7 @@ ifeq ($(BUILD_STD), cargo)
 else ifeq ($(BUILD_STD), xargo)
 	@cd enclave && RUST_TARGET_PATH=$(Rust_Target_Path) xargo build --target $(Rust_Build_Target) $(RustEnclave_Build_Flags)
 else
-	@cd enclave && cargo build $(RustEnclave_Build_Flags) --features "sgx"
+	@cd enclave && cargo build $(RustEnclave_Build_Flags) --features "sgx,task"
 endif
 
 ######## Run Enclave ########

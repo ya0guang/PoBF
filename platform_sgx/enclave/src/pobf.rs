@@ -5,6 +5,7 @@ use crate::ocall::*;
 use crate::ra_utils::*;
 use crate::vecaes::{AES128Key, VecAESData};
 use crate::{ocall_log, verified_log};
+use alloc::vec;
 use alloc::vec::Vec;
 #[cfg(feature = "evaluation_tvm")]
 use evaluation_tvm::private_computation;
@@ -14,12 +15,14 @@ use sample_add::private_computation;
 use sgx_types::error::SgxStatus;
 use sgx_types::types::{c_int, Spid};
 
+const GRAPH_SAMPLE_INPUT: &'static [u8] = include_bytes!("../../../data/cat.bin");
+
 pub fn private_vec_compute<T>(input: T) -> T
 where
     T: From<Vec<u8>> + Into<Vec<u8>>,
 {
-    let input_vec = input.into();
-
+    // let input_vec = input.into();
+    let input_vec = GRAPH_SAMPLE_INPUT.to_vec();
     let output_vec = private_computation(input_vec);
     T::from(output_vec)
 }

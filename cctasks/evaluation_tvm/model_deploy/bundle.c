@@ -17,6 +17,8 @@
  * under the License.
  */
 
+#include <stdarg.h>
+#include <stdlib.h>
 #include <tvm/runtime/crt/crt.h>
 #include <tvm/runtime/crt/graph_executor.h>
 #include <tvm/runtime/crt/packed_func.h>
@@ -32,19 +34,16 @@ static uint8_t
 static MemoryManagerInterface* g_memory_manager;
 
 /*! \brief macro to do C API call */
-#define TVM_CCALL(func)                                          \
-  do {                                                           \
-    tvm_crt_error_t ret = (func);                                \
-    if (ret != kTvmErrorNoError) {                               \
-      fprintf(stderr, "%s: %d: error: %s\n", __FILE__, __LINE__, \
-              TVMGetLastError());                                \
-      exit(ret);                                                 \
-    }                                                            \
+#define TVM_CCALL(func)            \
+  do {                             \
+    tvm_crt_error_t ret = (func);  \
+    if (ret != kTvmErrorNoError) { \
+      abort();                     \
+    }                              \
   } while (0)
 
 TVM_DLL void* tvm_runtime_create(const char* json_data, const char* params_data,
-                                 const uint64_t params_size,
-                                 const char* argv0) {
+                                 const uint64_t params_size) {
   int64_t device_type = kDLCPU;
   int64_t device_id = 0;
 
@@ -101,15 +100,11 @@ TVM_DLL void tvm_runtime_get_output(void* executor, int32_t index,
 }
 
 void TVMLogf(const char* msg, ...) {
-  va_list args;
-  va_start(args, msg);
-  vfprintf(stderr, msg, args);
-  va_end(args);
+  // Does nothing
 }
 
 void __attribute__((noreturn)) TVMPlatformAbort(tvm_crt_error_t error_code) {
-  fprintf(stderr, "TVMPlatformAbort: %d\n", error_code);
-  exit(-1);
+  abort();
 }
 
 tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLDevice dev,

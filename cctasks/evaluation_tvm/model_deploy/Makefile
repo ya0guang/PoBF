@@ -19,7 +19,8 @@ MAGENTA := \e[0;35m
 NC := \e[0m
 
 # Setup build environment
-TVM_HOME ?= ~/tvm
+SGX_SDK ?= /opt/intel/sgxsdk
+TVM_HOME ?= $(HOME)/tvm
 CRT_ROOT ?= $(TVM_HOME)/build/standalone_crt
 ifeq ($(shell ls -lhd $(CRT_ROOT)),)
 $(error "CRT not found. Ensure you have built the standalone_crt target and try again")
@@ -60,7 +61,7 @@ $(OUT_DIR):
 
 $(PYTHON_MODEL): build_model.py
 	@printf "$(MAGENTA)+ Building ML Model with TVM$(NC)\n"
-	@python3 ./build_model.py -o $(OUT_DIR)
+	@python3 ./build_model.py -o $(OUT_DIR) 1> /dev/null
 	@tar -xvf $(OUT_DIR)/model.tar -C $(OUT_DIR) 
 	@rm -rf $(OUT_DIR)/model.tar
 	@printf "$(MAGENTA)+ Finished! \n"
@@ -87,11 +88,13 @@ $(BUNDLE): bundle.c
 	@ar rcs $@ $(OUT_DIR)/bundle.o
 	@rm -f $(OUT_DIR)/bundle.o
 
+# Extract all the object files and pack them into a single library.
+# This is a must. We have to make the whole bundle standalone.
 $(MODEL_ENTRY): $(MODEL_ENTRY_SRC) $(BUNDLE) $(PYTHON_MODEL) $(LIB_COMMON) $(LIB_GRAPH_EXECUTOR) $(LIB_MEMORY)
 	@printf "$(MAGENTA)+ Packing the runtime into single static library:$(NC)\n"
 	@mkdir -p $(OUT_DIR)/../tmp
 	@gcc -c $(MODEL_ENTRY_SRC) -o $(OUT_DIR)/../tmp/model_entry.o $(PKG_CFLAGS)
-	@cd $(OUT_DIR)/../tmp && ar -x $(BUNDLE) && ar -x $(LIB_COMMON) && ar -x $(LIB_GRAPH_EXECUTOR) && ar -x $(LIB_MEMORY)
+	@cd $(OUT_DIR)/../tmp && ar -x $(BUNDLE) && ar -x $(LIB_COMMON) && ar -x $(LIB_GRAPH_EXECUTOR) && ar -x $(LIB_MEMORY) && ar -x $(SGX_SDK)/lib64/libsgx_tstdc.a
 	@cd $(OUT_DIR)/../tmp && ar -crs $(MODEL_ENTRY) *.o $(PYTHON_MODEL)
 	@rm -rf $(OUT_DIR)/../tmp
 	@rm -rf $(OUT_DIR)/crt
