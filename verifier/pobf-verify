@@ -208,7 +208,7 @@ def testflight() -> List[str]:
 
     wd = os.getcwd()
     os.chdir("../..")
-    run_command = "make run".split()
+    run_command = "sudo make run".split()
     run_output = subprocess.run(run_command,
                                 stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE)

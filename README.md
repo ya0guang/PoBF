@@ -6,7 +6,7 @@ Simple script:
 
 ```shell
 $ SGX_MODE=HW make -j
-$ make run
+$ sudo make run
 ```
 
 ## Verifier
