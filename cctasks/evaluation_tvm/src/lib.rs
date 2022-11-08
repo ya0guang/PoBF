@@ -11,7 +11,7 @@ const GRAPH_TEST_INPUT: &'static [u8] = include_bytes!("../outlib/cat.bin");
 const GRAPH_OUTPUT_LEN: usize = 1000usize;
 
 extern "C" {
-    fn tvm_mxnet_run(
+    fn tvm_resnet152_run(
         json: *const u8,
         json_size: usize,
         param: *const u8,
@@ -30,7 +30,7 @@ pub fn private_computation(input: Vec<u8>) -> Vec<u8> {
     let mut output = vec![0u8; GRAPH_OUTPUT_LEN * core::mem::size_of::<f32>()];
 
     let res = unsafe {
-        tvm_mxnet_run(
+        tvm_resnet152_run(
             GRAPH_JSON.as_ptr(),
             GRAPH_JSON.len(),
             GRAPH_PARAM.as_ptr(),

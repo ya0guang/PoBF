@@ -8,7 +8,7 @@ TVM:
 	$(MAKE) -C cctasks/evaluation_tvm/model_deploy
 
 PlatformSGX: TVM platform_sgx
-	@sudo pkill app || true
+	@pkill app || true
 	$(MAKE) -C platform_sgx
 
 ######## Verification ########
@@ -28,7 +28,7 @@ DataProvider_Arguments := run $(DataProvider_Manifest_Path)
 
 .PHONY: run
 run: $(App_Name) $(RustEnclave_Signed_Name)
-	@sudo pkill app || true
+	@pkill app || true
 	@printf '\n\e[0;36m===== Run Enclave =====\e[0m\n'
 	@cd ./platform_sgx/bin && ./app $(Enclave_App_Arguments) &
 	@sleep 1
@@ -36,8 +36,6 @@ run: $(App_Name) $(RustEnclave_Signed_Name)
 # TODO: Run in parallel.
 	@cd ./data_provider/bin && ./data_provider $(DataProvider_Arguments)
 	@cd ./data_provider/bin && ./data_provider $(DataProvider_Arguments)
-	@pkill app
-
 
 ####### Data Owner #######
 .PHONY: DataProvider

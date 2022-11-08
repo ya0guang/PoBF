@@ -26,11 +26,12 @@
 
 #include "bundle.h"
 
-#define CRT_MEMORY_NUM_PAGES 16384
+// We create an arena sized 4 GiB.
+#define CRT_MEMORY_NUM_PAGES 1048576
 #define CRT_MEMORY_PAGE_SIZE_LOG2 10
 
-static uint8_t
-    g_crt_memory[CRT_MEMORY_NUM_PAGES * (1 << CRT_MEMORY_PAGE_SIZE_LOG2)];
+// Serves as an arena for memory allocation.
+static uint8_t* g_crt_memory;
 static MemoryManagerInterface* g_memory_manager;
 
 /*! \brief macro to do C API call */
@@ -56,8 +57,12 @@ TVM_DLL void* tvm_runtime_create(const char* json_data, const char* params_data,
   dev.device_id = device_id;
 
   // get pointers
+  const size_t crt_memory_size =
+      CRT_MEMORY_NUM_PAGES * (1 << CRT_MEMORY_PAGE_SIZE_LOG2);
+  g_crt_memory = (uint8_t*)(malloc(crt_memory_size));
+
   TVM_CCALL(PageMemoryManagerCreate(&g_memory_manager, g_crt_memory,
-                                    sizeof(g_crt_memory),
+                                    crt_memory_size,
                                     CRT_MEMORY_PAGE_SIZE_LOG2));
   TVM_CCALL(TVMInitializeRuntime());
   TVMPackedFunc pf;
@@ -80,6 +85,8 @@ TVM_DLL void* tvm_runtime_create(const char* json_data, const char* params_data,
 TVM_DLL void tvm_runtime_destroy(void* executor) {
   TVMGraphExecutor* graph_executor = (TVMGraphExecutor*)executor;
   TVMGraphExecutor_Release(&graph_executor);
+
+  free(g_crt_memory);
 }
 
 TVM_DLL void tvm_runtime_set_input(void* executor, const char* name,
