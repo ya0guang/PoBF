@@ -23,6 +23,8 @@ Cargo.lock
 .vscode
 outlib
 *.csv
+.config_HW_DEBUG_x64
+data_provider/tvl/app
 
 # Coq
 *.aux
