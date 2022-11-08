@@ -213,10 +213,10 @@ void __assert_fail(const char* assertion, const char* file, unsigned int line,
 
 // Main entry for the Rust enclave to invoke the model.
 // The model is statically linked by the enclave, so everything is secret.
-int32_t tvm_resnet152_run(const uint8_t* json, size_t json_size,
-                          const uint8_t* param, size_t param_size,
-                          const uint8_t* input_buf, size_t input_size,
-                          uint8_t* output_buf, size_t output_buf_size) {
+int32_t tvm_mxnet_run(const uint8_t* json, size_t json_size,
+                      const uint8_t* param, size_t param_size,
+                      const uint8_t* input_buf, size_t input_size,
+                      uint8_t* output_buf, size_t output_buf_size) {
   char* json_data = (char*)(json);
   char* params_data = (char*)(param);
 
@@ -260,9 +260,8 @@ int32_t tvm_resnet152_run(const uint8_t* json, size_t json_size,
   tvm_runtime_set_input(handle, "data", &input);
   // Run the model and get the result.
   tvm_runtime_run(handle);
-  // Get the output. The result is a 1001-element vector of logits, rating the
-  // probability of each class for the image. You need to check ImageNet for
-  // more details.
+  // Get the output. The result is a 1001-element vector of logits, rating the probability of 
+  // each class for the image. You need to check ImageNet for more details.
   tvm_runtime_get_output(handle, 0, &output);
   // Dectroy the handle.
   tvm_runtime_destroy(handle);

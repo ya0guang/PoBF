@@ -33,7 +33,7 @@ def build_module(opts):
     dshape = (1, 3, 224, 224)
     from mxnet.gluon.model_zoo.vision import get_model
 
-    block = get_model("resnet152_v1", pretrained=True)
+    block = get_model("mobilenet0.25", pretrained=True)
     shape_dict = {"data": dshape}
     mod, params = relay.frontend.from_mxnet(block, shape_dict)
     func = mod["main"]
