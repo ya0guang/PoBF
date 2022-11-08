@@ -10,19 +10,13 @@ data_provider/bin
 # intermediate results
 enclave_u.*
 enclave_t.*
-Enclave_u.*
-Enclave_t.*
 *.so
-*.o
-*.a
 .lia.cache
-*.log
 
 # MISC
 Cargo.lock
 .vscode
 outlib
-*.csv
 
 # Coq
 *.aux
