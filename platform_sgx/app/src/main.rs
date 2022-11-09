@@ -24,7 +24,7 @@ use std::thread;
 
 static ENCLAVE_FILE: &'static str = "enclave.signed.so";
 static SGX_PLATFORM_HEADER_SIZE: usize = 0x4;
-const OUTPUT_BUFFER_SIZE: usize = 4096;
+const DEFAULT_DATA_SIZE: usize = 0x1000;
 const ENCLAVE_TCS_NUM: usize = 10;
 
 #[derive(Default)]
@@ -133,7 +133,7 @@ extern "C" {
         pubkey_signature: *const u8,
         pubkey_signature_len: u32,
         encrypted_output_buffer_ptr: *mut u8,
-        encrypted_output_buffer_size: u32,
+        encrypted_BATCH_SIZE: u32,
         encrypted_output_size: *mut u32,
     ) -> SgxStatus;
 
@@ -183,6 +183,7 @@ fn main() {
         }
     };
 
+    info!("[+] Initializing the enclave. May take a while...");
     let enclave = match SgxEnclave::create(ENCLAVE_FILE, false) {
         Ok(r) => {
             info!("[+] Init Enclave Successful, eid: {}!", r.eid());
@@ -193,6 +194,7 @@ fn main() {
             return;
         }
     };
+
     let enclave = Arc::new(enclave);
 
     server_run(listener, enclave).unwrap();
@@ -270,7 +272,7 @@ fn receive_ra_message(reader: &mut BufReader<TcpStream>) -> Result<RaMessage> {
 
     message.public_key = vec![0u8; 65];
     message.signature = vec![0u8; 0];
-    let mut str_buf = String::with_capacity(OUTPUT_BUFFER_SIZE);
+    let mut str_buf = String::with_capacity(DEFAULT_DATA_SIZE);
 
     // Read public key.
     reader.read_exact(&mut message.public_key)?;
@@ -324,7 +326,7 @@ fn exec_private_computing(
     ra_message: &RaMessage,
 ) -> Vec<u8> {
     let mut retval = SgxStatus::Success;
-    let mut encrypted_output: Vec<u8> = vec![0u8; OUTPUT_BUFFER_SIZE];
+    let mut encrypted_output: Vec<u8> = vec![0u8; DEFAULT_DATA_SIZE];
     let mut encrypted_output_size: u32 = 0;
 
     let res = unsafe {
@@ -340,7 +342,7 @@ fn exec_private_computing(
             ra_message.signature.as_ptr() as *const u8,
             ra_message.signature.len() as u32,
             encrypted_output.as_mut_ptr(),
-            OUTPUT_BUFFER_SIZE as _,
+            DEFAULT_DATA_SIZE as _,
             &mut encrypted_output_size as _,
         )
     };

@@ -93,12 +93,17 @@ extern "C" {
 
     pub fn ocall_get_timepoint(ret_val: *mut SgxStatus, time_point: *mut u64) -> SgxStatus;
 
+    pub fn ocall_receive_data_prelogue(
+        ret_val: *mut SgxStatus,
+        socket_fd: c_int,
+        data_size: *mut u32,
+    ) -> SgxStatus;
+
     pub fn ocall_receive_data(
         ret_val: *mut SgxStatus,
         socket_fd: c_int,
         data_buf: *mut u8,
-        data_buf_len: u32,
-        data_size: *mut u32,
+        buf_size: u32,
     ) -> SgxStatus;
 
     pub fn ocall_write_data(

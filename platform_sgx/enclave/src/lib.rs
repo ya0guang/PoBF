@@ -23,7 +23,7 @@ mod dh;
 mod ocall;
 mod pobf;
 mod pobf_verifier;
-mod ra_utils;
+mod networking_utils;
 mod utils;
 mod vecaes;
 

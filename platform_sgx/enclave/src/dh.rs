@@ -10,7 +10,7 @@ use sgx_types::{
     types::{AlignKey128bit, DhSessionRole, Ec256PublicKey, ECP256_KEY_SIZE},
 };
 
-use crate::ra_utils::unix_time;
+use crate::networking_utils::unix_time;
 use crate::{log, ocall_log};
 
 /// Time for expiration. We currently set it to 600 seconds (10 min).

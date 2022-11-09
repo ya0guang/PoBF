@@ -114,11 +114,14 @@ enclave {
           uint32_t data_buf_size,
           [out] uint32_t* data_size);
 
+        sgx_status_t ocall_receive_data_prelogue(
+          int32_t socket_fd,
+          [out] uint32_t* data_size);
+
         sgx_status_t ocall_receive_data(
           int32_t socket_fd,
           [out, size = data_buf_size] uint8_t* data_buf,
-          uint32_t data_buf_size,
-          [out] uint32_t* data_size);
+          uint32_t data_buf_size);
     };
 
     trusted {

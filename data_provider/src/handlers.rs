@@ -22,7 +22,7 @@ use sgx_types::types::*;
 
 // Some useful constants.
 pub const BREAKLINE: &'static [u8] = b"\n";
-pub const DEFAULT_BUFFER_LEN: usize = 0x400;
+pub const DEFAULT_BUFFER_LEN: usize = 0x1000;
 pub const EPID_LEN: usize = 0x04;
 pub const HTTP_OK: u32 = 200;
 
@@ -625,13 +625,35 @@ pub fn send_vecaes_data(
 
     debug!("[+] The encrypted data is {:?}", encrypted_input);
 
+    let batch_num = (encrypted_input.len() as f64 / DEFAULT_BUFFER_LEN as f64).ceil() as usize;
+
     writer
         .write(encrypted_input.len().to_string().as_bytes())
         .unwrap();
     writer.write(BREAKLINE).unwrap();
-    writer.write(&encrypted_input).unwrap();
-    writer.write(BREAKLINE).unwrap();
-    writer.flush().unwrap();
+
+    // FIXME: Without this, the enclave cannot read correct data.
+    writer.write(&vec![0u8; 4096]).unwrap();
+
+    for i in 0..batch_num {
+        let begin = i * DEFAULT_BUFFER_LEN;
+        let end = if (i + 1) * DEFAULT_BUFFER_LEN <= encrypted_input.len() {
+            (i + 1) * DEFAULT_BUFFER_LEN
+        } else {
+            encrypted_input.len()
+        };
+
+        let size = writer.write(&encrypted_input[begin..end]).unwrap();
+        debug!(
+            "Batch #{}: wrote {} bytes, sent content {:?}",
+            i,
+            size,
+            &encrypted_input[begin..end]
+        );
+
+        std::thread::sleep(std::time::Duration::from_millis(1));
+        writer.flush().unwrap();
+    }
 
     Ok(())
 }

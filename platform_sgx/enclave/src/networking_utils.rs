@@ -32,7 +32,7 @@ pub const REPORT_AAD: &'static str = "PoBF/enclave&INTEL-RA-V4";
 // Buffer size control.
 pub const SMALL_BUF_SIZE: usize = 128;
 pub const MEDIUM_BUF_SIZE: usize = 1024;
-pub const LARGE_BUF_SIZE: usize = 4096;
+pub const LARGE_BUF_SIZE: usize = 0x1000;
 
 // DCAP constants.
 pub const DCAP_ENC_PPID_LEN: usize = 384;
@@ -298,28 +298,30 @@ pub fn get_sigrl_from_intel(
 
 /// A safe wrapper for `ocall_receive_data`.
 pub fn receive_data(socket_fd: c_int) -> SgxResult<VecAESData> {
-    let mut encrypted_data_buf = vec![0u8; 2048];
+    // Fetch the metadata first.
     let mut data_size = 0u32;
-
-    // Perform an ocall.
-    // FIXME: 2048 is probably not sufficient...
     let mut ret_val = SgxStatus::Success;
-    let ret = unsafe {
-        ocall_receive_data(
-            &mut ret_val,
-            socket_fd,
-            encrypted_data_buf.as_mut_ptr(),
-            2048u32,
-            &mut data_size,
-        )
-    };
 
-    if !ret.is_success() {
-        return Err(ret);
+    let res = unsafe { ocall_receive_data_prelogue(&mut ret_val, socket_fd, &mut data_size) };
+
+    if res != SgxStatus::Success {
+        return Err(res);
     }
 
-    // Truncate the buffer.
-    encrypted_data_buf.truncate(data_size as usize);
+    let mut encrypted_data_buf = vec![0u8; data_size as usize];
+
+    let res = unsafe {
+      ocall_receive_data(
+        &mut ret_val,
+        socket_fd,
+        encrypted_data_buf.as_mut_ptr(),
+        data_size,
+      )
+    };
+
+    if res != SgxStatus::Success {
+        return Err(res);
+    }
 
     Ok(VecAESData::from(encrypted_data_buf.as_slice()))
 }
