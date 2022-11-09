@@ -308,15 +308,16 @@ pub fn receive_data(socket_fd: c_int) -> SgxResult<VecAESData> {
         return Err(res);
     }
 
+    ocall_log!("Data size = {}", data_size);
     let mut encrypted_data_buf = vec![0u8; data_size as usize];
 
     let res = unsafe {
-      ocall_receive_data(
-        &mut ret_val,
-        socket_fd,
-        encrypted_data_buf.as_mut_ptr(),
-        data_size,
-      )
+        ocall_receive_data(
+            &mut ret_val,
+            socket_fd,
+            encrypted_data_buf.as_mut_ptr(),
+            data_size,
+        )
     };
 
     if res != SgxStatus::Success {
@@ -436,11 +437,11 @@ pub fn verify_report(qe_report: &Report) -> SgxResult<()> {
 /// can be delayed deliberately so that the accuracy of timestamp is tampered, as
 /// this operation requires a network connection to Intel. So we cannot define
 /// accuracy here, nor "trusted". However, at least, we need this functionality.
-pub fn unix_time() -> SgxResult<u64> {
+pub fn unix_time(accuracy: i32) -> SgxResult<u64> {
     let mut timestamp = 0u64;
     let mut ret = SgxStatus::Success;
 
-    let res = unsafe { ocall_get_timepoint(&mut ret, &mut timestamp) };
+    let res = unsafe { ocall_get_timepoint(&mut ret, &mut timestamp, accuracy) };
 
     match res {
         SgxStatus::Success => Ok(timestamp),
@@ -473,7 +474,7 @@ pub fn verify_quote_report(quote_report: &Vec<u8>, sig: &Vec<u8>, cert: &Vec<u8>
     };
 
     // We use an OCALL to get the current timestamp.
-    let cur_time = unix_time().unwrap();
+    let cur_time = unix_time(0).unwrap();
     ocall_log!("[+] Get current time: {}", cur_time);
 
     // Verify if the chain is rooted in

@@ -631,9 +631,7 @@ pub fn send_vecaes_data(
         .write(encrypted_input.len().to_string().as_bytes())
         .unwrap();
     writer.write(BREAKLINE).unwrap();
-
-    // FIXME: Without this, the enclave cannot read correct data.
-    writer.write(&vec![0u8; 4096]).unwrap();
+    writer.flush().unwrap();
 
     for i in 0..batch_num {
         let begin = i * DEFAULT_BUFFER_LEN;

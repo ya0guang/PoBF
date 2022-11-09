@@ -3,7 +3,7 @@
   <ISVSVN>0</ISVSVN>
   <StackMinSize>0x4000000</StackMinSize>
   <StackMaxSize>0x4000000</StackMaxSize>
-  <HeapMinSize>0x80000000</HeapMinSize>
+  <HeapMinSize>0x800000</HeapMinSize>
   <HeapInitSize>0x80000000</HeapInitSize>
   <HeapMaxSize>0x80000000</HeapMaxSize>
   <TCSNum>10</TCSNum>
@@ -14,8 +14,8 @@
   <DisableDebug>0</DisableDebug>
   <MiscSelect>0</MiscSelect>
   <MiscMask>0xFFFFFFFF</MiscMask>
-  <ReservedMemMinSize> 0x80000000</ReservedMemMinSize>
-  <ReservedMemInitSize>0x80000000</ReservedMemInitSize>
+  <ReservedMemMinSize> 0x800000</ReservedMemMinSize>
+  <ReservedMemInitSize>0x800000</ReservedMemInitSize>
   <ReservedMemMaxSize> 0x80000000</ReservedMemMaxSize>
   <!-- On SGX1 platform, ReservedMemExecutable==1 means set reserved memory as read, write and execute (RWX) -->
   <ReservedMemExecutable>1</ReservedMemExecutable>
