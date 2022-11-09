@@ -13,6 +13,9 @@ def main(args):
         output = urllib.request.urlopen(url).read().decode('utf-8')
         image_net_labels = yaml.load(output, Loader=yaml.FullLoader)
         print('[+] Labels downloaded.')
+    else:
+        with open(args.label_path, "r") as f:
+            image_net_labels = yaml.load(f.read(), Loader=yaml.FullLoader)
 
     n = args.number
     filepath = args.filepath
