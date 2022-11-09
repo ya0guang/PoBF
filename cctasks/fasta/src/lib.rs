@@ -25,6 +25,9 @@
 // THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#![cfg_attr(feature = "sgx", no_std)]
+#![feature(core_intrinsics)]
+#![feature(rustc_attrs)]
 
 extern crate alloc;
 
@@ -39,6 +42,30 @@ type SgxResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 const LINE_LENGTH: usize = 60;
 const BLOCK_SIZE: usize = LINE_LENGTH * 1024;
 const IM: u32 = 139968;
+
+use core::intrinsics;
+
+impl f32 {
+    /// Returns the largest integer less than or equal to `self`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let f = 3.7_f32;
+    /// let g = 3.0_f32;
+    /// let h = -3.7_f32;
+    ///
+    /// assert_eq!(f.floor(), 3.0);
+    /// assert_eq!(g.floor(), 3.0);
+    /// assert_eq!(h.floor(), -4.0);
+    /// ```
+    #[rustc_allow_incoherent_impl]
+    #[must_use = "method returns a new number and does not mutate the original value"]
+    #[inline]
+    pub fn floor(self) -> f32 {
+        unsafe { intrinsics::floorf32(self) }
+    }
+}
 
 /// Pseudo-random number generator
 struct Rng(u32);
@@ -97,7 +124,8 @@ pub fn private_computation(input: Vec<u8>) -> Vec<u8> {
         for i in block {
             *i = it.next().unwrap()
         }
-    }).unwrap();
+    })
+    .unwrap();
 
     // Generate DNA sequences by weighted random selection from two alphabets.
     let p0 = cumulative_probabilities(&[

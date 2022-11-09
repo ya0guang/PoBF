@@ -1,4 +1,4 @@
-#![no_std]
+#![cfg_attr(feature = "sgx", no_std)]
 
 extern crate alloc;
 
@@ -7,7 +7,6 @@ use alloc::vec::Vec;
 
 const GRAPH_JSON: &'static [u8] = include_bytes!("../outlib/graph.json");
 const GRAPH_PARAM: &'static [u8] = include_bytes!("../outlib/params.bin");
-const GRAPH_TEST_INPUT: &'static [u8] = include_bytes!("../outlib/cat.bin");
 const GRAPH_OUTPUT_LEN: usize = 1000usize;
 
 extern "C" {
