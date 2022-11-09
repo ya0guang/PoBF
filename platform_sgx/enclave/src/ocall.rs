@@ -91,7 +91,11 @@ extern "C" {
         ti_size: u32,
     ) -> SgxStatus;
 
-    pub fn ocall_get_timepoint(ret_val: *mut SgxStatus, time_point: *mut u64) -> SgxStatus;
+    pub fn ocall_get_timepoint(
+        ret_val: *mut SgxStatus,
+        time_point: *mut u64,
+        accuracy: i32,
+    ) -> SgxStatus;
 
     pub fn ocall_receive_data_prelogue(
         ret_val: *mut SgxStatus,

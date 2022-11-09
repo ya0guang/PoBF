@@ -236,14 +236,14 @@ impl DhSession {
             .derive_key(KDF_MAGIC_STR.as_bytes())?;
 
         // Set the current timestamp.
-        self.session_context.timestamp = unix_time()?;
+        self.session_context.timestamp = unix_time(0)?;
 
         Ok(())
     }
 
     /// Returns true if the key is still within its lifetime.
     pub fn is_valid(&self) -> bool {
-        let cur_time = unix_time().unwrap();
+        let cur_time = unix_time(0).unwrap();
         let key_time = self.session_context.timestamp;
         let elapsed_time = cur_time - key_time;
 

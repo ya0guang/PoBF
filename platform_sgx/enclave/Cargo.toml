@@ -9,8 +9,8 @@ crate-type = ["lib", "staticlib"]
 
 [features]
 # turn on mirai when veirifying towards mirai
-default = ["leak_log", "task"]
-sgx = ["sgx_no_tstd", "sgx_trts", "sgx_tseal", "task"]
+default = ["leak_log"]
+sgx = ["sgx_no_tstd", "sgx_trts", "sgx_tseal"]
 rand = ["sgx_rand"]
 # potential violations
 violation = ["vio_typestate", "vio_private", "vio_unsafe", "vio_ocall", "sgx"]
@@ -29,8 +29,9 @@ leak_log = []
 leak_net = []
 leak_file = []
 mirai = []
+
 # computing tasks
-task = ["evaluation_tvm"]
+# The tasks are enabled by `cfg_if`.
 task_sample = ["sample_add"]
 task_tvm = ["evaluation_tvm"]
 task_polybench = ["polybench"]
@@ -39,8 +40,8 @@ task_fasta = ["fasta"]
 
 [dependencies]
 base64 = { version = "0.13.0", default-features = false, features = [ "alloc" ] }
+cfg-if = "1.0.0"
 clear_on_drop = { git = "https://github.com/hiroki-chen/clear_on_drop.git", branch = "master" }
-
 # Evaluations.
 evaluation_tvm = { path = "../../cctasks/evaluation_tvm", optional = true }
 fann = { path = "../../cctasks/fann", optional = true }

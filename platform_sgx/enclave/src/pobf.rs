@@ -1,29 +1,46 @@
 #![forbid(unsafe_code)]
 
 use crate::dh::*;
-use crate::ocall::*;
 use crate::networking_utils::*;
+use crate::ocall::*;
 use crate::vecaes::{AES128Key, VecAESData};
 use crate::{ocall_log, verified_log};
 use alloc::vec;
 use alloc::vec::Vec;
-#[cfg(feature = "evaluation_tvm")]
-use evaluation_tvm::private_computation;
 use pobf_state::task::*;
-#[cfg(feature = "task_sample")]
-use sample_add::private_computation;
 use sgx_types::error::SgxStatus;
 use sgx_types::types::{c_int, Spid};
 
-const GRAPH_SAMPLE_INPUT: &'static [u8] = include_bytes!("../../../data/cat.bin");
+// Settings for private computation functions.
+cfg_if::cfg_if! {
+  if #[cfg(feature = "task_tvm")] {
+      use evaluation_tvm::private_computation;
+  } else if #[cfg(feature = "task_fann")] {
+      use fann::private_computation;
+  } else if #[cfg(feature = "task_fasta")] {
+      use fasta::private_computation;
+  } else if #[cfg(feature = "task_polybench")] {
+      use polybench::private_computation;
+  } else {
+      use sample_add::private_computation;
+  }
+}
 
 pub fn private_vec_compute<T>(input: T) -> T
 where
     T: From<Vec<u8>> + Into<Vec<u8>>,
-{   
-  ocall_log!("Computing...");
+{
+    ocall_log!("Executing computing job...");
     let input_vec = input.into();
+
+    // Get execution time.
+    let begin = unix_time(3).unwrap();
     let output_vec = private_computation(input_vec);
+    let end = unix_time(3).unwrap();
+    let elapsed = core::time::Duration::from_nanos(end - begin);
+
+    ocall_log!("Job finished. Time used: {:?}.", elapsed);
+
     T::from(output_vec)
 }
 

@@ -373,7 +373,7 @@ pub unsafe extern "C" fn ocall_get_update_info(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn ocall_get_timepoint(time_point: *mut u64) -> SgxStatus {
+pub unsafe extern "C" fn ocall_get_timepoint(time_point: *mut u64, accuracy: i32) -> SgxStatus {
     info!("[+] Getting current time.");
 
     let time = SystemTime::now()
@@ -384,7 +384,13 @@ pub unsafe extern "C" fn ocall_get_timepoint(time_point: *mut u64) -> SgxStatus 
         })
         .unwrap();
 
-    *time_point = time.as_secs();
+    *time_point = match accuracy {
+        0 => time.as_secs() as u128,
+        1 => time.as_millis(),
+        2 => time.as_micros(),
+        3 => time.as_nanos(),
+        _ => return SgxStatus::InvalidParameter,
+    } as u64;
 
     SgxStatus::Success
 }
@@ -566,21 +572,24 @@ pub unsafe extern "C" fn ocall_receive_data(
             .unwrap();
         output.extend_from_slice(&buf[..read_size]);
 
-        debug!(
+        info!(
             "Batch #{}: received {} bytes, content {:?}",
             i,
             read_size,
             &[..read_size]
         );
-
         i += 1;
+
+        core::ptr::copy(
+            output.as_ptr().add(i * DEFAULT_DATA_SIZE),
+            data_buf.add(i * DEFAULT_DATA_SIZE),
+            read_size as usize,
+        );
 
         if output.len() >= buf_size as usize {
             break;
         }
     }
-
-    core::ptr::copy(output.as_ptr(), data_buf, buf_size as usize);
 
     // Do not destroy the socket.
     mem::forget(reader);
