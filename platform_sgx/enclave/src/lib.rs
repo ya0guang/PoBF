@@ -20,10 +20,10 @@ extern crate webpki;
 #[cfg(not(feature = "sgx"))]
 mod bogus;
 mod dh;
+mod networking_utils;
 mod ocall;
 mod pobf;
 mod pobf_verifier;
-mod ra_utils;
 mod utils;
 mod vecaes;
 

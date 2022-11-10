@@ -98,7 +98,13 @@ enclave {
           [out] uint32_t* cert_len);
 
         // Get the current timepoint.
-        sgx_status_t ocall_get_timepoint([out] uint64_t* timepoint);
+        // 0 => Second.
+        // 1 => Millisecond.
+        // 2 => Microsecond.
+        // 3 => Nanosecond.
+        sgx_status_t ocall_get_timepoint(
+          [out] uint64_t* timepoint,
+          int32_t accuracy);
 
         // File IO interfaces. Only encrypted files are allowed to be invoked.
         sgx_status_t ocall_write_data(
@@ -114,11 +120,14 @@ enclave {
           uint32_t data_buf_size,
           [out] uint32_t* data_size);
 
+        sgx_status_t ocall_receive_data_prelogue(
+          int32_t socket_fd,
+          [out] uint32_t* data_size);
+
         sgx_status_t ocall_receive_data(
           int32_t socket_fd,
           [out, size = data_buf_size] uint8_t* data_buf,
-          uint32_t data_buf_size,
-          [out] uint32_t* data_size);
+          uint32_t data_buf_size);
     };
 
     trusted {

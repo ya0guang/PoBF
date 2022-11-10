@@ -102,10 +102,10 @@ fn main() {
 
             debug!("[+] Received result: {:?}", data);
 
-            use std::io::prelude::*;
             use std::fs::File;
-            let mut file = File::create("./test.bin").unwrap();
-            file.write_all(&data);
+            use std::io::prelude::*;
+            let mut file = File::create("./output.bin").unwrap();
+            file.write_all(&data).unwrap();
         }
     }
 

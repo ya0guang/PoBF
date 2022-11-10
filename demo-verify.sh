@@ -16,4 +16,4 @@ else
 fi
 
 printf "${MAGENTA}- Verify the PoBF framework...${NC}\n\n"
-cd $(pwd)/platform_sgx/enclave && cargo pobf-verify --allowed-unsafe lib.rs ocall.rs ra_utils.rs --log-level INFO -- --features=sgx,leak_log
+cd $(pwd)/platform_sgx/enclave && cargo pobf-verify --allowed-unsafe lib.rs ocall.rs networking_utils.rs --log-level INFO -- --features=sgx,leak_log

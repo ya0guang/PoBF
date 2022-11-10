@@ -10,7 +10,7 @@ use sgx_types::{
     types::{AlignKey128bit, DhSessionRole, Ec256PublicKey, ECP256_KEY_SIZE},
 };
 
-use crate::ra_utils::unix_time;
+use crate::networking_utils::unix_time;
 use crate::{log, ocall_log};
 
 /// Time for expiration. We currently set it to 600 seconds (10 min).
@@ -236,14 +236,14 @@ impl DhSession {
             .derive_key(KDF_MAGIC_STR.as_bytes())?;
 
         // Set the current timestamp.
-        self.session_context.timestamp = unix_time()?;
+        self.session_context.timestamp = unix_time(0)?;
 
         Ok(())
     }
 
     /// Returns true if the key is still within its lifetime.
     pub fn is_valid(&self) -> bool {
-        let cur_time = unix_time().unwrap();
+        let cur_time = unix_time(0).unwrap();
         let key_time = self.session_context.timestamp;
         let elapsed_time = cur_time - key_time;
 

@@ -8,6 +8,7 @@ edition = "2021"
 [features]
 default = ["sgx"]
 mirai = []
+std = []
 sgx = ["sgx_types"]
 
 [dependencies]

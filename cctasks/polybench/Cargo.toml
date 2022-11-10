@@ -11,5 +11,6 @@ sgx_types = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk.git", 
 
 [features]
 default = ["sgx"]
+std = []
 sgx = ["sgx_types"]
 mirai = []

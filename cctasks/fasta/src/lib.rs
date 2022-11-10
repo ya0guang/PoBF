@@ -25,6 +25,9 @@
 // THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#![cfg_attr(any(feature = "sgx", not(feature = "std")), no_std)]
+#![feature(core_intrinsics)]
+#![feature(rustc_attrs)]
 
 extern crate alloc;
 
@@ -39,6 +42,30 @@ type SgxResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 const LINE_LENGTH: usize = 60;
 const BLOCK_SIZE: usize = LINE_LENGTH * 1024;
 const IM: u32 = 139968;
+
+use core::intrinsics;
+
+impl f32 {
+    /// Returns the largest integer less than or equal to `self`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let f = 3.7_f32;
+    /// let g = 3.0_f32;
+    /// let h = -3.7_f32;
+    ///
+    /// assert_eq!(f.floor(), 3.0);
+    /// assert_eq!(g.floor(), 3.0);
+    /// assert_eq!(h.floor(), -4.0);
+    /// ```
+    #[rustc_allow_incoherent_impl]
+    #[must_use = "method returns a new number and does not mutate the original value"]
+    #[inline]
+    pub fn floor(self) -> f32 {
+        unsafe { intrinsics::floorf32(self) }
+    }
+}
 
 /// Pseudo-random number generator
 struct Rng(u32);
@@ -89,15 +116,20 @@ where
 }
 
 pub fn private_computation(input: Vec<u8>) -> Vec<u8> {
-    let n = usize::from_ne_bytes(input[..4].try_into().unwrap());
+    let n = usize::from_le_bytes(input[..8].try_into().unwrap());
     // Generate a DNA sequence by copying from the given sequence.
     let mut it = input[4..].iter().cloned().cycle();
 
-    let mut ans = make_fasta(n * 2, |block| {
-        for i in block {
-            *i = it.next().unwrap()
-        }
-    }).unwrap();
+    let mut ans = Vec::new();
+    ans.extend_from_slice(b">CAAGRJ010006848.1 Lynx pardinus genome assembly, contig: lp23s36493, whole genome shotgun sequence\n");
+    ans.extend_from_slice(
+        &make_fasta(n * 2, |block| {
+            for i in block {
+                *i = it.next().unwrap()
+            }
+        })
+        .unwrap(),
+    );
 
     // Generate DNA sequences by weighted random selection from two alphabets.
     let p0 = cumulative_probabilities(&[
@@ -125,8 +157,10 @@ pub fn private_computation(input: Vec<u8>) -> Vec<u8> {
     ]);
 
     let mut rng = Rng::new();
-
+    
+    ans.extend_from_slice(b"\n>TWO IUB ambiguity codes\n");
     ans.extend_from_slice(&make_fasta(n * 3, |block| rng.gen(&p0, block)).unwrap());
+    ans.extend_from_slice(b"\n>THREE Homo sapiens frequency\n");
     ans.extend_from_slice(&make_fasta(n * 5, |block| rng.gen(&p1, block)).unwrap());
 
     ans

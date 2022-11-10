@@ -15,7 +15,7 @@ use sgx_types::types::*;
 use log::{debug, error, info};
 use serde::{Deserialize, Serialize};
 
-use crate::OUTPUT_BUFFER_SIZE;
+use crate::DEFAULT_DATA_SIZE;
 use crate::SGX_PLATFORM_HEADER_SIZE;
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -72,6 +72,7 @@ pub unsafe extern "C" fn ocall_get_sigrl_from_intel(
     writer.write(epid_len.to_string().as_bytes()).unwrap();
     writer.write(b"\n").unwrap();
     writer.write(&*epid).unwrap();
+    writer.write(b"\n").unwrap();
     writer.write(enclave_key).unwrap();
     writer.write(b"\n").unwrap();
     writer.flush().unwrap();
@@ -372,7 +373,7 @@ pub unsafe extern "C" fn ocall_get_update_info(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn ocall_get_timepoint(time_point: *mut u64) -> SgxStatus {
+pub unsafe extern "C" fn ocall_get_timepoint(time_point: *mut u64, accuracy: i32) -> SgxStatus {
     info!("[+] Getting current time.");
 
     let time = SystemTime::now()
@@ -383,7 +384,13 @@ pub unsafe extern "C" fn ocall_get_timepoint(time_point: *mut u64) -> SgxStatus 
         })
         .unwrap();
 
-    *time_point = time.as_secs();
+    *time_point = match accuracy {
+        0 => time.as_secs() as u128,
+        1 => time.as_millis(),
+        2 => time.as_micros(),
+        3 => time.as_nanos(),
+        _ => return SgxStatus::InvalidParameter,
+    } as u64;
 
     SgxStatus::Success
 }
@@ -522,56 +529,87 @@ fn check_status(isv_enclave_quote: &IasQuoteReport) -> SgxStatus {
     SgxStatus::Success
 }
 
+/// Fetches the metadata for the data being received.
+/// After that, the enclave will call `ocall_receive_data` to get data batches.
 #[no_mangle]
-pub unsafe extern "C" fn ocall_receive_data(
+pub unsafe extern "C" fn ocall_receive_data_prelogue(
     socket_fd: c_int,
-    data_buf: *mut u8,
-    data_buf_len: u32,
     data_size: *mut u32,
 ) -> SgxStatus {
     // Wrap a new tcp stream from the raw socket fd.
     let socket = TcpStream::from_raw_fd(socket_fd);
     let mut reader = BufReader::new(socket);
-    let mut str_len = String::with_capacity(OUTPUT_BUFFER_SIZE);
 
-    // Read length.
-    reader
-        .read_line(&mut str_len)
-        .map_err(|e| {
-            error!("[-] Failed to receive data due to {:?}", e);
-            return SgxStatus::InvalidParameter;
-        })
-        .unwrap();
+    *data_size = get_length(&mut reader).unwrap();
 
-    if str_len.is_empty() {
-        error!("[-] Failed to receive any data length! Is the socket closed?");
-        return SgxStatus::InvalidParameter;
+    mem::forget(reader);
+
+    SgxStatus::Success
+}
+
+/// Batch read the data from the data provider.
+#[no_mangle]
+pub unsafe extern "C" fn ocall_receive_data(
+    socket_fd: c_int,
+    data_buf: *mut u8,
+    buf_size: u32,
+) -> SgxStatus {
+    // Wrap a new tcp stream from the raw socket fd.
+    let socket = TcpStream::from_raw_fd(socket_fd);
+    let mut reader = BufReader::new(socket);
+
+    let mut output = Vec::new();
+
+    let mut i = 0;
+    loop {
+        let mut buf = vec![0u8; DEFAULT_DATA_SIZE];
+        let read_size = reader
+            .read(&mut buf)
+            .map_err(|e| {
+                error!("[-] Failed to receive data due to {:?}", e);
+                return SgxStatus::InvalidParameter;
+            })
+            .unwrap();
+        output.extend_from_slice(&buf[..read_size]);
+
+        info!(
+            "Batch #{}: received {} bytes, content {:?}",
+            i,
+            read_size,
+            &[..read_size]
+        );
+        i += 1;
+
+        if output.len() >= buf_size as usize {
+            break;
+        }
     }
 
-    *data_size = str_len[..str_len.len() - 1]
-        .parse()
-        .map_err(|e| {
-            error!("[-] Failed to parse the data size due to {:?}", e);
-            return SgxStatus::InvalidParameter;
-        })
-        .unwrap();
-
-    if data_buf_len < *data_size {
-        return SgxStatus::InvalidParameter;
-    }
-
-    let mut buf = vec![0u8; (*data_size + 1) as usize];
-    reader
-        .read_exact(&mut buf)
-        .map_err(|e| {
-            error!("[-] Failed to receive data due to {:?}", e);
-            return SgxStatus::InvalidParameter;
-        })
-        .unwrap();
-    core::ptr::copy(buf.as_ptr(), data_buf, *data_size as usize);
+    core::ptr::copy(output.as_ptr(), data_buf, buf_size as usize);
 
     // Do not destroy the socket.
     mem::forget(reader);
 
     SgxStatus::Success
+}
+
+fn get_length(reader: &mut BufReader<TcpStream>) -> SgxResult<u32> {
+    let mut str_len = String::with_capacity(DEFAULT_DATA_SIZE);
+    // Read length.
+    reader
+        .read_line(&mut str_len)
+        .map_err(|e| {
+            error!("[-] Failed to receive data due to {:?}", e);
+        })
+        .unwrap();
+
+    if str_len.is_empty() {
+        error!("[-] Failed to receive any data length! Is the socket closed?");
+        return Err(SgxStatus::InvalidParameter);
+    }
+
+    str_len[..str_len.len() - 1].parse::<u32>().map_err(|e| {
+        error!("[-] Failed to parse the data size due to {:?}", e);
+        return SgxStatus::InvalidParameter;
+    })
 }
