@@ -1,7 +1,8 @@
-#![cfg_attr(feature = "sgx", no_std)]
+#![cfg_attr(any(feature = "sgx", not(feature = "std")), no_std)]
 
 extern crate alloc;
 
+use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
 use core::time::Duration;
@@ -41,11 +42,11 @@ impl core::fmt::Debug for BenchResult {
 }
 
 /// Invokes `polybench_run` but the parameter is not used.
-pub fn private_computation(input: Vec<u8>) -> Vec<u8> {
-  let _ = polybench_run(&|| 0);
+pub fn private_computation(input: Vec<u8>, f: &dyn Fn() -> u64) -> Vec<u8> {
+    let result = polybench_run(f);
 
-  input
-} 
+    format!("{:?}", result).as_bytes().to_vec()
+}
 
 /// Dimension too large => Memory consumption large => Enclave crash...
 /// Performs the polybench and returns the grouped result.

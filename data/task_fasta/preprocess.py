@@ -12,4 +12,4 @@ with open('./sequence.fasta', 'r') as f:
 with open('./data.bin', 'wb') as f :
     f.write(output)
 
-print("OK!")
+print('OK!')

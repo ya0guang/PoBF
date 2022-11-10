@@ -25,7 +25,7 @@
 // THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-#![cfg_attr(feature = "sgx", no_std)]
+#![cfg_attr(any(feature = "sgx", not(feature = "std")), no_std)]
 #![feature(core_intrinsics)]
 #![feature(rustc_attrs)]
 
@@ -116,16 +116,20 @@ where
 }
 
 pub fn private_computation(input: Vec<u8>) -> Vec<u8> {
-    let n = usize::from_ne_bytes(input[..4].try_into().unwrap());
+    let n = usize::from_le_bytes(input[..8].try_into().unwrap());
     // Generate a DNA sequence by copying from the given sequence.
     let mut it = input[4..].iter().cloned().cycle();
 
-    let mut ans = make_fasta(n * 2, |block| {
-        for i in block {
-            *i = it.next().unwrap()
-        }
-    })
-    .unwrap();
+    let mut ans = Vec::new();
+    ans.extend_from_slice(b">CAAGRJ010006848.1 Lynx pardinus genome assembly, contig: lp23s36493, whole genome shotgun sequence\n");
+    ans.extend_from_slice(
+        &make_fasta(n * 2, |block| {
+            for i in block {
+                *i = it.next().unwrap()
+            }
+        })
+        .unwrap(),
+    );
 
     // Generate DNA sequences by weighted random selection from two alphabets.
     let p0 = cumulative_probabilities(&[
@@ -153,8 +157,10 @@ pub fn private_computation(input: Vec<u8>) -> Vec<u8> {
     ]);
 
     let mut rng = Rng::new();
-
+    
+    ans.extend_from_slice(b"\n>TWO IUB ambiguity codes\n");
     ans.extend_from_slice(&make_fasta(n * 3, |block| rng.gen(&p0, block)).unwrap());
+    ans.extend_from_slice(b"\n>THREE Homo sapiens frequency\n");
     ans.extend_from_slice(&make_fasta(n * 5, |block| rng.gen(&p1, block)).unwrap());
 
     ans

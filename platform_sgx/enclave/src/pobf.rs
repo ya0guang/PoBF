@@ -35,10 +35,18 @@ where
 
     // Get execution time.
     let begin = unix_time(3).unwrap();
-    let output_vec = private_computation(input_vec);
+
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "task_polybench")] {
+            let timing_function = || unix_time(3).unwrap();
+            let output_vec = private_computation(input_vec, &timing_function);
+        } else {
+            let output_vec = private_computation(input_vec);
+        }
+    }
+
     let end = unix_time(3).unwrap();
     let elapsed = core::time::Duration::from_nanos(end - begin);
-
     ocall_log!("Job finished. Time used: {:?}.", elapsed);
 
     T::from(output_vec)
