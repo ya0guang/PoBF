@@ -558,7 +558,7 @@ pub unsafe extern "C" fn ocall_receive_data(
     let socket = TcpStream::from_raw_fd(socket_fd);
     let mut reader = BufReader::new(socket);
 
-    let mut output = Vec::with_capacity(buf_size as usize);
+    let mut output = Vec::new();
 
     let mut i = 0;
     loop {
@@ -580,16 +580,12 @@ pub unsafe extern "C" fn ocall_receive_data(
         );
         i += 1;
 
-        core::ptr::copy(
-            output.as_ptr().add(i * DEFAULT_DATA_SIZE),
-            data_buf.add(i * DEFAULT_DATA_SIZE),
-            read_size as usize,
-        );
-
         if output.len() >= buf_size as usize {
             break;
         }
     }
+
+    core::ptr::copy(output.as_ptr(), data_buf, buf_size as usize);
 
     // Do not destroy the socket.
     mem::forget(reader);

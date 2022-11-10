@@ -25,7 +25,9 @@ use std::thread;
 static ENCLAVE_FILE: &'static str = "enclave.signed.so";
 static SGX_PLATFORM_HEADER_SIZE: usize = 0x4;
 const DEFAULT_DATA_SIZE: usize = 0x1000;
+const DEFAULT_LARGE_DATA_SIZE: usize = 0x1000000;
 const ENCLAVE_TCS_NUM: usize = 10;
+const ENCFLAVE_THREAD_STACK_SIZE: usize = 0x8000000;
 
 #[derive(Default)]
 struct RaMessage {
@@ -97,21 +99,27 @@ struct Worker {
 
 impl Worker {
     fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Job>>>) -> Worker {
-        let thread = thread::spawn(move || loop {
-            let message = receiver.lock().unwrap().recv();
+        let builder = thread::Builder::new()
+            .name(format!("worker-{}", id))
+            .stack_size(ENCFLAVE_THREAD_STACK_SIZE);
 
-            match message {
-                Ok(job) => {
-                    println!("Worker {id} got a job; executing.");
+        let thread = builder
+            .spawn(move || loop {
+                let message = receiver.lock().unwrap().recv();
 
-                    job();
+                match message {
+                    Ok(job) => {
+                        println!("Worker {id} got a job; executing.");
+
+                        job();
+                    }
+                    Err(_) => {
+                        println!("Worker {id} disconnected; shutting down.");
+                        break;
+                    }
                 }
-                Err(_) => {
-                    println!("Worker {id} disconnected; shutting down.");
-                    break;
-                }
-            }
-        });
+            })
+            .unwrap();
 
         Worker {
             id,
@@ -326,7 +334,7 @@ fn exec_private_computing(
     ra_message: &RaMessage,
 ) -> Vec<u8> {
     let mut retval = SgxStatus::Success;
-    let mut encrypted_output: Vec<u8> = vec![0u8; DEFAULT_DATA_SIZE];
+    let mut encrypted_output: Vec<u8> = vec![0u8; DEFAULT_LARGE_DATA_SIZE];
     let mut encrypted_output_size: u32 = 0;
 
     let res = unsafe {
@@ -342,7 +350,7 @@ fn exec_private_computing(
             ra_message.signature.as_ptr() as *const u8,
             ra_message.signature.len() as u32,
             encrypted_output.as_mut_ptr(),
-            DEFAULT_DATA_SIZE as _,
+            DEFAULT_LARGE_DATA_SIZE as _,
             &mut encrypted_output_size as _,
         )
     };
