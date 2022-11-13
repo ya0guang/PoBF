@@ -6,12 +6,15 @@
 
 extern crate alloc;
 extern crate prusti_contracts;
+extern crate mirai_annotations;
 
 pub mod asset;
 pub mod task;
 
 #[cfg(feature = "prusti")]
 mod bogus;
+#[cfg(feature = "mirai")]
+mod mirai_comp;
 
 use prusti_contracts::*;
 use zeroize::Zeroize;

@@ -8,8 +8,10 @@ edition = "2021"
 [features]
 sgx = ["sgx_types"]
 prusti = []
+mirai = []
 
 [dependencies]
 zeroize = "1.5.7"
 sgx_types = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk.git", branch = "v2.0.0-preview", package = "sgx_types", optional = true }
 prusti-contracts = { git = "https://github.com/viperproject/prusti-dev.git", rev = "734426e" }
+mirai-annotations = { git = "https://github.com/facebookexperimental/MIRAI.git", rev = "5ca2f1e", package = "mirai-annotations" }
