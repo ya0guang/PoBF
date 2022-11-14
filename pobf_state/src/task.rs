@@ -2,9 +2,7 @@
 #![allow(unused_imports)]
 
 use crate::*;
-use crate::mirai_comp::*;
 use core::marker::PhantomData;
-use mirai_annotations::*;
 use prusti_contracts::*;
 use zeroize::Zeroize;
 
@@ -492,11 +490,9 @@ where
 impl ComputingTaskTemplate<Initialized> {
     #[ensures((&result)._state.is_initialized())]
     pub fn new() -> Self {
-        let ans = Self {
+        Self {
             _state: Initialized,
-        };
-        postcondition!(does_not_have_tag!(&ans, SecretTaint));
-        ans
+        }
     }
 }
 
@@ -519,16 +515,12 @@ where
         _template: ComputingTaskTemplate<Initialized>,
         attestation_callback: &dyn Fn() -> K,
     ) -> Self {
-        precondition!(does_not_have_tag!(&_template, SecretTaint));
-
         let key = attestation_callback();
 
-        let ans = ComputingTaskSession {
+        ComputingTaskSession {
             key: Key::from(key),
             _state: ChannelEstablished,
-        };
-
-        ans
+        }
     }
 
     #[cfg(feature = "prusti")]
@@ -611,10 +603,8 @@ where
         session: ComputingTaskSession<ChannelEstablished, K>,
         receive_callback: &dyn Fn() -> D,
     ) -> Self {
-        precondition!(does_not_have_tag!(&session, SecretTaint) && has_tag!(&session, SecretTaint));
-
         let data = receive_callback();
-        let ans = ComputingTask {
+        ComputingTask {
             key: session.key,
             data: Data {
                 raw: data,
@@ -622,13 +612,7 @@ where
                 _key_type: PhantomData,
             },
             _state: DataReceived,
-        };
-
-        postcondition!(has_tag!(&ans, SecretTaint));
-        postcondition!(has_tag!(&ans.data, SecretTaint));
-        postcondition!(has_tag!(&ans._state, SecretTaint));
-
-        ans
+        }
     }
 
     #[cfg(not(feature = "prusti"))]

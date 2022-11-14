@@ -6,12 +6,19 @@ use crate::utils::*;
 use crate::{ocall_log, verified_log};
 use alloc::vec;
 use alloc::vec::Vec;
-use mirai_annotations::checked_assume;
-use pobf_state::*;
 use sgx_crypto::aes::gcm::*;
 use sgx_types::error::*;
 use sgx_types::types::MAC_128BIT_SIZE;
 use zeroize::Zeroize;
+
+cfg_if::cfg_if! {
+  if #[cfg(feature = "mirai")] {
+      use crate::mirai_types::*;
+      use mirai_annotations::checked_assume;
+  } else {
+      use pobf_state::*;
+  }
+}
 
 pub const BUFFER_SIZE: usize = 1024;
 pub const SEALED_DATA_SIZE: usize = 16;
@@ -35,6 +42,7 @@ impl From<Vec<u8>> for VecAESData {
 impl From<&[u8]> for VecAESData {
     fn from(raw: &[u8]) -> Self {
         // Validity check: should have a mac tag.
+        #[cfg(feature = "mirai")]
         checked_assume!(raw.len() >= MAC_128BIT_SIZE);
 
         let mut inner = Vec::new();

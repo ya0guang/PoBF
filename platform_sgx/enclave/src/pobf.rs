@@ -7,17 +7,15 @@ use crate::vecaes::{AES128Key, VecAESData};
 use crate::{ocall_log, verified_log};
 use alloc::vec;
 use alloc::vec::Vec;
-use pobf_state::mirai_comp::SecretTaint;
-use pobf_state::{mirai_annotations, mirai_annotations::*, task::*};
+#[cfg(feature = "mirai")]
+use mirai_annotations::*;
 use sgx_types::error::SgxStatus;
 use sgx_types::types::{c_int, Spid};
 
 /// The entry point function for MIRAI verification.
 #[allow(unused)]
 #[cfg(feature = "mirai")]
-fn mirai_entry_point() {
-
-}
+fn mirai_entry_point() {}
 
 // Settings for private computation functions.
 cfg_if::cfg_if! {
@@ -32,6 +30,18 @@ cfg_if::cfg_if! {
   } else {
       use sample_add::private_computation;
   }
+}
+
+// Task.
+cfg_if::cfg_if! {
+    if #[cfg(feature = "mirai")] {
+        use crate::mirai_types::mirai_comp::SecretTaint;
+        use crate::mirai_types::task::*;
+    } else {
+        use pobf_state::task::*;
+
+        type SecretTaint = ();
+    }
 }
 
 pub fn private_vec_compute<T>(input: T) -> T
@@ -55,6 +65,9 @@ where
 
     let end = unix_time(3).unwrap();
 
+    #[cfg(feature = "mirai")]
+    checked_assume!(end >= begin);
+
     let elapsed = core::time::Duration::from_nanos(end - begin);
     ocall_log!("Job finished. Time used: {:?}.", elapsed);
 
@@ -77,8 +90,11 @@ pub fn pobf_workflow(
     let session = ComputingTaskSession::establish_channel(template, &ra_callback);
 
     // Taint the session.
-    add_tag!(&session, SecretTaint);
-    verify!(has_tag!(&session, SecretTaint));
+    #[cfg(feature = "mirai")]
+    {
+        add_tag!(&session, SecretTaint);
+        verify!(has_tag!(&session, SecretTaint));
+    }
 
     let receive_data_callback = || pobf_receive_data(socket_fd);
     let task_data_received = ComputingTask::receive_data(session, &receive_data_callback);
@@ -111,6 +127,8 @@ pub fn pobf_remote_attestation(
     // We need to get the ECDH key.
     // Panic on error.
     let dh_session = perform_ecdh(peer_pub_key, signature).unwrap();
+
+    #[cfg(feature = "mirai")]
     checked_assume_eq!(
         dh_session.session_status(),
         DhStatus::InProgress,
@@ -143,7 +161,13 @@ pub fn pobf_receive_data(socket_fd: c_int) -> VecAESData {
     match receive_data(socket_fd) {
         Ok(data) => data,
         Err(e) => {
-            unrecoverable!("[-] Failed to receive data due to {:?}.", e);
+            cfg_if::cfg_if! {
+                if #[cfg(feature = "mirai")] {
+                    unrecoverable!("[-] Failed to receive data due to {:?}.", e);
+                } else {
+                    panic!("[-] Failed to receive data due to {:?}.", e);
+                }
+            }
         }
     }
 }
