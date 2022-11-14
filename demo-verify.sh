@@ -16,4 +16,7 @@ else
 fi
 
 printf "${MAGENTA}- Verify the PoBF framework...${NC}\n\n"
-cd $(pwd)/platform_sgx/enclave && cargo pobf-verify --allowed-unsafe lib.rs ocall.rs networking_utils.rs --log-level INFO -- --features=sgx,leak_log
+printf "${MAGENTA}  + Prusti verification...${NC}\n\n"
+cd $(pwd)/platform_sgx/enclave && cargo pobf-verify --allowed-unsafe lib.rs ocall.rs networking_utils.rs --log-level INFO -- --features=sgx,leak_log,task_sample
+printf "${MAGENTA}  + MIRAI verification...${NC}\n\n"
+cd $(pwd)/platform_sgx/enclave && MIRAI_LOG="info" MIRAI_FLAGS="--single_func pobfref.pobf.pobf_workflow" cargo mirai --features=mirai,sgx

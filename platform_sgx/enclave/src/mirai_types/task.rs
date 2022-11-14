@@ -157,10 +157,15 @@ where
     }
 
     fn once(self) -> Key<K, AllowedOnce> {
-        Key {
+        precondition!(has_tag!(&self, SecretTaint));
+
+        let ans = Key {
             raw: self.raw,
             _state: AllowedOnce,
-        }
+        };
+
+        postcondition!(has_tag!(&ans, SecretTaint));
+        ans
     }
 }
 
@@ -178,11 +183,16 @@ where
     K: Zeroize + Default,
 {
     fn once(mut self) -> Key<K, Invalid> {
+        precondition!(has_tag!(&self, SecretTaint));
+
         self.raw.zeroize();
-        Key {
+        let ans = Key {
             raw: K::default(),
             _state: Invalid,
-        }
+        };
+
+        assumed_postcondition!(does_not_have_tag!(&ans, SecretTaint));
+        ans
     }
 }
 
@@ -209,6 +219,7 @@ impl ComputingTaskTemplate<Initialized> {
         let ans = Self {
             _state: Initialized,
         };
+
         postcondition!(does_not_have_tag!(&ans, SecretTaint));
         ans
     }
@@ -235,12 +246,15 @@ where
         precondition!(does_not_have_tag!(&_template, SecretTaint));
 
         let key = attestation_callback();
+        verify!(has_tag!(&key, SecretTaint));
 
         let ans = ComputingTaskSession {
             key: Key::from(key),
             _state: ChannelEstablished,
         };
 
+        add_tag!(&ans, SecretTaint);
+        postcondition!(has_tag!(&ans, SecretTaint));
         ans
     }
 }
@@ -270,6 +284,8 @@ where
         precondition!(has_tag!(&session, SecretTaint));
 
         let data = receive_callback();
+        verify!(has_tag!(&data, SecretTaint));
+
         let ans = ComputingTask {
             key: session.key,
             data: Data {
@@ -280,16 +296,18 @@ where
             _state: DataReceived,
         };
 
+        add_tag!(&ans, SecretTaint);
         postcondition!(has_tag!(&ans, SecretTaint));
-        postcondition!(has_tag!(&ans.data, SecretTaint));
-        postcondition!(has_tag!(&ans._state, SecretTaint));
-
         ans
     }
 
     fn decrypt_data(self) -> Result<ComputingTask<DataDecrypted, K, D>> {
+        precondition!(has_tag!(&self, SecretTaint));
+
         let data = self.data.raw.decrypt(&self.key.raw)?;
-        Ok(ComputingTask {
+        verify!(has_tag!(&data, SecretTaint));
+
+        let ans = Ok(ComputingTask {
             key: self.key.once(),
             data: Data {
                 raw: data,
@@ -297,16 +315,24 @@ where
                 _key_type: PhantomData,
             },
             _state: DataDecrypted,
-        })
+        });
+
+        postcondition!(has_tag!(&ans, SecretTaint));
+        ans
     }
 
     pub fn compute(
         self,
         compute_callback: &dyn Fn(D) -> D,
     ) -> ComputingTask<ResultEncrypted, K, D> {
+        precondition!(has_tag!(&self, SecretTaint));
+
         let decrypted = self.decrypt_data().unwrap();
         let result = decrypted.do_compute(compute_callback).unwrap();
-        result.encrypt_result().unwrap()
+        let ans = result.encrypt_result().unwrap();
+
+        assumed_postcondition!(does_not_have_tag!(&ans, SecretTaint));
+        ans
     }
 }
 
@@ -326,7 +352,9 @@ where
     D: EncDec<K>,
 {
     fn do_compute(self, task: &dyn Fn(D) -> D) -> Result<ComputingTask<ResultDecrypted, K, D>> {
-        Ok(ComputingTask {
+        precondition!(has_tag!(&self, SecretTaint));
+
+        let ans = Ok(ComputingTask {
             key: self.key,
             data: Data {
                 raw: task(self.data.raw),
@@ -334,7 +362,10 @@ where
                 _key_type: PhantomData,
             },
             _state: ResultDecrypted,
-        })
+        });
+
+        postcondition!(has_tag!(&ans, SecretTaint));
+        ans
     }
 }
 
@@ -344,16 +375,27 @@ where
     D: EncDec<K>,
 {
     fn encrypt_result(self) -> Result<ComputingTask<ResultEncrypted, K, D>> {
-        let data = self.data.raw.encrypt(&self.key.raw)?;
+        precondition!(has_tag!(&self, SecretTaint));
 
-        Ok(ComputingTask {
-            key: self.key.once(),
+        let data = self.data.raw.encrypt(&self.key.raw)?;
+        // Encryption will remove the tag here.
+        assume!(does_not_have_tag!(&data, SecretTaint));
+        
+        verify!(has_tag!(&self.key, SecretTaint));
+        let consumed_key = self.key.once();
+        verify!(does_not_have_tag!(&consumed_key, SecretTaint));
+
+        let ans = Ok(ComputingTask {
+            key: consumed_key,
             data: Data {
                 raw: data,
                 _state: EncryptedOutput,
                 _key_type: PhantomData,
             },
             _state: ResultEncrypted,
-        })
+        });
+
+        postcondition!(does_not_have_tag!(&ans, SecretTaint));
+        ans
     }
 }

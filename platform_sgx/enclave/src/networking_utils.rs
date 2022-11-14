@@ -20,6 +20,8 @@ use sgx_types::types::*;
 cfg_if::cfg_if! {
     if #[cfg(feature = "mirai")] {
         use crate::mirai_types::*;
+        use crate::mirai_types::mirai_comp::SecretTaint;
+        use mirai_annotations::*;
     } else {
         use pobf_state::*;
     }
@@ -312,6 +314,9 @@ pub fn receive_data(socket_fd: c_int) -> SgxResult<VecAESData> {
     let res = unsafe { ocall_receive_data_prelogue(&mut ret_val, socket_fd, &mut data_size) };
 
     if res != SgxStatus::Success {
+        #[cfg(feature = "mirai")]
+        assume_unreachable!("[-] Failed to receive data due to {:?}.", res);
+
         return Err(res);
     }
 
@@ -328,6 +333,9 @@ pub fn receive_data(socket_fd: c_int) -> SgxResult<VecAESData> {
     };
 
     if res != SgxStatus::Success {
+        #[cfg(feature = "mirai")]
+        assume_unreachable!("[-] Failed to receive data due to {:?}.", res);
+
         return Err(res);
     }
 
@@ -750,6 +758,12 @@ pub fn qe_send_quote_and_verify(
     let quote_aes_data = VecAESData::from(quote_vec);
     let ti_aes_data = VecAESData::from(ti_vec);
 
+    #[cfg(feature = "mirai")]
+    {
+        add_tag!(&quote_aes_data, SecretTaint);
+        add_tag!(&ti_aes_data, SecretTaint);
+    }
+
     // Encrypt the quote and target info.
     let session_key = AES128Key::from_ecdh_key(&session).unwrap();
     let encrypted_quote = match quote_aes_data.encrypt(&session_key) {
@@ -760,6 +774,12 @@ pub fn qe_send_quote_and_verify(
         Ok(data) => data,
         Err(_) => return SgxStatus::InvalidParameter,
     };
+
+    #[cfg(feature = "mirai")]
+    {
+        verify!(does_not_have_tag!(&encrypted_quote, SecretTaint));
+        verify!(does_not_have_tag!(&encrypted_ti, SecretTaint));
+    }
 
     let mut ret_val = SgxStatus::Success;
     unsafe {

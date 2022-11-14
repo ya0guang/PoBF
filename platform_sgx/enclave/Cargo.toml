@@ -9,7 +9,7 @@ crate-type = ["lib", "staticlib"]
 
 [features]
 # turn on mirai when veirifying towards mirai
-default = ["leak_log", "task_sample"]
+default = ["task_sample"]
 sgx = ["sgx_no_tstd", "sgx_trts", "sgx_tseal"]
 rand = ["sgx_rand"]
 # potential violations

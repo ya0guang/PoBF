@@ -5,6 +5,7 @@ use zeroize::Zeroize;
 
 pub mod mirai_comp;
 pub mod task;
+pub mod userfunc;
 
 #[cfg(feature = "sgx")]
 use sgx_types::error::SgxResult as Result;
