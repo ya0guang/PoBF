@@ -6,6 +6,7 @@ use crate::utils::*;
 use crate::{ocall_log, verified_log};
 use alloc::vec;
 use alloc::vec::Vec;
+use mirai_annotations::checked_assume;
 use pobf_state::*;
 use sgx_crypto::aes::gcm::*;
 use sgx_types::error::*;
@@ -34,7 +35,7 @@ impl From<Vec<u8>> for VecAESData {
 impl From<&[u8]> for VecAESData {
     fn from(raw: &[u8]) -> Self {
         // Validity check: should have a mac tag.
-        assert!(raw.len() >= MAC_128BIT_SIZE);
+        checked_assume!(raw.len() >= MAC_128BIT_SIZE);
 
         let mut inner = Vec::new();
         inner.extend_from_slice(raw);

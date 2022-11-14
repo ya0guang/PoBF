@@ -7,9 +7,17 @@ use crate::vecaes::{AES128Key, VecAESData};
 use crate::{ocall_log, verified_log};
 use alloc::vec;
 use alloc::vec::Vec;
-use pobf_state::task::*;
+use pobf_state::mirai_comp::SecretTaint;
+use pobf_state::{mirai_annotations, mirai_annotations::*, task::*};
 use sgx_types::error::SgxStatus;
 use sgx_types::types::{c_int, Spid};
+
+/// The entry point function for MIRAI verification.
+#[allow(unused)]
+#[cfg(feature = "mirai")]
+fn mirai_entry_point() {
+
+}
 
 // Settings for private computation functions.
 cfg_if::cfg_if! {
@@ -46,6 +54,7 @@ where
     }
 
     let end = unix_time(3).unwrap();
+
     let elapsed = core::time::Duration::from_nanos(end - begin);
     ocall_log!("Job finished. Time used: {:?}.", elapsed);
 
@@ -66,6 +75,10 @@ pub fn pobf_workflow(
 
     let template = ComputingTaskTemplate::<Initialized>::new();
     let session = ComputingTaskSession::establish_channel(template, &ra_callback);
+
+    // Taint the session.
+    add_tag!(&session, SecretTaint);
+    verify!(has_tag!(&session, SecretTaint));
 
     let receive_data_callback = || pobf_receive_data(socket_fd);
     let task_data_received = ComputingTask::receive_data(session, &receive_data_callback);
@@ -98,7 +111,7 @@ pub fn pobf_remote_attestation(
     // We need to get the ECDH key.
     // Panic on error.
     let dh_session = perform_ecdh(peer_pub_key, signature).unwrap();
-    assert_eq!(
+    checked_assume_eq!(
         dh_session.session_status(),
         DhStatus::InProgress,
         "[-] Mismatched session status. Check if the code is correct?",
@@ -130,7 +143,7 @@ pub fn pobf_receive_data(socket_fd: c_int) -> VecAESData {
     match receive_data(socket_fd) {
         Ok(data) => data,
         Err(e) => {
-            panic!("[-] Failed to receive data due to {:?}.", e);
+            unrecoverable!("[-] Failed to receive data due to {:?}.", e);
         }
     }
 }

@@ -9,7 +9,7 @@ crate-type = ["lib", "staticlib"]
 
 [features]
 # turn on mirai when veirifying towards mirai
-default = ["leak_log"]
+default = ["leak_log", "task_sample"]
 sgx = ["sgx_no_tstd", "sgx_trts", "sgx_tseal"]
 rand = ["sgx_rand"]
 # potential violations
@@ -64,7 +64,6 @@ sgx_types = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk.git", 
 webpki = { version = "0.22.0", features = [ "alloc" ] }
 
 # External dependencies: SGX compatible (or) crates.
-mirai-annotations = { git = "https://github.com/facebookexperimental/MIRAI.git", package = "mirai-annotations" }
 pobf_state = { path = "../../pobf_state", features = ["sgx"] }
 percent-encoding = { git = "https://github.com/mesalock-linux/rust-url-sgx" }
 zeroize = "1.5.7"

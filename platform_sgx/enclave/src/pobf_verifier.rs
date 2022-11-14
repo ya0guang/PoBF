@@ -6,4 +6,4 @@ pub use crate::ocall_log;
 #[cfg(feature = "sgx")]
 pub use crate::println;
 #[cfg(mirai)]
-pub use mirai_annotations::*;
+pub use pobf_state::mirai_annotations::*;

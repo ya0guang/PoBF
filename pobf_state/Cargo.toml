@@ -8,7 +8,6 @@ edition = "2021"
 [features]
 sgx = ["sgx_types"]
 prusti = []
-mirai = []
 
 [dependencies]
 zeroize = "1.5.7"

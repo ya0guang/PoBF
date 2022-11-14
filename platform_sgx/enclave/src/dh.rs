@@ -4,6 +4,7 @@
 use alloc::string::String;
 use alloc::vec::Vec;
 
+use pobf_state::{mirai_annotations, mirai_annotations::*};
 use sgx_crypto::ecc::*;
 use sgx_types::{
     error::{SgxResult, SgxStatus},
@@ -245,6 +246,8 @@ impl DhSession {
     pub fn is_valid(&self) -> bool {
         let cur_time = unix_time(0).unwrap();
         let key_time = self.session_context.timestamp;
+        checked_assume!(cur_time >= key_time);
+        
         let elapsed_time = cur_time - key_time;
 
         elapsed_time <= DH_KEY_EXPIRATION

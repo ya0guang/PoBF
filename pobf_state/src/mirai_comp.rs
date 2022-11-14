@@ -1,16 +1,13 @@
-#![cfg(feature = "mirai")]
+#![forbid(unsafe_code)]
 
-use mirai_annotations::*;
-
-#[cfg(feature = "mirai")]
+#[cfg(mirai)]
 use mirai_annotations::TagPropagationSet;
-#[cfg(feature = "mirai")]
+#[cfg(mirai)]
 pub struct SecretTaintKind<const MASK: TagPropagationSet> {}
-#[cfg(feature = "mirai")]
-const SECRET_TAINT: TagPropagationSet = TAG_PROPAGATION_ALL;
-#[cfg(feature = "mirai")]
+#[cfg(mirai)]
+const SECRET_TAINT: TagPropagationSet = mirai_annotations::TAG_PROPAGATION_ALL;
+#[cfg(mirai)]
 pub type SecretTaint = SecretTaintKind<SECRET_TAINT>;
-
 /// Ensures non-MIRAI code compiles.
-#[cfg(not(feature = "mirai"))]
-type SecretTaint = ();
+#[cfg(not(mirai))]
+pub type SecretTaint = ();
