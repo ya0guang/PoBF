@@ -9,7 +9,7 @@ crate-type = ["lib", "staticlib"]
 
 [features]
 # turn on mirai when veirifying towards mirai
-default = ["task_sample"]
+default = ["leak_log"]
 sgx = ["sgx_no_tstd", "sgx_trts", "sgx_tseal"]
 rand = ["sgx_rand"]
 # potential violations
@@ -38,6 +38,7 @@ task_tvm = ["evaluation_tvm"]
 task_polybench = ["polybench"]
 task_fann = ["fann"]
 task_fasta = ["fasta"]
+mirai_sample = []
 
 [dependencies]
 base64 = { version = "0.13.0", default-features = false, features = [ "alloc" ] }

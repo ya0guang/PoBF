@@ -374,7 +374,7 @@ pub unsafe extern "C" fn ocall_get_update_info(
 
 #[no_mangle]
 pub unsafe extern "C" fn ocall_get_timepoint(time_point: *mut u64, accuracy: i32) -> SgxStatus {
-    info!("[+] Getting current time.");
+    debug!("[+] Getting current time.");
 
     let time = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
@@ -572,7 +572,7 @@ pub unsafe extern "C" fn ocall_receive_data(
             .unwrap();
         output.extend_from_slice(&buf[..read_size]);
 
-        info!(
+        debug!(
             "Batch #{}: received {} bytes, content {:?}",
             i,
             read_size,

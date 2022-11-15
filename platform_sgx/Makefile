@@ -161,6 +161,8 @@ app:
 
 ######## Build Enclave ########
 
+TASK ?= task_tvm
+
 .PHONY: enclave
 enclave:
 ifeq ($(BUILD_STD), cargo)
@@ -175,7 +177,7 @@ ifeq ($(BUILD_STD), cargo)
 else ifeq ($(BUILD_STD), xargo)
 	@cd enclave && RUST_TARGET_PATH=$(Rust_Target_Path) xargo build --target $(Rust_Build_Target) $(RustEnclave_Build_Flags)
 else
-	@cd enclave && cargo build $(RustEnclave_Build_Flags) --features "sgx,pobf_state,task_polybench"
+	@cd enclave && cargo build $(RustEnclave_Build_Flags) --features "sgx,use_state,$(TASK)"
 endif
 
 ######## Run Enclave ########

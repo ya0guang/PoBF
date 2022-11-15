@@ -380,7 +380,7 @@ where
         let data = self.data.raw.encrypt(&self.key.raw)?;
         // Encryption will remove the tag here.
         assume!(does_not_have_tag!(&data, SecretTaint));
-        
+
         verify!(has_tag!(&self.key, SecretTaint));
         let consumed_key = self.key.once();
         verify!(does_not_have_tag!(&consumed_key, SecretTaint));

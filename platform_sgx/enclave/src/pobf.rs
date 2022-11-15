@@ -12,11 +12,6 @@ use mirai_annotations::*;
 use sgx_types::error::SgxStatus;
 use sgx_types::types::{c_int, Spid};
 
-/// The entry point function for MIRAI verification.
-#[allow(unused)]
-#[cfg(feature = "mirai")]
-fn mirai_entry_point() {}
-
 // Settings for private computation functions.
 cfg_if::cfg_if! {
    if #[cfg(feature = "task_tvm")] {
@@ -27,7 +22,7 @@ cfg_if::cfg_if! {
       use fasta::private_computation;
   } else if #[cfg(feature = "task_polybench")] {
       use polybench::private_computation;
-  } else {
+  } else if #[cfg(feature = "sample_add")] {
       use sample_add::private_computation;
   }
 }
@@ -47,14 +42,18 @@ cfg_if::cfg_if! {
 pub fn private_vec_compute<T>(input: T) -> T
 where
     T: From<Vec<u8>> + Into<Vec<u8>>,
-{   
+{
     cfg_if::cfg_if! {
-        if #[cfg(feature = "mirai")] {
-            use crate::mirai_types::userfunc::sample_add;
+        if #[cfg(feature = "mirai_sample")] {
+            use crate::userfunc::sample_add;
 
             let input_vec: Vec<u8> = input.into();
-            add_tag!(&input_vec, SecretTaint);
             let output_vec = sample_add(input_vec);
+            T::from(output_vec)
+        } else if #[cfg(feature = "mirai")] {
+            // Omit the userfunc because we are verifying the framework.
+            add_tag!(&input, SecretTaint);
+            input
         } else {
             let input_vec: Vec<u8> = input.into();
             let begin = unix_time(3).unwrap();
@@ -73,10 +72,10 @@ where
 
             let elapsed = core::time::Duration::from_nanos(end - begin);
             ocall_log!("Job finished. Time used: {:?}.", elapsed);
+
+            T::from(output_vec)
         }
     }
-
-    T::from(output_vec)
 }
 
 // TODO: generics on the return type
@@ -120,8 +119,11 @@ pub fn pobf_workflow(
     verify!(has_tag!(&task_data_received, SecretTaint));
 
     let task_result_encrypted = task_data_received.compute(&private_vec_compute);
+    // Because MIRAI does not know "encryption" would sanitize the tag, so we
+    // make this operation as an assumed sanitization operation so that we can
+    // continue the verification.
     #[cfg(feature = "mirai")]
-    verify!(does_not_have_tag!(&task_result_encrypted, SecretTaint));
+    assume!(does_not_have_tag!(&task_result_encrypted, SecretTaint));
 
     let result = task_result_encrypted.take_result();
     #[cfg(feature = "mirai")]
