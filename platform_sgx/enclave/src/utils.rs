@@ -3,7 +3,6 @@
 #[cfg(not(feature = "sgx"))]
 use crate::bogus::SealedData;
 use crate::ocall::*;
-use crate::ocall_log;
 use alloc::string::String;
 use alloc::vec::Vec;
 #[cfg(feature = "sgx")]
@@ -17,10 +16,7 @@ pub fn from_sealed_log_for_fixed<'a, T: Copy + ContiguousMemory>(
 
     match r {
         Ok(x) => Some(x),
-        Err(e) => {
-            ocall_log!("Error occurs {:?}", e);
-            None
-        }
+        Err(e) => None,
     }
 }
 

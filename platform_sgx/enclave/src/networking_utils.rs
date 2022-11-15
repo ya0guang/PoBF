@@ -339,7 +339,7 @@ pub fn receive_data(socket_fd: c_int) -> SgxResult<VecAESData> {
         return Err(res);
     }
 
-    Ok(VecAESData::from(encrypted_data_buf.as_slice()))
+    Ok(VecAESData::from(encrypted_data_buf))
 }
 
 pub fn get_report(ti: &TargetInfo, ecc: &DhEccContext) -> SgxResult<Report> {

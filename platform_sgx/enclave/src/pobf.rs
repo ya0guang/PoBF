@@ -71,7 +71,7 @@ where
             // Get execution time.
 
             let elapsed = core::time::Duration::from_nanos(end - begin);
-            ocall_log!("Job finished. Time used: {:?}.", elapsed);
+            verified_log!(SecretTaint, "Job finished. Time used: {:?}.", elapsed);
 
             T::from(output_vec)
         }
@@ -89,22 +89,18 @@ pub fn pobf_workflow(
 ) -> VecAESData {
     cfg_if::cfg_if! {
         if #[cfg(feature = "mirai")]  {
-          let ra_callback = move || {
-              let ans = AES128Key::default();
-              add_tag!(&ans, SecretTaint);
-              ans
-          };
-          let receive_callback = move || {
-              let ans = VecAESData::from([0u8; 16].to_vec());
-              add_tag!(&ans, SecretTaint);
-              ans
-          };
-        } else {
-          let ra_callback =
-              move || pobf_remote_attestation(socket_fd, spid, linkable, ra_type, public_key, signature);
-          let receive_callback = move || pobf_receive_data(socket_fd);
+          precondition!(does_not_have_tag!(&socket_fd, SecretTaint));
+          precondition!(does_not_have_tag!(spid, SecretTaint));
+          precondition!(does_not_have_tag!(&linkable, SecretTaint));
+          precondition!(does_not_have_tag!(&ra_type, SecretTaint));
+          precondition!(does_not_have_tag!(public_key, SecretTaint));
+          precondition!(does_not_have_tag!(signature, SecretTaint));
         }
     }
+
+    let receive_callback = move || pobf_receive_data(socket_fd);
+    let ra_callback =
+        move || pobf_remote_attestation(socket_fd, spid, linkable, ra_type, public_key, signature);
 
     let template = ComputingTaskTemplate::<Initialized>::new();
     #[cfg(feature = "mirai")]
@@ -144,11 +140,7 @@ pub fn pobf_remote_attestation(
     peer_pub_key: &[u8; ECP_COORDINATE_SIZE],
     signature: &[u8],
 ) -> AES128Key {
-    ocall_log!(
-        "[+] The remote attestation type is {}",
-        if ra_type == 0 { "EPID" } else { "DCAP" }
-    );
-    ocall_log!("[+] Start to generate ECDH session key and perform remote attestation!");
+    verified_log!("[+] Start to generate ECDH session key and perform remote attestation!");
 
     // We need to get the ECDH key.
     // Panic on error.
@@ -171,6 +163,7 @@ pub fn pobf_remote_attestation(
 
     // Perform remote attestation.
     let mut res = SgxStatus::Success;
+    #[cfg(not(feature = "mirai"))]
     match ra_type {
         0u8 => res = perform_epid_remote_attestation(socket_fd, spid, linkable, &dh_session),
         1u8 => res = perform_dcap_remote_attestation(socket_fd, &dh_session),
@@ -190,9 +183,6 @@ pub fn pobf_remote_attestation(
         #[cfg(not(feature = "mirai"))]
         panic!("[-] Remote attestation failed due to {:?}.", res);
     }
-
-    #[cfg(feature = "mirai")]
-    postcondition!(has_tag!(&session_key, SecretTaint));
 
     session_key
 }

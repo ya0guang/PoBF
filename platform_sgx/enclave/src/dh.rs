@@ -12,8 +12,15 @@ use sgx_types::{
     types::{AlignKey128bit, DhSessionRole, Ec256PublicKey, ECP256_KEY_SIZE},
 };
 
-use crate::networking_utils::unix_time;
-use crate::{log, ocall_log};
+use crate::{log, networking_utils::unix_time, ocall_log, verified_log};
+
+cfg_if::cfg_if! {
+  if #[cfg(feature = "mirai")] {
+      use crate::mirai_types::mirai_comp::SecretTaint;
+  } else {
+      type SecretTaint = ();
+  }
+}
 
 /// Time for expiration. We currently set it to 600 seconds (10 min).
 /// If the key is expired, the both sides are notified and then re-negotiate a new one.
@@ -269,20 +276,28 @@ pub fn perform_ecdh(
     let mut peer = match Peer::new(peer_pub_key, signature) {
         Ok(peer) => peer,
         Err(e) => {
-            ocall_log!("[-] Public key signature is invalid due to {:?}.", e);
+            verified_log!(
+                SecretTaint,
+                "[-] Public key signature is invalid due to {:?}.",
+                e
+            );
 
             return Err(e);
         }
     };
     peer.role = DhSessionRole::Initiator;
 
-    ocall_log!("[+] Peer authentication passed.");
+    verified_log!("[+] Peer authentication passed.");
 
     // Open the DH session on the enclave side.
     let mut session = match open_dh_session() {
         Ok(session) => session,
         Err(e) => {
-            ocall_log!("[-] Failed to open the ECDH session due to {:?}.", e);
+            verified_log!(
+                SecretTaint,
+                "[-] Failed to open the ECDH session due to {:?}.",
+                e
+            );
 
             return Err(e);
         }
@@ -290,7 +305,11 @@ pub fn perform_ecdh(
 
     // Generate the session key.
     if let Err(e) = session.compute_shared_key(&peer) {
-        ocall_log!("[-] Fialed to generate the session key due to {:?}.", e);
+        verified_log!(
+            SecretTaint,
+            "[-] Fialed to generate the session key due to {:?}.",
+            e
+        );
         Err(e)
     } else {
         Ok(session)

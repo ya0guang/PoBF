@@ -3,7 +3,6 @@
 use crate::dh::DhSession;
 use crate::ocall::*;
 use crate::utils::*;
-use crate::{ocall_log, verified_log};
 use alloc::vec;
 use alloc::vec::Vec;
 use sgx_crypto::aes::gcm::*;
@@ -105,6 +104,9 @@ impl AES128Key {
     /// Sometimes, keys are not always from sealed, they can be ephemeral ones that are only valid for specific sessions.
     /// This function deals with such circumstances.
     pub fn from_ecdh_key(key: &DhSession) -> SgxResult<Self> {
+        #[cfg(feature = "mirai")]
+        precondition!(has_tag!(key, SecretTaint));
+
         // Need to check the session's validity.
         if !key.is_valid() {
             return Err(SgxStatus::InvalidParameter);
@@ -119,7 +121,11 @@ impl AES128Key {
             .try_into()
             .or_else(|_| Err(SgxStatus::InvalidParameter))?;
 
-        Ok(ret)
+        let ans = Ok(ret);
+
+        #[cfg(feature = "mirai")]
+        add_tag!(&ans, SecretTaint);
+        ans
     }
 
     // Deprecate.
@@ -143,7 +149,6 @@ impl AES128Key {
         let sealed_data = match opt {
             Some(x) => x,
             _ => {
-                verified_log!("Failed to create sealed data");
                 return Err(SgxStatus::NotSgxFile);
             }
         };

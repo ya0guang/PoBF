@@ -673,7 +673,5 @@ pub fn receive_vecaes_data(reader: &mut BufReader<TcpStream>, key: &KeyPair) -> 
         Err(Error::from(ErrorKind::InvalidData))
     })?;
 
-    info!("[+] Computation result: {}", std::str::from_utf8(&decrypted_data).unwrap());
-
     Ok(decrypted_data)
 }

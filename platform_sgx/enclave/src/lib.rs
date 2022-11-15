@@ -59,7 +59,7 @@ pub extern "C" fn private_computing_entry(
     encrypted_output_buffer_size: u32,
     encrypted_output_size: *mut u32,
 ) -> SgxStatus {
-    ocall_log!("[+] private_computing_entry");
+    verified_log!("[+] private_computing_entry");
 
     // Construct Rust data structures from FFI-types.
     let spid = unsafe { &*spid_ptr };
