@@ -5,6 +5,7 @@ use crate::ocall::*;
 use crate::utils::*;
 use alloc::vec;
 use alloc::vec::Vec;
+use mirai_annotations::*;
 use sgx_crypto::aes::gcm::*;
 use sgx_types::error::*;
 use sgx_types::types::Mac128bit;
@@ -12,12 +13,13 @@ use sgx_types::types::MAC_128BIT_SIZE;
 use zeroize::Zeroize;
 
 cfg_if::cfg_if! {
-  if #[cfg(feature = "mirai")] {
+  if #[cfg(mirai)] {
       use crate::mirai_types::*;
       use crate::mirai_types::mirai_comp::SecretTaint;
-      use mirai_annotations::*;
   } else {
       use pobf_state::*;
+
+      type SecretTaint = ();
   }
 }
 
@@ -28,7 +30,7 @@ pub struct VecAESData {
     inner: Vec<u8>,
 }
 
-#[cfg(feature = "mirai")]
+#[cfg(mirai)]
 // Give a sanitize function to `VecAESData`.
 fn sanitize(input: VecAESData) -> VecAESData {
     precondition!(has_tag!(&input, SecretTaint));
@@ -58,7 +60,6 @@ impl From<Vec<u8>> for VecAESData {
 impl From<&[u8]> for VecAESData {
     fn from(raw: &[u8]) -> Self {
         // Validity check: should have a mac tag.
-        #[cfg(feature = "mirai")]
         checked_assume!(raw.len() >= MAC_128BIT_SIZE);
 
         let mut inner = Vec::new();
@@ -104,7 +105,6 @@ impl AES128Key {
     /// Sometimes, keys are not always from sealed, they can be ephemeral ones that are only valid for specific sessions.
     /// This function deals with such circumstances.
     pub fn from_ecdh_key(key: &DhSession) -> SgxResult<Self> {
-        #[cfg(feature = "mirai")]
         precondition!(has_tag!(key, SecretTaint));
 
         // Need to check the session's validity.
@@ -123,7 +123,7 @@ impl AES128Key {
 
         let ans = Ok(ret);
 
-        #[cfg(feature = "mirai")]
+        #[cfg(mirai)]
         add_tag!(&ans, SecretTaint);
         ans
     }
@@ -167,7 +167,7 @@ impl Encryption<AES128Key> for VecAESData {
     /// cipher into a stream cipher so that output length = input length.
     fn encrypt(self, key: &AES128Key) -> SgxResult<Self> {
         cfg_if::cfg_if! {
-            if #[cfg(feature = "mirai")] {
+            if #[cfg(mirai)] {
                 precondition!(has_tag!(&self, SecretTaint));
                 precondition!(has_tag!(key, SecretTaint));
 
@@ -195,11 +195,10 @@ impl Encryption<AES128Key> for VecAESData {
 
 impl Decryption<AES128Key> for VecAESData {
     fn decrypt(self, key: &AES128Key) -> SgxResult<Self> {
-        #[cfg(feature = "mirai")]
         precondition!(has_tag!(&self, SecretTaint));
 
         cfg_if::cfg_if! {
-            if #[cfg(feature = "mirai")] {
+            if #[cfg(mirai)] {
                 let plaintext_vec = VecAESData::from(self.inner);
 
                 postcondition!(has_tag!(&plaintext_vec, SecretTaint));

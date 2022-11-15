@@ -6,7 +6,7 @@ use mirai_annotations::*;
 use zeroize::Zeroize;
 
 cfg_if::cfg_if! {
-    if #[cfg(feature = "mirai")] {
+    if #[cfg(mirai)] {
         use crate::mirai_types::*;
     } else {
         use pobf_state::{Decryption, EncDec, Encryption};

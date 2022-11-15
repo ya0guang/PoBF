@@ -1,10 +1,10 @@
 #![forbid(unsafe_code)]
 
 use alloc::vec::Vec;
-#[cfg(feature = "mirai")]
+#[cfg(mirai)]
 use mirai_annotations::*;
 
-#[cfg(feature = "mirai")]
+#[cfg(mirai)]
 use crate::mirai_types::mirai_comp::SecretTaint;
 use crate::{log, ocall_log, println};
 
