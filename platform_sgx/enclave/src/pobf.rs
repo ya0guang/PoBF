@@ -107,7 +107,10 @@ pub fn pobf_workflow(
     verify!(has_tag!(&task_data_received, SecretTaint));
 
     let task_result_encrypted = task_data_received.compute(&private_vec_compute);
-    verify!(does_not_have_tag!(&task_result_encrypted, SecretTaint));
+    // Because MIRAI does not know "encryption" would sanitize the tag, so we
+    // make this operation as an assumed sanitization operation so that we can
+    // continue the verification.
+    assume!(does_not_have_tag!(&task_result_encrypted, SecretTaint));
 
     let result = task_result_encrypted.take_result();
     verify!(does_not_have_tag!(&result, SecretTaint));

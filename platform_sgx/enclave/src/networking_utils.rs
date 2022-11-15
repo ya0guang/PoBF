@@ -203,7 +203,7 @@ pub fn perform_epid_remote_attestation(
 
     // Step 6: Check if the qe_report is produced on the same platform.
     if !same_platform(qe_report, &ti) {
-        ocall_log!("[-] This quote report does belong to this platform.");
+        verified_log!("[-] This quote report does belong to this platform.");
         return SgxStatus::UnrecognizedPlatform;
     }
 
@@ -211,7 +211,7 @@ pub fn perform_epid_remote_attestation(
 
     // Step 7: Check if this quote is replayed.
     if !check_quote_integrity(&qw) {
-        ocall_log!("[-] This quote is tampered by malicious party. Abort.");
+        verified_log!("[-] This quote is tampered by malicious party. Abort.");
         return SgxStatus::BadStatus;
     }
 
@@ -329,7 +329,7 @@ pub fn receive_data(socket_fd: c_int) -> SgxResult<VecAESData> {
         return Err(res);
     }
 
-    ocall_log!("Data size = {}", data_size);
+    verified_log!(SecretTaint, "Data size = {}", data_size);
     let mut encrypted_data_buf = vec![0u8; data_size as usize];
 
     let res = unsafe {
@@ -393,7 +393,7 @@ pub fn get_quote(
     };
     let mut os_rng = sgx_trts::rand::Rng::new();
     os_rng.fill_bytes(&mut quote_nonce.rand);
-    ocall_log!("[+] Quote nonce generated.");
+    verified_log!("[+] Quote nonce generated.");
 
     // Prepare quote.
     let mut qe_report = Report::default();
@@ -443,11 +443,11 @@ pub fn get_quote(
 pub fn verify_report(qe_report: &Report) -> SgxResult<()> {
     match qe_report.verify() {
         Err(e) => {
-            ocall_log!("[-] Quote report verification failed due to `{:?}`.", e);
+            assume_unreachable!("[-] Quote report verification failed due to `{:?}`.", e);
             return Err(e);
         }
         Ok(_) => {
-            ocall_log!("[+] Quote report verification passed.");
+            verified_log!("[+] Quote report verification passed.");
             return Ok(());
         }
     }
@@ -491,14 +491,19 @@ pub fn verify_quote_report(quote_report: &Vec<u8>, sig: &Vec<u8>, cert: &Vec<u8>
     let sig_cert = match webpki::EndEntityCert::try_from(cert_decoded.as_slice()) {
         Ok(sig_cert) => sig_cert,
         Err(e) => {
-            ocall_log!("[-] Invalid certificate for IAS. Error: {}", e.to_string());
+            assume_unreachable!("[-] Invalid certificate for IAS due to {:?}", e);
             return false;
         }
     };
 
     // We use an OCALL to get the current timestamp.
-    let cur_time = unix_time(0).unwrap();
-    ocall_log!("[+] Get current time: {}", cur_time);
+    let cur_time = match unix_time(0) {
+        Ok(time) => time,
+        Err(e) => {
+            assume_unreachable!("[-] Failed to get time due to {:?}", e);
+            0
+        }
+    };
 
     // Verify if the chain is rooted in
     // a trusted Attestation Report Signing CA Certificate. We have hardcoded the CA cert
@@ -511,11 +516,11 @@ pub fn verify_quote_report(quote_report: &Vec<u8>, sig: &Vec<u8>, cert: &Vec<u8>
         &trust_chain,
         webpki::Time::from_seconds_since_unix_epoch(cur_time),
     ) {
-        ocall_log!("[-] This IAS certificate is invalid! Error: {:?}", e);
+        assume_unreachable!("[-] This IAS certificate is invalid! Error: {:?}", e);
         return false;
     }
 
-    ocall_log!("[+] IAS certificate check passed!");
+    verified_log!("[+] IAS certificate check passed!");
 
     // An interesting fact about this is that if we do not use patched version of ring,
     // then verification becomes an endless loop.
@@ -526,7 +531,7 @@ pub fn verify_quote_report(quote_report: &Vec<u8>, sig: &Vec<u8>, cert: &Vec<u8>
     ) {
         Ok(()) => true,
         Err(e) => {
-            ocall_log!("[-] The signature is invalid! Error: {:?}", e);
+            assume_unreachable!("[-] The signature is invalid! Error: {:?}", e);
             false
         }
     }
@@ -548,6 +553,7 @@ pub fn same_platform(qe_report: &Report, ti: &TargetInfo) -> bool {
 /// `p_qe_report` and report.data to confirm the QUOTE has not be modified and
 /// is not a replay. It is optional, but we enforce this check.
 pub fn check_quote_integrity(qw: &QuoteWrapper) -> bool {
+    verified_log!("[+] Checking hash of this quote!");
     // Prepare a buffer for hash.
     let mut rhs_vec = qw.quote_nonce.rand.to_vec();
     rhs_vec.extend(&qw.quote[..qw.quote_len as usize]);
@@ -556,10 +562,6 @@ pub fn check_quote_integrity(qw: &QuoteWrapper) -> bool {
     shactx.update(&rhs_vec[..]).unwrap();
     let rhs_hash = shactx.finalize().unwrap();
     let lhs_hash = &qw.qe_report.body.report_data.d[..MAC_256BIT_SIZE];
-
-    ocall_log!("[+] Checking hash of this quote!");
-    ocall_log!("[+] The expected hash should be {:02x?}", rhs_hash.hash);
-    ocall_log!("[+] The real hash is given by {:02x?}", lhs_hash);
 
     lhs_hash == rhs_hash.hash
 }
@@ -707,7 +709,7 @@ pub fn qe_quote_verify_signature(quote: *const Quote3) -> bool {
 
         if quote_signature_data_vec.len() != signature_len {
             // Length mismatch probably due to mismatched quote type.
-            ocall_log!(
+            verified_log!(
                 "[-] Signature length mismatch! Expected: {}, got {}.",
                 signature_len,
                 quote_signature_data_vec.len()
@@ -730,7 +732,7 @@ pub fn qe_quote_verify_signature(quote: *const Quote3) -> bool {
 
         if quote_signature_data_vec.len() != cert_info_offset + temp_cert_data.size as usize {
             // Length mismatch probably due to data forge.
-            ocall_log!(
+            verified_log!(
                 "[-] Signature length mismatch! Expected: {}, got {}.",
                 cert_info_offset + temp_cert_data.size as usize,
                 quote_signature_data_vec.len()
