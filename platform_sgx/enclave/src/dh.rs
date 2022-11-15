@@ -4,7 +4,6 @@
 use alloc::string::String;
 use alloc::vec::Vec;
 
-#[cfg(feature = "mirai")]
 use mirai_annotations::*;
 use sgx_crypto::ecc::*;
 use sgx_types::{
@@ -15,7 +14,7 @@ use sgx_types::{
 use crate::{log, networking_utils::unix_time, ocall_log, verified_log};
 
 cfg_if::cfg_if! {
-  if #[cfg(feature = "mirai")] {
+  if #[cfg(mirai)] {
       use crate::mirai_types::mirai_comp::SecretTaint;
   } else {
       type SecretTaint = ();
@@ -255,7 +254,6 @@ impl DhSession {
         let cur_time = unix_time(0).unwrap();
         let key_time = self.session_context.timestamp;
 
-        #[cfg(feature = "mirai")]
         checked_assume!(cur_time >= key_time);
 
         let elapsed_time = cur_time - key_time;

@@ -8,10 +8,9 @@
 extern crate alloc;
 extern crate base64;
 extern crate clear_on_drop;
-#[cfg(feature = "mirai")]
 extern crate mirai_annotations;
 extern crate percent_encoding;
-#[cfg(all(feature = "sgx", not(feature = "mirai")))]
+#[cfg(all(feature = "sgx", not(mirai)))]
 extern crate sgx_no_tstd;
 extern crate sgx_trts;
 extern crate sgx_tse;
@@ -22,7 +21,7 @@ extern crate webpki;
 #[cfg(not(feature = "sgx"))]
 mod bogus;
 mod dh;
-#[cfg(feature = "mirai")]
+#[cfg(mirai)]
 mod mirai_types;
 mod networking_utils;
 mod ocall;

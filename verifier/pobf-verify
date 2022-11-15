@@ -108,7 +108,7 @@ def mirai_verify():
     logging.info(
         "Checking leakage of the PoBF framework by MIRAI. The userfunc is not checked at this time.")
     # No `mirai_sample` here.
-    mirai_verify_command = "cargo mirai --features=sgx,mirai"
+    mirai_verify_command = "cargo mirai --features=sgx"
     output = mirai_run(mirai_verify_command).stderr
     if not b'error' in output or b'warning' in output:
         logging.info(
@@ -119,7 +119,7 @@ def mirai_verify():
     # analyze the MIRAI output
     logging.info(
         "Checking leakage of the PoBF framework by MIRAI when userfunc is being executed.")
-    mirai_verify_command = "cargo mirai --message-format=json --features=sgx,mirai,mirai_sample"
+    mirai_verify_command = "cargo mirai --message-format=json --features=sgx,mirai_sample"
     mirai_output = mirai_run(mirai_verify_command)
     mirai_output = mirai_output.stdout.decode("utf-8").split('\n')
     mirai_outputs_serialized = []

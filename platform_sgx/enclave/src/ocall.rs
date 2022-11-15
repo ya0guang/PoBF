@@ -6,7 +6,7 @@ use sgx_libc as libc;
 use sgx_types::{error::SgxStatus, types::*};
 
 cfg_if::cfg_if! {
-  if #[cfg(feature = "mirai")] {
+  if #[cfg(mirai)] {
       fn u_log_ocall(
           result: *mut u32,
           string_ptr: *mut u8,
@@ -125,6 +125,8 @@ cfg_if::cfg_if! {
           data_buf_size: u32,
           data_size: *mut u32,
       ) -> SgxStatus { SgxStatus::Success }
+
+      pub fn log(_s: String) -> SgxStatus { SgxStatus::Success }
   } else {
       extern "C" {
       fn u_log_ocall(
@@ -246,16 +248,16 @@ cfg_if::cfg_if! {
           data_size: *mut u32,
       ) -> SgxStatus;
     }
-  }
-}
 
-pub fn log(s: String) -> SgxStatus {
-    let mut rv: u32 = 0;
-    let (string_ptr, len, cap) = s.into_raw_parts();
-    let result = unsafe { u_log_ocall(&mut rv as _, string_ptr as _, len as _, cap as _) };
-    // automatic Rust drop
-    let _ = unsafe { alloc::string::String::from_raw_parts(string_ptr, len, cap) };
-    result
+    pub fn log(s: String) -> SgxStatus {
+        let mut rv: u32 = 0;
+        let (string_ptr, len, cap) = s.into_raw_parts();
+        let result = unsafe { u_log_ocall(&mut rv as _, string_ptr as _, len as _, cap as _) };
+        // automatic Rust drop
+        let _ = unsafe { alloc::string::String::from_raw_parts(string_ptr, len, cap) };
+        result
+    }
+  }
 }
 
 // Verifies that all the arguments are static
@@ -313,7 +315,7 @@ macro_rules! verified_log {
       };
       ($tag:ident, $formator:expr, $($arg:expr),+ $(,)?) => {
           $(
-              #[cfg(feature = "mirai")]
+              #[cfg(mirai)]
               mirai_annotations::verify!(mirai_annotations::does_not_have_tag!(&($arg), $tag));
           )*
           ocall_log!($formator, $($arg),+);
