@@ -27,6 +27,8 @@ pub fn sample_add(input: Vec<u8>) -> Vec<u8> {
         verify!(does_not_have_tag!(&input[0], SecretTaint));
         #[cfg(mirai)]
         verify!(does_not_have_tag!(&input[0], SecretTaint));
+        #[cfg(mirai)]
+        verify!(does_not_have_tag!(&input[0], SecretTaint));
         println!("The 0-th item is {} in sample_add", input[0]);
     }
 

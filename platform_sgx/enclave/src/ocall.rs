@@ -311,10 +311,10 @@ macro_rules! verified_log {
       ($str:expr) => {
           ocall_log!($str);
       };
-      ($formator:expr, $($invar:expr, $arg:expr),+ $(,)?) => {
-          $ (
-              #[cfg(not(feature = "sgx"))]
-              mirai_annotations::verify!($invar == $arg);
+      ($tag:ident, $formator:expr, $($arg:expr),+ $(,)?) => {
+          $(
+              #[cfg(feature = "mirai")]
+              mirai_annotations::verify!(mirai_annotations::does_not_have_tag!(&($arg), $tag));
           )*
           ocall_log!($formator, $($arg),+);
       };
