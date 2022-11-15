@@ -69,9 +69,8 @@ def compiler_verify(cargo_args: list = []):
 
 
 def mirai_verify():
-    def mirai_run(command):
+    def mirai_run(command, timeout=10):
         return_code = -1
-        timeout = 10
 
         while return_code != 0 or timeout != 0:
             output = subprocess.run(command.split(),
@@ -80,6 +79,9 @@ def mirai_verify():
 
             return_code = output.returncode
             timeout -= 1
+
+        if timeout == 0:
+            logging.warning("MIRAI panicked many times. This is due to an internal bug in MIRAI. Try running MIRAI for more times or open an issue on MIRAI's GitHub page.")
 
         return output
 
