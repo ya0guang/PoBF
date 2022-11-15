@@ -69,10 +69,24 @@ def compiler_verify(cargo_args: list = []):
 
 
 def mirai_verify():
+    def mirai_run(command):
+        return_code = -1
+        timeout = 10
+
+        while return_code != 0 or timeout != 0:
+            output = subprocess.run(command.split(),
+                                    stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE)
+
+            return_code = output.returncode
+            timeout -= 1
+
+        return output
+
     def analyze_mirai_message(msg: dict):
         mirai_enforcement = \
             {'warning: possible false verification condition': (
-                'vio-ocall', 'PoBF only allows const printing in the enclave.')}
+                'vio-ocall', 'PoBF only allows printing non-secret-tainted values from within the enclave. Consider removing it?')}
 
         details = msg['message']['rendered']
         logging.debug(details)
@@ -90,14 +104,24 @@ def mirai_verify():
         if error_captured:
             print(msg['message']['rendered'])
 
+    # Analyze the framework ifself.
+    logging.info(
+        "Checking leakage of the PoBF framework by MIRAI. The userfunc is not checked at this time.")
+    # No `mirai_sample` here.
+    mirai_verify_command = "cargo mirai --features=sgx,mirai"
+    output = mirai_run(mirai_verify_command).stderr
+    if not b'error' in output or b'warning' in output:
+        logging.info(
+            'The PoBF framework does not leak any secret according to MIRAI!')
+    else:
+        logging.error("Error detected: %s", output)
+
     # analyze the MIRAI output
-    mirai_verify_command = "cargo mirai --message-format=json --features=sgx,mirai".split()
-    mirai_output = subprocess.run(mirai_verify_command,
-                                  stdout=subprocess.PIPE,
-                                  stderr=subprocess.DEVNULL)
-
+    logging.info(
+        "Checking leakage of the PoBF framework by MIRAI when userfunc is being executed.")
+    mirai_verify_command = "cargo mirai --message-format=json --features=sgx,mirai,mirai_sample"
+    mirai_output = mirai_run(mirai_verify_command)
     mirai_output = mirai_output.stdout.decode("utf-8").split('\n')
-
     mirai_outputs_serialized = []
     for i in range(len(mirai_output) - 1):
         mirai_outputs_serialized.append(json.loads(mirai_output[i]))
@@ -187,6 +211,7 @@ def prusti_verify():
     os.chdir(wd)
     logging.info("Prusti verification passed.\n")
 
+
 def format():
     fmt_command = "cargo fmt".split()
     subprocess.run(fmt_command, stderr=subprocess.DEVNULL)
@@ -198,13 +223,14 @@ def clean():
 
 
 def build():
-    logging.info("building PoBF binary...")
-    build_command = "make -C ..".split()
+    print(os.getcwd())
+    logging.info("Building PoBF binary...")
+    build_command = "make -C ../..".split()
     subprocess.run(build_command, stderr=subprocess.DEVNULL)
 
 
 def testflight() -> List[str]:
-    logging.info("trying to test run the PoBF binary...")
+    logging.info("Trying to test run the PoBF binary...")
 
     wd = os.getcwd()
     os.chdir("../..")
@@ -213,6 +239,8 @@ def testflight() -> List[str]:
                                 stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE)
     os.chdir(wd)
+
+    logging.info("Finished!")
 
     user_func_prints = []
 
@@ -233,7 +261,7 @@ def testflight() -> List[str]:
 
 
 def instrument(user_func_prints: List[str]):
-    source_code_path = "../../userfunc/src/lib.rs"
+    source_code_path = "./src/userfunc.rs"
     junk_chars = '();'
     numerics = {}
     for line in user_func_prints:
@@ -259,8 +287,8 @@ def instrument(user_func_prints: List[str]):
                 dirty_line = line
                 for c in junk_chars:
                     dirty_line = dirty_line.replace(c, '')
-                statement = "verify!(%s == %s);\n" % (dirty_line.split()[-1],
-                                                      n_const_str)
+                statement = "verify!(does_not_have_tag!(&%s, SecretTaint));\n" % (
+                    dirty_line.split()[-1])
                 instrument_source_code_lines.append("#[cfg(mirai)]\n")
                 instrument_source_code_lines.append(statement)
         instrument_source_code_lines.append(line)
@@ -270,7 +298,6 @@ def instrument(user_func_prints: List[str]):
 
 
 def main():
-
     # Invoked by Cargo
     if "pobf-verify" in sys.argv[1]:
         sys.argv.pop(0)

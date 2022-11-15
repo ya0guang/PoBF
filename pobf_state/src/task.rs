@@ -1,7 +1,6 @@
 #![forbid(unsafe_code)]
 #![allow(unused_imports)]
 
-
 use crate::*;
 use core::marker::PhantomData;
 use prusti_contracts::*;
@@ -517,6 +516,7 @@ where
         attestation_callback: &dyn Fn() -> K,
     ) -> Self {
         let key = attestation_callback();
+
         ComputingTaskSession {
             key: Key::from(key),
             _state: ChannelEstablished,

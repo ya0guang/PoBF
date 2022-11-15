@@ -6,6 +6,8 @@ NC="\033[0m"
 export PATH="$(pwd)/verifier/:$HOME/.local/prusti/:$PATH"
 export SGX_MODE=HW
 export PRUSTI_LOG=ERROR
+export TASK=mirai_sample
+export MIRAI_FLAGS="--single_func pobfref.pobf.pobf_workflow"
 
 printf "${MAGENTA}- Check if Prusti is intalled.${NC}\n"
 if [ ! -d $HOME/.local/prusti ]; then
@@ -16,4 +18,5 @@ else
 fi
 
 printf "${MAGENTA}- Verify the PoBF framework...${NC}\n\n"
-cd $(pwd)/platform_sgx/enclave && cargo pobf-verify --allowed-unsafe lib.rs ocall.rs networking_utils.rs --log-level INFO -- --features=sgx,leak_log
+cd $(pwd)/platform_sgx/enclave && cargo pobf-verify --allowed-unsafe lib.rs ocall.rs networking_utils.rs --log-level INFO -- --features=sgx,leak_log,task_sample,use_state
+

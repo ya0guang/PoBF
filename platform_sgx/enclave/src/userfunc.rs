@@ -1,59 +1,42 @@
-// #![allow(unused_imports)]
-// #![forbid(unsafe_code)]
+#![forbid(unsafe_code)]
 
-// use crate::pobf_verifier::*;
-// use crate::println;
-// use alloc::vec::Vec;
+use alloc::vec::Vec;
+#[cfg(feature = "mirai")]
+use mirai_annotations::*;
 
-// pub fn private_computation(input: Vec<u8>) -> Vec<u8> {
-//     let step = 1;
+#[cfg(feature = "mirai")]
+use crate::mirai_types::mirai_comp::SecretTaint;
+use crate::{log, ocall_log, println};
 
-//     // this can be proven true by MIRAI
-//     #[cfg(feature = "leak_log")]
-//     {
-//         #[cfg(mirai)]
-//         verify!(step == 1);
-//         println!("The step is {} in computation_enc", step);
-//     }
+/// A sample function used to serve as the target task for MIRAI.
+/// In order to verify that user function is correct, we need to temporarily move it to
+/// the enclave crate.
+pub fn sample_add(input: Vec<u8>) -> Vec<u8> {
+    let step = 1;
 
-//     let mut output = Vec::new();
-//     for i in input.iter() {
-//         output.push(i + step);
-//     }
+    // this can be proven true by MIRAI
+    #[cfg(feature = "leak_log")]
+    {
+        #[cfg(mirai)]
+        verify!(does_not_have_tag!(&input[0], SecretTaint));
+        #[cfg(mirai)]
+        verify!(does_not_have_tag!(&input[0], SecretTaint));
+        #[cfg(mirai)]
+        verify!(does_not_have_tag!(&input[0], SecretTaint));
+        #[cfg(mirai)]
+        verify!(does_not_have_tag!(&input[0], SecretTaint));
+        #[cfg(mirai)]
+        verify!(does_not_have_tag!(&input[0], SecretTaint));
+        println!("The 0-th item is {} in sample_add", input[0]);
+    }
 
-//     // however, MIRAI complians about this
-//     // leakage violation: cannot log the secret data
-//     // captured by: MIRAI warnning
-//     #[cfg(feature = "leak_log")]
-//     {
-//         #[cfg(mirai)]
-//         verify!(output[0] == 10);
-//         println!("after increasing, the 0th data is {}", output[0]);
-//     }
+    let mut output = Vec::new();
+    for i in 0..input.len() {
+        output.push(step + input[i]);
+    }
 
-//     // safety violation: cannot leak out secret data through network stream write
-//     // captured by: compiler error
-//     #[cfg(feature = "leak_net")]
-//     {
-//         use std::net::TcpStream;
-//         match TcpStream::connect("localhost:10086") {
-//             Ok(mut stream) => {
-//                 stream.write(&output).unwrap();
-//             }
-//             _ => {
-//                 println!("failed to connect to server");
-//             }
-//         }
-//     }
+    #[cfg(mirai)]
+    add_tag!(&output, SecretTaint);
 
-//     // safety violation: cannot leak out secret data through file write
-//     // captured by: compiler error
-//     #[cfg(feature = "leak_file")]
-//     {
-//         use std::fs::File;
-//         let mut file = File::create("./leaked.txt").unwrap();
-//         file.write_all(&output).unwrap();
-//     }
-
-//     output
-// }
+    output
+}

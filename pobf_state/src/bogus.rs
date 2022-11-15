@@ -1,5 +1,3 @@
-#![cfg(feature = "prusti")]
-
 use crate::*;
 use alloc::vec;
 use alloc::vec::*;

@@ -6,17 +6,42 @@ use crate::utils::*;
 use crate::{ocall_log, verified_log};
 use alloc::vec;
 use alloc::vec::Vec;
-use pobf_state::*;
 use sgx_crypto::aes::gcm::*;
 use sgx_types::error::*;
+use sgx_types::types::Mac128bit;
 use sgx_types::types::MAC_128BIT_SIZE;
 use zeroize::Zeroize;
+
+cfg_if::cfg_if! {
+  if #[cfg(feature = "mirai")] {
+      use crate::mirai_types::*;
+      use crate::mirai_types::mirai_comp::SecretTaint;
+      use mirai_annotations::*;
+  } else {
+      use pobf_state::*;
+  }
+}
 
 pub const BUFFER_SIZE: usize = 1024;
 pub const SEALED_DATA_SIZE: usize = 16;
 
 pub struct VecAESData {
     inner: Vec<u8>,
+}
+
+#[cfg(feature = "mirai")]
+// Give a sanitize function to `VecAESData`.
+fn sanitize(input: VecAESData) -> VecAESData {
+    precondition!(has_tag!(&input, SecretTaint));
+
+    let inner = vec![];
+    let ans = VecAESData { inner };
+
+    // MIRAI has problem dealing with vector, so we mark it as an assumption here.
+    // MIRAI will give an error if it is 100% certain that the condition does not hold.
+    // This suppresses false positive.
+    assumed_postcondition!(does_not_have_tag!(&ans, SecretTaint));
+    ans
 }
 
 impl Zeroize for VecAESData {
@@ -34,7 +59,8 @@ impl From<Vec<u8>> for VecAESData {
 impl From<&[u8]> for VecAESData {
     fn from(raw: &[u8]) -> Self {
         // Validity check: should have a mac tag.
-        assert!(raw.len() >= MAC_128BIT_SIZE);
+        #[cfg(feature = "mirai")]
+        checked_assume!(raw.len() >= MAC_128BIT_SIZE);
 
         let mut inner = Vec::new();
         inner.extend_from_slice(raw);
@@ -135,38 +161,61 @@ impl Encryption<AES128Key> for VecAESData {
     /// only uses as many bits as required from the last block. CTR turns the block
     /// cipher into a stream cipher so that output length = input length.
     fn encrypt(self, key: &AES128Key) -> SgxResult<Self> {
-        // We do not need AAD tag so we set it to zero.
-        let aad_array: [u8; 0] = [0; 0];
-        let aad = Aad::from(aad_array);
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "mirai")] {
+                precondition!(has_tag!(&self, SecretTaint));
+                precondition!(has_tag!(key, SecretTaint));
 
-        let mut aes = AesGcm::new(&key.inner, Nonce::zeroed(), aad)?;
-        let mut ciphertext = vec![0u8; self.inner.len()];
+                let ciphertext = sanitize(self);
+                assumed_postcondition!(does_not_have_tag!(&ciphertext, SecretTaint));
 
-        // Append the mac tag.
-        let mac = aes.encrypt(&self.inner, ciphertext.as_mut_slice())?;
-        ciphertext.extend_from_slice(&mac);
+                Ok(ciphertext)
+            } else {
+                // We do not need AAD tag so we set it to zero.
+                let aad_array: [u8; 0] = [0; 0];
+                let aad = Aad::from(aad_array);
 
-        Ok(VecAESData::from(ciphertext))
+                let mut aes = AesGcm::new(&key.inner, Nonce::zeroed(), aad)?;
+                let mut ciphertext = vec![0u8; self.inner.len()];
+
+                // Append the mac tag.
+                let mac = aes.encrypt(&self.inner, ciphertext.as_mut_slice())?;
+                ciphertext.extend_from_slice(&mac);
+
+                Ok(VecAESData::from(ciphertext))
+            }
+        }
     }
 }
 
 impl Decryption<AES128Key> for VecAESData {
     fn decrypt(self, key: &AES128Key) -> SgxResult<Self> {
-        let aad_array: [u8; 0] = [0; 0];
-        let aad = Aad::from(aad_array);
+        #[cfg(feature = "mirai")]
+        precondition!(has_tag!(&self, SecretTaint));
 
-        let mut aes = AesGcm::new(&key.inner, Nonce::zeroed(), aad)?;
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "mirai")] {
+                let plaintext_vec = VecAESData::from(self.inner);
 
-        let len = self.inner.len();
-        let text_len = len.checked_sub(16).unwrap();
+                postcondition!(has_tag!(&plaintext_vec, SecretTaint));
+                Ok(plaintext_vec)
+            } else {
+                let aad_array: [u8; 0] = [0; 0];
+                let aad = Aad::from(aad_array);
+                let mut aes = AesGcm::new(&key.inner, Nonce::zeroed(), aad)?;
 
-        let ciphertext_slice = &self.inner[..text_len];
-        let mac_slice = &self.inner[text_len..(text_len + 16)].try_into().unwrap();
-        let mut plaintext_vec: Vec<u8> = vec![0; text_len];
-        let plaintext_slice = &mut plaintext_vec[..];
+                let len = self.inner.len();
+                let text_len = len.checked_sub(16).unwrap();
 
-        aes.decrypt(ciphertext_slice, plaintext_slice, mac_slice)?;
-        Ok(VecAESData::from(plaintext_vec))
+                let ciphertext_slice = &self.inner[..text_len];
+                let mac_slice: &Mac128bit = &self.inner[text_len..(text_len + 16)].try_into().unwrap();
+                let mut plaintext_vec: Vec<u8> = vec![0; text_len];
+                let plaintext_slice = &mut plaintext_vec[..];
+
+                aes.decrypt(ciphertext_slice, plaintext_slice, mac_slice)?;
+                Ok(VecAESData::from(plaintext_vec))
+            }
+        }
     }
 }
 
