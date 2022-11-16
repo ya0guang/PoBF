@@ -119,51 +119,63 @@ pub struct Peer<'a> {
 impl<'a> Peer<'a> {
     /// Returns a new `Peer` object if the authenticity is verified; otherwise, an error will be returned.
     pub fn new(peer_pub_key: &[u8; ECP_COORDINATE_SIZE], signature: &'a [u8]) -> SgxResult<Self> {
-        // Convert from a raw byte array into Ecc256PubKey.
-        let pub_k_gx = peer_pub_key[..ECP256_KEY_SIZE].to_vec();
-        let pub_k_gy = peer_pub_key[ECP256_KEY_SIZE..].to_vec();
-        let mut pub_256_k = Ec256PublicKey::default();
-
-        pub_256_k.gx.copy_from_slice(
-            pub_k_gx
-                .iter()
-                .copied()
-                .rev()
-                .collect::<alloc::vec::Vec<u8>>()
-                .as_slice(),
-        );
-        pub_256_k.gy.copy_from_slice(
-            pub_k_gy
-                .iter()
-                .copied()
-                .rev()
-                .collect::<alloc::vec::Vec<u8>>()
-                .as_slice(),
-        );
-
-        // Construct the certificate.
-        let cert = SP_CERT.split("-----").collect::<Vec<&str>>()[2];
-        let cert_str = String::from(cert).replace("\n", "");
-        let cert_decoded = base64::decode(&cert_str).unwrap();
-        let webpki_cert = webpki::EndEntityCert::try_from(cert_decoded.as_slice()).unwrap();
-
-        // Note that we need to manually append "0x04".
-        let mut msg = peer_pub_key.to_vec();
-        msg.insert(0, 0x04);
-
-        if webpki_cert
-            .verify_signature(&webpki::ECDSA_P256_SHA256, &msg, signature)
-            .is_err()
+        #[cfg(mirai)]
         {
-            // Signature does not match may due to a forge?
-            return Err(SgxStatus::InvalidSignature);
+            Ok(Self {
+                role: DhSessionRole::default(),
+                pub_k: EcPublicKey::default(),
+                signature,
+            })
         }
 
-        Ok(Self {
-            role: DhSessionRole::default(),
-            pub_k: EcPublicKey::from(pub_256_k),
-            signature,
-        })
+        #[cfg(not(mirai))]
+        {
+            // Convert from a raw byte array into Ecc256PubKey.
+            let pub_k_gx = peer_pub_key[..ECP256_KEY_SIZE].to_vec();
+            let pub_k_gy = peer_pub_key[ECP256_KEY_SIZE..].to_vec();
+            let mut pub_256_k = Ec256PublicKey::default();
+
+            pub_256_k.gx.copy_from_slice(
+                pub_k_gx
+                    .iter()
+                    .copied()
+                    .rev()
+                    .collect::<alloc::vec::Vec<u8>>()
+                    .as_slice(),
+            );
+            pub_256_k.gy.copy_from_slice(
+                pub_k_gy
+                    .iter()
+                    .copied()
+                    .rev()
+                    .collect::<alloc::vec::Vec<u8>>()
+                    .as_slice(),
+            );
+
+            // Construct the certificate.
+            let cert = SP_CERT.split("-----").collect::<Vec<&str>>()[2];
+            let cert_str = String::from(cert).replace("\n", "");
+            let cert_decoded = base64::decode(&cert_str).unwrap();
+            let webpki_cert = webpki::EndEntityCert::try_from(cert_decoded.as_slice()).unwrap();
+
+            // Note that we need to manually append "0x04".
+            let mut msg = peer_pub_key.to_vec();
+            msg.insert(0, 0x04);
+
+            if webpki_cert
+                .verify_signature(&webpki::ECDSA_P256_SHA256, &msg, signature)
+                .is_err()
+            {
+                // Signature does not match may due to a forge?
+                return Err(SgxStatus::InvalidSignature);
+            }
+
+            Ok(Self {
+                role: DhSessionRole::default(),
+                pub_k: EcPublicKey::from(pub_256_k),
+                signature,
+            })
+        }
     }
 }
 
@@ -224,6 +236,7 @@ impl DhSession {
         }
 
         // Check if the public key is derived from this private key.
+        #[cfg(not(mirai))]
         if self.session_context.pub_k != self.session_context.prv_k.export_public_key().unwrap() {
             // Corrupted input.
             return Err(SgxStatus::InvalidParameter);
@@ -236,15 +249,18 @@ impl DhSession {
             return Err(SgxStatus::InvalidState);
         }
 
-        // Compute the shared_key key.
-        self.session_context.shared_key = self.session_context.prv_k.shared_key(&peer.pub_k)?;
-        self.session_context.smk = self
-            .session_context
-            .shared_key
-            .derive_key(KDF_MAGIC_STR.as_bytes())?;
+        #[cfg(not(mirai))]
+        {
+            // Compute the shared_key key.
+            self.session_context.shared_key = self.session_context.prv_k.shared_key(&peer.pub_k)?;
+            self.session_context.smk = self
+                .session_context
+                .shared_key
+                .derive_key(KDF_MAGIC_STR.as_bytes())?;
 
-        // Set the current timestamp.
-        self.session_context.timestamp = unix_time(0)?;
+            // Set the current timestamp.
+            self.session_context.timestamp = unix_time(0)?;
+        }
 
         Ok(())
     }
@@ -274,11 +290,7 @@ pub fn perform_ecdh(
     let mut peer = match Peer::new(peer_pub_key, signature) {
         Ok(peer) => peer,
         Err(e) => {
-            verified_log!(
-                SecretTaint,
-                "[-] Public key signature is invalid due to {:?}.",
-                e
-            );
+            assume_unreachable!("[-] Public key signature is invalid due to {:?}.", e);
 
             return Err(e);
         }
@@ -291,11 +303,7 @@ pub fn perform_ecdh(
     let mut session = match open_dh_session() {
         Ok(session) => session,
         Err(e) => {
-            verified_log!(
-                SecretTaint,
-                "[-] Failed to open the ECDH session due to {:?}.",
-                e
-            );
+            assume_unreachable!("[-] Failed to open the ECDH session due to {:?}.", e);
 
             return Err(e);
         }
@@ -303,11 +311,7 @@ pub fn perform_ecdh(
 
     // Generate the session key.
     if let Err(e) = session.compute_shared_key(&peer) {
-        verified_log!(
-            SecretTaint,
-            "[-] Fialed to generate the session key due to {:?}.",
-            e
-        );
+        assume_unreachable!("[-] Failed to generate the session key due to {:?}.", e);
         Err(e)
     } else {
         Ok(session)
@@ -319,22 +323,41 @@ pub fn perform_ecdh(
 /// Since the enclave will receive a request from the SP, so we must know who should be
 /// the intiator. We do not need to return a raw EccContext.
 pub fn open_dh_session() -> SgxResult<DhSession> {
-    // Generate a random number.
-    let mut os_rng = sgx_trts::rand::Rng::new();
-    let session_id = os_rng.next_u64();
+    #[cfg(not(mirai))]
+    {
+        // Generate a random number.
+        let mut os_rng = sgx_trts::rand::Rng::new();
+        let session_id = os_rng.next_u64();
 
-    // Open the ECC context and sample a key pair.
-    let ecc_handle = EcKeyPair::create()?;
-    let prv_k = ecc_handle.private_key();
-    let pub_k = ecc_handle.public_key();
+        // Open the ECC context and sample a key pair.
+        let ecc_handle = EcKeyPair::create()?;
+        let prv_k = ecc_handle.private_key();
+        let pub_k = ecc_handle.public_key();
 
+        Ok(DhSession {
+            session_id,
+            session_status: DhStatus::InProgress,
+            session_context: DhEccContext {
+                ecc_handle,
+                prv_k,
+                pub_k,
+                shared_key: EcShareKey::default(),
+                smk: AlignKey128bit::default(),
+                role: DhSessionRole::Responder,
+                // Not valid.
+                timestamp: 0u64,
+            },
+        })
+    }
+
+    #[cfg(mirai)]
     Ok(DhSession {
-        session_id,
+        session_id: 0,
         session_status: DhStatus::InProgress,
         session_context: DhEccContext {
-            ecc_handle,
-            prv_k,
-            pub_k,
+            ecc_handle: EcKeyPair::default(),
+            prv_k: EcPrivateKey::default(),
+            pub_k: EcPublicKey::default(),
             shared_key: EcShareKey::default(),
             smk: AlignKey128bit::default(),
             role: DhSessionRole::Responder,
