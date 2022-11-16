@@ -351,6 +351,8 @@ pub fn receive_data(socket_fd: c_int) -> SgxResult<VecAESData> {
 }
 
 pub fn get_report(ti: &TargetInfo, ecc: &DhEccContext) -> SgxResult<Report> {
+    precondition!(has_tag!(ecc, SecretTaint));
+
     let pub_k = &ecc.pub_k();
 
     // Fill ecc256 public key into report_data. This is the attestation key.
@@ -361,6 +363,8 @@ pub fn get_report(ti: &TargetInfo, ecc: &DhEccContext) -> SgxResult<Report> {
     pub_k_gy.reverse();
     report_data.d[..ECP256_KEY_SIZE].clone_from_slice(&pub_k_gx);
     report_data.d[ECP256_KEY_SIZE..].clone_from_slice(&pub_k_gy);
+
+    verify!(has_tag!(&report_data, SecretTaint));
 
     // Get the report.
     match Report::for_target(ti, &report_data) {
@@ -710,6 +714,7 @@ pub fn qe_quote_verify_signature(quote: *const Quote3) -> bool {
         if quote_signature_data_vec.len() != signature_len {
             // Length mismatch probably due to mismatched quote type.
             verified_log!(
+                SecretTaint,
                 "[-] Signature length mismatch! Expected: {}, got {}.",
                 signature_len,
                 quote_signature_data_vec.len()
@@ -733,6 +738,7 @@ pub fn qe_quote_verify_signature(quote: *const Quote3) -> bool {
         if quote_signature_data_vec.len() != cert_info_offset + temp_cert_data.size as usize {
             // Length mismatch probably due to data forge.
             verified_log!(
+                SecretTaint,
                 "[-] Signature length mismatch! Expected: {}, got {}.",
                 cert_info_offset + temp_cert_data.size as usize,
                 quote_signature_data_vec.len()
@@ -765,6 +771,7 @@ pub fn qe_send_quote_and_verify(
     #[cfg(mirai)]
     return SgxStatus::Success;
 
+    // Too many unsafe low-level operations, MIRAI cannot collect tags.
     #[cfg(not(mirai))]
     {
         let quote_vec =

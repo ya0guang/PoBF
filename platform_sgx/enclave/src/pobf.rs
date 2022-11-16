@@ -106,11 +106,14 @@ pub fn pobf_workflow(
     let task_data_received = ComputingTask::receive_data(session, &receive_callback);
     verify!(has_tag!(&task_data_received, SecretTaint));
 
-    let task_result_encrypted = task_data_received.compute(&private_vec_compute);
     // Because MIRAI does not know "encryption" would sanitize the tag, so we
-    // make this operation as an assumed sanitization operation so that we can
+    // make encryption as an assumed sanitization operation so that we can
     // continue the verification.
+    let task_result_encrypted = task_data_received.compute(&private_vec_compute);
+    #[cfg(not(feature = "mirai_sample"))]
     assume!(does_not_have_tag!(&task_result_encrypted, SecretTaint));
+    #[cfg(feature = "mirai_sample")]
+    verify!(does_not_have_tag!(&task_result_encrypted, SecretTaint));
 
     let result = task_result_encrypted.take_result();
     verify!(does_not_have_tag!(&result, SecretTaint));
@@ -153,14 +156,12 @@ pub fn pobf_remote_attestation(
     match ra_type {
         0u8 => res = perform_epid_remote_attestation(socket_fd, spid, linkable, &dh_session),
         1u8 => res = perform_dcap_remote_attestation(socket_fd, &dh_session),
-        _ => {
-            assume_unreachable!(
-                "[-] Not a valid remote attestation type! Choose EPID or DCAP instead."
-            );
-        }
+        _ => assume_unreachable!(
+            "[-] Not a valid remote attestation type! Choose EPID or DCAP instead."
+        ),
     }
 
-    if !res.is_success() {
+    if res != SgxStatus::Success {
         assume_unreachable!("[-] Remote attestation failed due to {:?}.", res);
     }
 

@@ -47,3 +47,4 @@ clean:
 	@cd platform_sgx && $(MAKE) clean
 	@cd data_provider && $(MAKE) clean
 	@cd cctasks/evaluation_tvm/model_deploy && $(MAKE) clean
+	@cd pobf_state && cargo clean
