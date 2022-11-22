@@ -1,0 +1,9 @@
+{
+  "address": "127.0.0.1",
+  "port": 1234,
+  "spid": "",
+  "ias_key": "",
+  "linkable": true,
+  "data_path": "../../data/task_fasta/data.bin",
+  "ra_type": 1
+}
