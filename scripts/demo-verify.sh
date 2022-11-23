@@ -1,9 +1,12 @@
- #!/bin/bash
+#!/bin/bash
 
 MAGENTA="\033[0;35m"
 NC="\033[0m"
 
-export PATH="$(pwd)/verifier/:$HOME/.local/prusti/:$PATH"
+allow_unsafe="lib.rs ocall.rs networking_utils.rs"
+features="sgx,leak_log,task_sample"
+
+export PATH="$(pwd)/../verifier/:$HOME/.local/prusti/:$PATH"
 export SGX_MODE=HW
 export PRUSTI_LOG=ERROR
 export TASK=mirai_sample
@@ -18,4 +21,8 @@ else
 fi
 
 printf "${MAGENTA}- Verify the PoBF framework...${NC}\n\n"
-cd $(pwd)/platform_sgx/enclave && cargo pobf-verify --allowed-unsafe lib.rs ocall.rs networking_utils.rs --log-level INFO -- --features=sgx,leak_log,task_sample
+pushd $(pwd)/../platform_sgx/enclave
+cargo pobf-verify \
+      --allowed-unsafe $allow_unsafe \
+      --log-level INFO -- --features=$features
+popd
