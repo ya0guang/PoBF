@@ -17,6 +17,7 @@ Enclave_t.*
 *.a
 .lia.cache
 *.log
+*.txt
 
 # MISC
 Cargo.lock

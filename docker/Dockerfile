@@ -4,12 +4,14 @@ ARG SGX_SDK_VERSION_MAJOR=2.17.1
 ARG SGX_SDK_VERSION_MINOR=2.17.101.1
 ARG DEV_PRUSTI_GIT_REPO=https://github.com/viperproject/prusti-dev.git
 ARG DEV_PRUSTI_COMMIT=ee91e7772e764c910b1e6638f609ad5da0a791a7
+ARG MIRAI_GIT_REPO=https://github.com/facebookexperimental/MIRAI.git
+ARG MIRAI_COMMIT=5ca2f1ebe1b057ba74438782e2bef91ec87834c4
 ARG RUST_COMP="rust-src rustc-dev llvm-tools-preview rustfmt rust-analysis"
 ARG RUST_TOOLCHAIN=nightly-2022-11-01
 
 SHELL ["/bin/bash", "-c"] 
 
-RUN apt update && apt install -y \
+RUN apt update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt install -y \
   build-essential \
   libtool \
   autoconf \
@@ -17,7 +19,10 @@ RUN apt update && apt install -y \
   curl \
   git \
   wget \
-  python3
+  python3 \
+  python3-pip \
+  cmake
+RUN pip3 install coloredlogs
 
 RUN echo 'deb [arch=amd64] https://download.01.org/intel-sgx/sgx_repo/ubuntu focal main' | tee /etc/apt/sources.list.d/intel-sgx.list
 
@@ -68,9 +73,11 @@ RUN echo "[-] Prusti successfully compiled and installed!"
 
 RUN ln -s /usr/lib/x86_64-linux-gnu/libsgx_dcap_quoteverify.so.1 /usr/lib/x86_64-linux-gnu/libsgx_dcap_quoteverify.so
 RUN ln -s /usr/lib/x86_64-linux-gnu/libsgx_dcap_ql.so.1 /usr/lib/x86_64-linux-gnu/libsgx_dcap_ql.so
-RUN apt update && apt install python3-pip -y
-RUN pip3 install coloredlogs
 
 WORKDIR /root
+RUN git clone ${MIRAI_GIT_REPO}
+WORKDIR /root/mirai
+RUN source "$HOME/.cargo/env" && rustup override set ${RUST_TOOLCHAIN}
+RUN source "$HOME/.cargo/env" && cargo install --locked --path ./checker
 
 ENTRYPOINT ["bash", "-l", "-c"]

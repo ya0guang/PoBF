@@ -21,19 +21,20 @@ rust_toolchain=$(cat ../rust-toolchain)
 prusti_path="$HOME/.local/prusti"
 
 # Clone this repo.
-git clone https://github.com/viperproject/prusti-dev.git $HOME/prusti-dev
+git clone https://github.com/viperproject/prusti-dev.git $HOME/prusti-dev || true
 
-pushd $HOME/prusti-dev
+pushd $HOME/prusti-dev > /dev/null
 # Use this specific commit.
 git checkout ${commit}
 
 echo "[+] Preparing the Rust toolkit..."
 rustup component add --toolchain ${rust_toolchain} ${rust_comp}
+rustup override set $rust_toolchain
 echo "[+] Rust toolkit successfully configured!"
 ./x.py setup && ./x.py build --release
 mkdir -p ${prusti_path} && ./x.py package release ${prusti_path}
 echo "[+] Prusti is installed to ${prusti_path}"
-popd
+popd > /dev/null
 
 echo "[+] Installation finished."
 echo "[+] You can now execute 'Prusti' on the pobf_state crate by"
