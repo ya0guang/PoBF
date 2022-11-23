@@ -59,6 +59,13 @@ pub extern "C" fn private_computing_entry(
     encrypted_output_size: *mut u32,
 ) -> SgxStatus {
     verified_log!("[+] private_computing_entry");
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "native_enclave")] {
+            verified_log!("[+] Running ephemeral enclave!");
+        } else {
+            verified_log!("[+] Running persistent PoBF enclave!");
+        }
+    }
 
     // Construct Rust data structures from FFI-types.
     let spid = unsafe { &*spid_ptr };

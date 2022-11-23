@@ -77,7 +77,28 @@ where
     }
 }
 
+#[cfg(feature = "native_enclave")]
+pub fn pobf_workflow(
+    socket_fd: c_int,
+    spid: &Spid,
+    linkable: i64,
+    ra_type: u8,
+    public_key: &[u8; ECP_COORDINATE_SIZE],
+    signature: &[u8],
+) -> VecAESData {
+    use pobf_state::*;
+
+    let key = pobf_remote_attestation(socket_fd, spid, linkable, ra_type, public_key, signature);
+    let data = pobf_receive_data(socket_fd);
+    let decrypted = data.decrypt(&key).unwrap();
+    let result = private_vec_compute(decrypted);
+    let encrypted = result.encrypt(&key).unwrap();
+
+    encrypted
+}
+
 // TODO: generics on the return type
+#[cfg(not(feature = "native_enclave"))]
 pub fn pobf_workflow(
     socket_fd: c_int,
     spid: &Spid,

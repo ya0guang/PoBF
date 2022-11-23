@@ -104,7 +104,7 @@ fn main() {
 
             use std::fs::File;
             use std::io::prelude::*;
-            let mut file = File::create("./output.bin").unwrap();
+            let mut file = File::create("./output.txt").unwrap();
             file.write_all(&data).unwrap();
         }
     }
