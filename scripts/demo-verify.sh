@@ -15,7 +15,7 @@ export MIRAI_FLAGS="--single_func pobfref.pobf.pobf_workflow"
 printf "${MAGENTA}- Check if Prusti is intalled.${NC}\n"
 if [ ! -d $HOME/.local/prusti ]; then
   printf "${MAGENTA}  + Prusti is not installed, start to install Prusti.${NC}\n"
-  exec $(pwd)/prepare_prusti.sh
+  . $(pwd)/prepare_prusti.sh
 else
   printf "${MAGENTA}  + Found Prusti.${NC}\n"
 fi

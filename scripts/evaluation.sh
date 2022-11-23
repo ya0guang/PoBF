@@ -1,6 +1,7 @@
 #!/bin/bash
 # This script performs evaluations on different computation tasks for PoBF library.
-# To evaluate on other platforms, use a standalone repository instead. => TODO.
+# TODO: Split this script according to the type of the target platform?
+# E.g., evaluation_pobf.sh, evaluation_native.sh, evaluation_rust.sh
 
 MAGENTA="\033[0;35m"
 NC="\033[0m"
@@ -38,7 +39,7 @@ done
 # Build different native enclaves for different tasks.
 for task in "${tasks[@]}"; do
     if [[ ! -f eval/$task/native_enclave/app ||
-          ! -f eval/$task/native_enclave/enclave.signed.so ]]; then
+        ! -f eval/$task/native_enclave/enclave.signed.so ]]; then
         echo -e "$MAGENTA[+] Building native enclave for $task...$NC"
         SGX_MODE=HW TASK=$task NATIVE_ENCLAVE=1 make -j
         cp platform_sgx/bin/{app,enclave.signed.so} eval/$task/native_enclave
@@ -60,9 +61,20 @@ for task in "${tasks[@]}"; do
     fi
 done
 
-# Doing evaluations.
+# Doing evaluations on Rust programs.
 for task in "${tasks[@]}"; do
-    echo -e "$MAGENTA[-] Testing enclave for $task...$NC"
+    echo -e "$MAGENTA[-] Testing Rust program for $task...$NC"
+
+    pushd eval/"$task"/rust > /dev/null
+    { time ./app; } > ../../../data/"$task"/output_enclave_rust.txt 2>&1
+    popd > /dev/null
+    
+    echo -e "$MAGENTA  [+] Finished!$NC"
+done
+
+# Doing evaluations on PoBF.
+for task in "${tasks[@]}"; do
+    echo -e "$MAGENTA[-] Testing PoBF enclave for $task...$NC"
     
     # Start the enclave.
     pushd eval/"$task"/pobf > /dev/null
@@ -81,7 +93,25 @@ for task in "${tasks[@]}"; do
     echo -e "$MAGENTA  [+] Finished!$NC"
 done
 
-# Evaluate other platforms.
-# TODO.
+# Doing evaluations on the native enclave.
+for task in "${tasks[@]}"; do
+    echo -e "$MAGENTA[-] Testing native enclave for $task...$NC"
+    
+    # Start the enclave.
+    pushd eval/"$task"/native_enclave > /dev/null
+    { time ./app $ADDRESS $PORT; } > ../../../data/"$task"/output_enclave_native_enclave.txt 2>&1 &
+    sleep 1
+    popd > /dev/null
+    
+    # Start the data provider.
+    pushd ./data_provider/bin > /dev/null
+    { time ./data_provider run ../../data/"$task"/manifest.json; } > ../../data/"$task"/output_data_provider_native_enclave.txt 2>&1
+    cp ./output.txt ../../data/"$task"/result_native_enclave.txt
+    popd > /dev/null
+    
+    killall app
+    wait
+    echo -e "$MAGENTA  [+] Finished!$NC"
+done
 
 popd > /dev/null

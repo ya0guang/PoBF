@@ -63,7 +63,14 @@ RUN apt update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC \
   sudo
 
 RUN source "$HOME/.cargo/env" && rustup override set ${RUST_TOOLCHAIN} && ./x.py setup && ./x.py build --release
-RUN source "$HOME/.cargo/env" && ./x.py package release $HOME/.cargo/prusti
+RUN source "$HOME/.cargo/env" && ./x.py package release $HOME/.local/prusti
 RUN echo "[-] Prusti successfully compiled and installed!"
+
+RUN ln -s /usr/lib/x86_64-linux-gnu/libsgx_dcap_quoteverify.so.1 /usr/lib/x86_64-linux-gnu/libsgx_dcap_quoteverify.so
+RUN ln -s /usr/lib/x86_64-linux-gnu/libsgx_dcap_ql.so.1 /usr/lib/x86_64-linux-gnu/libsgx_dcap_ql.so
+RUN apt update && apt install python3-pip -y
+RUN pip3 install coloredlogs
+
+WORKDIR /root
 
 ENTRYPOINT ["bash", "-l", "-c"]
