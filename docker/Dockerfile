@@ -65,7 +65,8 @@ RUN apt update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC \
   openssl \
   libssl-dev \
   pkg-config \
-  sudo
+  sudo \
+  libclang-dev
 
 RUN source "$HOME/.cargo/env" && rustup override set ${RUST_TOOLCHAIN} && ./x.py setup && ./x.py build --release
 RUN source "$HOME/.cargo/env" && ./x.py package release $HOME/.local/prusti
@@ -76,7 +77,8 @@ RUN ln -s /usr/lib/x86_64-linux-gnu/libsgx_dcap_ql.so.1 /usr/lib/x86_64-linux-gn
 
 WORKDIR /root
 RUN git clone ${MIRAI_GIT_REPO}
-WORKDIR /root/mirai
+WORKDIR /root/MIRAI
+RUN git checkout ${MIRAI_COMMIT}
 RUN source "$HOME/.cargo/env" && rustup override set ${RUST_TOOLCHAIN}
 RUN source "$HOME/.cargo/env" && cargo install --locked --path ./checker
 
