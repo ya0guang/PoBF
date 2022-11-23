@@ -19,6 +19,7 @@ commit="ee91e7772e764c910b1e6638f609ad5da0a791a7"
 rust_comp="rust-src rustc-dev llvm-tools-preview rustfmt rust-analysis"
 rust_toolchain=$(cat ../rust-toolchain)
 prusti_path="$HOME/.local/prusti"
+
 # Clone this repo.
 git clone https://github.com/viperproject/prusti-dev.git $HOME/prusti-dev
 

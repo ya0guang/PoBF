@@ -1,5 +1,6 @@
 #!/bin/bash
 # This script performs evaluations on different computation tasks for PoBF library.
+
 # TODO: Split this script according to the type of the target platform?
 # E.g., evaluation_pobf.sh, evaluation_native.sh, evaluation_rust.sh
 
@@ -10,6 +11,7 @@ PORT=1234
 
 pushd .. > /dev/null
 declare -a tasks=("task_tvm" "task_fann" "task_fasta" "task_polybench" "task_sample")
+
 # Create some directories
 for task in "${tasks[@]}"; do
     mkdir -p eval/"$task"/pobf
@@ -51,6 +53,7 @@ done
 
 # Build different PoBF enclaves for different tasks.
 for task in "${tasks[@]}"; do
+
     if [[ ! -f eval/$task/pobf/app || ! -f eval/$task/pobf/enclave.signed.so ]]; then
         echo -e "$MAGENTA[+] Building enclave for $task...$NC"
         SGX_MODE=HW TASK=$task NATIVE_ENCLAVE=0 make -j
