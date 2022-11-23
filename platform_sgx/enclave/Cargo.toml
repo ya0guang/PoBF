@@ -28,6 +28,8 @@ vio_ocall = ["sgx", "leak_log", "leak_net", "leak_file"]
 leak_log = []
 leak_net = []
 leak_file = []
+# Build native enclave.
+native_enclave = []
 
 # computing tasks
 # The tasks are enabled by `cfg_if`.

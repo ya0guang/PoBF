@@ -15,7 +15,7 @@ docker run -it --entrypoint /bin/bash -v /var/run/aesmd:/var/run/aesmd --device=
 ## Simple Commands
 
 ```sh
-docker run -v /var/run/aesmd:/var/run/aesmd --device=/dev/sgx_enclave --device=/dev/sgx_provision -v /u/hc50/Code/PoBF/docker/..:/Code/PoBF -w /Code/PoBF ya0guang/pobf "COMMAND_TO_RUN"
+docker run -it --entrypoint /bin/bash -v /var/run/aesmd:/var/run/aesmd --device=/dev/sgx_enclave --device=/dev/sgx_provision -v $(pwd)/..:/Code/PoBF -v ~/tvm:/root/tvm ya0guang/pobf "COMMAND_TO_RUN"
 ```
 
 e.g., `make` and `make clean`.

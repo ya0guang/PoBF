@@ -160,8 +160,13 @@ app:
 	@cd app && SGX_SDK=$(SGX_SDK) cargo build $(App_Rust_Flags)
 
 ######## Build Enclave ########
-
 TASK ?= task_tvm
+NATIVE_ENCLAVE ?= 0
+
+FEATURES = sgx,$(TASK)
+ifeq ($(NATIVE_ENCLAVE), 1)
+		FEATURES += ,native_enclave
+endif
 
 .PHONY: enclave
 enclave:
@@ -177,7 +182,7 @@ ifeq ($(BUILD_STD), cargo)
 else ifeq ($(BUILD_STD), xargo)
 	@cd enclave && RUST_TARGET_PATH=$(Rust_Target_Path) xargo build --target $(Rust_Build_Target) $(RustEnclave_Build_Flags)
 else
-	@cd enclave && cargo build $(RustEnclave_Build_Flags) --features "sgx,$(TASK)"
+	@cd enclave && cargo build $(RustEnclave_Build_Flags) --features "$(FEATURES)"
 endif
 
 ######## Run Enclave ########
