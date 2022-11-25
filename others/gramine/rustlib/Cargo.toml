@@ -1,0 +1,32 @@
+[package]
+name = "rustlib"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "gramine_task"
+path = "src/lib.rs"
+crate-type = ["staticlib"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+default = ["task_sample"]
+# computing tasks
+# The tasks are enabled by `cfg_if`.
+task_sample = ["sample_add"]
+task_tvm = ["evaluation_tvm"]
+task_polybench = ["polybench"]
+task_fann = ["fann"]
+task_fasta = ["fasta"]
+
+[dependencies]
+# Evaluations.
+evaluation_tvm = { path = "../../../cctasks/evaluation_tvm", optional = true }
+fann = { path = "../../../cctasks/fann", optional = true }
+fasta = { path = "../../../cctasks/fasta", optional = true }
+polybench = { path = "../../../cctasks/polybench", optional = true }
+sample_add = { path = "../../../cctasks/sample_add", optional = true }
+
+cfg-if = "1.0.0"
+

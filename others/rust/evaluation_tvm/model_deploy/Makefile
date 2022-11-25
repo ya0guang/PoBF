@@ -94,7 +94,6 @@ $(BUNDLE): bundle.c
 # This is a must. We have to make the whole bundle standalone.
 $(MODEL_ENTRY): $(MODEL_ENTRY_SRC) $(BUNDLE) $(PYTHON_MODEL) $(LIB_COMMON) $(LIB_GRAPH_EXECUTOR) $(LIB_MEMORY)
 	@printf "$(MAGENTA)+ Packing the runtime into single static library:$(NC)\n"
-	@mkdir -p ../../../platform_sgx/lib
 	@mkdir -p $(OUT_DIR)/../tmp
 	@gcc -c $(MODEL_ENTRY_SRC) -o $(OUT_DIR)/../tmp/model_entry.o $(PKG_CFLAGS)
 	@cd $(OUT_DIR)/../tmp && ar -x $(BUNDLE) && ar -x $(LIB_COMMON) && ar -x $(LIB_GRAPH_EXECUTOR) && ar -x $(LIB_MEMORY)

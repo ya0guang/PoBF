@@ -17,7 +17,13 @@ for task in "${tasks[@]}"; do
     mkdir -p eval/"$task"/pobf
     mkdir -p eval/"$task"/native_enclave
     mkdir -p eval/"$task"/rust
+    mkdir -p eval/"$task"/gramine
 done
+
+# Build data provider first.
+pushd data_provider > /dev/null
+cargo build --release
+popd > /dev/null
 
 echo -e "$MAGENTA[+] Building TVM runtime for native Rust program...$NC"
 pushd others/rust/evaluation_tvm/model_deploy > /dev/null
@@ -63,6 +69,21 @@ for task in "${tasks[@]}"; do
         echo -e "$MAGENTA[+] File exists. Skipped!$NC"
     fi
 done
+
+# Build Gramine backbone.
+pushd others/gramine > /dev/null
+make clean
+make app dcap RA_TYPE=dcap -j$((`nproc`+1)) > /tmp/meta.txt
+# Get config keys.
+mr_enclave=$(awk '/mr_enclave/ { print $2 }' /tmp/meta.txt | head -1)
+mr_signer=$(awk '/mr_signer/ { print $2 }' /tmp/meta.txt | head -1)
+isv_prod_id=$(awk '/isv_prod_id/ { print $2 }' /tmp/meta.txt | head -1)
+isv_svn=$(awk '/isv_svn/ { print $2 }' /tmp/meta.txt | head -1)
+rm -r /tmp/meta.txt
+
+# Build its Rust tasks.
+
+popd > /dev/null
 
 # Doing evaluations on Rust programs.
 for task in "${tasks[@]}"; do

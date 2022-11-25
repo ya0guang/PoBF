@@ -48,3 +48,4 @@ clean:
 	@cd data_provider && $(MAKE) clean
 	@cd cctasks/evaluation_tvm/model_deploy && $(MAKE) clean
 	@cd pobf_state && cargo clean
+	@cd scripts && ./clean_data.sh
