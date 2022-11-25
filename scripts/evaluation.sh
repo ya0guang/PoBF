@@ -17,6 +17,7 @@ for task in "${tasks[@]}"; do
     mkdir -p eval/"$task"/pobf
     mkdir -p eval/"$task"/native_enclave
     mkdir -p eval/"$task"/rust
+    mkdir -p eval/"$task"/gramine
 done
 
 # Build data provider first.
@@ -69,6 +70,21 @@ for task in "${tasks[@]}"; do
     fi
 done
 
+# Build Gramine backbone.
+pushd others/gramine > /dev/null
+make clean
+make app dcap RA_TYPE=dcap -j$((`nproc`+1)) > /tmp/meta.txt
+# Get config keys.
+mr_enclave=$(awk '/mr_enclave/ { print $2 }' /tmp/meta.txt | head -1)
+mr_signer=$(awk '/mr_signer/ { print $2 }' /tmp/meta.txt | head -1)
+isv_prod_id=$(awk '/isv_prod_id/ { print $2 }' /tmp/meta.txt | head -1)
+isv_svn=$(awk '/isv_svn/ { print $2 }' /tmp/meta.txt | head -1)
+rm -r /tmp/meta.txt
+
+# Build its Rust tasks.
+
+popd > /dev/null
+
 # Doing evaluations on Rust programs.
 for task in "${tasks[@]}"; do
     echo -e "$MAGENTA[-] Testing Rust program for $task...$NC"
@@ -96,7 +112,7 @@ for task in "${tasks[@]}"; do
     cp ./output.txt ../../data/"$task"/result_pobf.txt
     popd > /dev/null
     
-    kill %%
+    killall app
     wait
     echo -e "$MAGENTA  [+] Finished!$NC"
 done
@@ -117,7 +133,7 @@ for task in "${tasks[@]}"; do
     cp ./output.txt ../../data/"$task"/result_native_enclave.txt
     popd > /dev/null
     
-    kill %%
+    killall app
     wait
     echo -e "$MAGENTA  [+] Finished!$NC"
 done
