@@ -1,10 +1,3 @@
-#![cfg_attr(not(feature = "std"), no_std)]
-
-extern crate alloc;
-
-use alloc::vec;
-use alloc::vec::Vec;
-
 const GRAPH_JSON: &'static [u8] = include_bytes!("../outlib/graph.json");
 const GRAPH_PARAM: &'static [u8] = include_bytes!("../outlib/params.bin");
 const GRAPH_OUTPUT_LEN: usize = 1000usize;

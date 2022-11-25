@@ -1,0 +1,79 @@
+[loader]
+entrypoint = "file:/usr/lib/x86_64-linux-gnu/gramine/libsysdb.so"
+log_level = "error"
+insecure__use_cmdline_argv = true
+insecure__use_host_env = true
+
+[libos]
+entrypoint = "/client"
+
+[fs]
+[[fs.mounts]]
+path = "/lib"
+uri = "file:/usr/lib/x86_64-linux-gnu/gramine/runtime/glibc"
+
+[[fs.mounts]]
+path = "/usr/local/lib"
+uri = "file:/usr/local/lib"
+
+[[fs.mounts]]
+path = "/lib/x86_64-linux-gnu"
+uri = "file:/lib/x86_64-linux-gnu"
+
+[[fs.mounts]]
+path = "/usr/lib/x86_64-linux-gnu"
+uri = "file:/usr/lib/x86_64-linux-gnu"
+
+[[fs.mounts]]
+path = "/etc"
+uri = "file:/etc"
+
+[[fs.mounts]]
+path = "/client"
+uri = "file:client"
+
+[sys]
+enable_extra_runtime_domain_names_conf = true
+
+[sgx]
+debug = true
+enclave_size = "512M"
+max_threads = 4
+allowed_files = [ "file:/etc/nsswitch.conf", "file:/etc/host.conf", "file:/etc/ethers", "file:/etc/hosts", "file:/etc/group", "file:/etc/passwd", "file:/etc/gai.conf", "file:/etc/ssl/certs/ca-certificates.crt", "file:/etc/sgx_default_qcnl.conf",]
+thread_num = 4
+isvprodid = 0
+isvsvn = 0
+remote_attestation = "none"
+require_avx = false
+require_avx512 = false
+require_mpx = false
+require_pkru = false
+require_amx = false
+support_exinfo = false
+nonpie_binary = false
+enable_stats = false
+[[sgx.trusted_files]]
+uri = "file:/usr/lib/x86_64-linux-gnu/gramine/libsysdb.so"
+
+[[sgx.trusted_files]]
+uri = "file:client"
+
+[[sgx.trusted_files]]
+uri = "file:/usr/lib/x86_64-linux-gnu/gramine/runtime/glibc/"
+
+[[sgx.trusted_files]]
+uri = "file:/usr/local/lib/"
+
+[[sgx.trusted_files]]
+uri = "file:/lib/x86_64-linux-gnu/"
+
+[[sgx.trusted_files]]
+uri = "file:/usr/lib/x86_64-linux-gnu/"
+
+[[sgx.trusted_files]]
+uri = "file:ssl/ca.crt"
+
+[loader.env]
+LD_LIBRARY_PATH = "/lib:/usr/local/lib:/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu"
+LC_ALL = "C"
+RA_TLS_CLIENT_INSIDE_SGX = "1"

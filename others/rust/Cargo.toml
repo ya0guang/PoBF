@@ -17,7 +17,7 @@ task_fasta = ["fasta"]
 
 [dependencies]
 # Evaluations.
-evaluation_tvm = { path = "./evaluation_tvm", optional = true }
+evaluation_tvm = { path = "../evaluation_tvm", optional = true }
 fann = { path = "../../cctasks/fann", optional = true }
 fasta = { path = "../../cctasks/fasta", optional = true }
 polybench = { path = "../../cctasks/polybench", optional = true }

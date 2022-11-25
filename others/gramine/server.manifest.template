@@ -44,3 +44,7 @@ sgx.allowed_files = [
   "file:/etc/passwd",
   "file:/etc/gai.conf",
 ]
+
+sgx.nonpie_binary = true
+sgx.enclave_size = "4G"
+sgx.thread_num = 10
