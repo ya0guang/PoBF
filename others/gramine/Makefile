@@ -75,17 +75,18 @@ mbedtls/.mbedtls_configured: mbedtls/.mbedtls_downloaded
 RUST_LIB_DIR := ./rustlib/target/release
 # TODO: use `$(shell pkg-config --cflags mbedtls_gramine)` instead of local mbedtls includes
 CFLAGS += -I./mbedtls/include
+CXXFLAGS := $(CFLAGS) -std=c++11
 LDFLAGS += -ldl -Wl,--enable-new-dtags $(shell pkg-config --libs mbedtls_gramine)
 SERVER_LDFLAGS := $(LDFLAGS) -L$(RUST_LIB_DIR) -lgramine_task -lpthread
 
 libgramine_task.a: ./rustlib/src/lib.rs ./rustlib/Cargo.toml
 	@cd rustlib && cargo build --release --features=$(TASK)
 
-server: src/server.c mbedtls/.mbedtls_configured libgramine_task.a
-	@$(CC) src/server.c mbedtls/.mbedtls_configured $(CFLAGS) $(SERVER_LDFLAGS) -o $@
+server: src/server.cc mbedtls/.mbedtls_configured libgramine_task.a
+	@$(CXX) src/server.cc mbedtls/.mbedtls_configured $(CXXFLAGS) $(SERVER_LDFLAGS) -o $@
 
-client: src/client.c mbedtls/.mbedtls_configured
-	@$(CC) $< $(CFLAGS) $(LDFLAGS) -o $@
+client: src/client.cc mbedtls/.mbedtls_configured
+	@$(CXX) $< $(CXXFLAGS) $(LDFLAGS) -o $@
 
 ############################### SERVER MANIFEST ###############################
 
