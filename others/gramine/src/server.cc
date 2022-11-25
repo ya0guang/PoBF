@@ -18,7 +18,9 @@
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
+#include <thread>
 
 #define mbedtls_fprintf fprintf
 #define mbedtls_printf printf
@@ -35,21 +37,12 @@
  * keypair and X.509 cert */
 int (*ra_tls_create_key_and_crt_der_f)(uint8_t** der_key, size_t* der_key_size,
                                        uint8_t** der_crt, size_t* der_crt_size);
+typedef int (*ra_tls_func_ptr)(uint8_t**, size_t*, uint8_t**, size_t*);
 
 /* The external function in Rust. */
-// //     input: *const u8,
-//     input_len: u32,
-//     output: *mut u8,
-//     output_buf_len: u32,
-//     output_len: *mut u32,
-int gramine_rust_entry(const uint8_t* input, uint32_t input_len,
-                       uint8_t* output, uint32_t output_buf_len,
-                       uint32_t* output_len);
-
-#define HTTP_RESPONSE                                  \
-  "HTTP/1.0 200 OK\r\nContent-Type: text/html\r\n\r\n" \
-  "<h2>mbed TLS Test Server</h2>\r\n"                  \
-  "<p>Successful connection using: %s</p>\r\n"
+extern "C" int gramine_rust_entry(const uint8_t* input, uint32_t input_len,
+                                  uint8_t* output, uint32_t output_buf_len,
+                                  uint32_t* output_len);
 
 #define DEBUG_LEVEL 0
 
@@ -58,14 +51,6 @@ int gramine_rust_entry(const uint8_t* input, uint32_t input_len,
 #define CA_CRT_PATH "ssl/ca.crt"
 #define SRV_CRT_PATH "ssl/server.crt"
 #define SRV_KEY_PATH "ssl/server.key"
-
-static void my_debug(void* ctx, int level, const char* file, int line,
-                     const char* str) {
-  ((void)level);
-
-  mbedtls_fprintf((FILE*)ctx, "%s:%04d: %s\n", file, line, str);
-  fflush((FILE*)ctx);
-}
 
 static ssize_t file_read(const char* path, char* buf, size_t count) {
   FILE* f = fopen(path, "r");
@@ -84,12 +69,117 @@ static ssize_t file_read(const char* path, char* buf, size_t count) {
   return bytes;
 }
 
+static int handler(mbedtls_net_context* listen_fd, mbedtls_ssl_context ssl) {
+  int ret = 0;
+  mbedtls_printf("  . Performing the SSL/TLS handshake...");
+
+  while ((ret = mbedtls_ssl_handshake(&ssl)) != 0) {
+    if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
+      mbedtls_printf(" failed\n  ! mbedtls_ssl_handshake returned %d\n\n", ret);
+      fflush(stdout);
+
+      char error_buf[100];
+      mbedtls_strerror(ret, error_buf, sizeof(error_buf));
+      mbedtls_printf("Last error was: %d - %s\n\n", ret, error_buf);
+      fflush(stdout);
+
+      return ret;
+    }
+  }
+
+  mbedtls_printf(" ok\n");
+  fflush(stdout);
+  mbedtls_printf("  < Read from client:");
+  fflush(stdout);
+
+  uint8_t buf[1024];
+  size_t len = 0;
+  uint32_t round = 0;
+  uint32_t input_len = 0;
+  uint8_t* input_data = NULL;
+  uint8_t output[4096];
+  uint32_t output_len = 0;
+  do {
+    if (round == 0) {
+      /* The client first sends the length of the data, then sends the data. */
+      /* Always allocating data on the stack would cause stack overflow. */
+      len = sizeof(buf) - 1;
+      memset(buf, 0, sizeof(buf));
+      ret = mbedtls_ssl_read(&ssl, buf, len);
+    } else if (round == 1) {
+      input_data = (uint8_t*)(malloc(input_len));
+      memset(input_data, 0, input_len);
+      ret = mbedtls_ssl_read(&ssl, input_data, input_len);
+    }
+
+    if (ret == MBEDTLS_ERR_SSL_WANT_READ || ret == MBEDTLS_ERR_SSL_WANT_WRITE)
+      continue;
+
+    if (ret <= 0) {
+      switch (ret) {
+        case MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY:
+          mbedtls_printf(" connection was closed gracefully\n");
+          break;
+
+        case MBEDTLS_ERR_NET_CONN_RESET:
+          mbedtls_printf(" connection was reset by peer\n");
+          break;
+
+        default:
+          mbedtls_printf(" mbedtls_ssl_read returned -0x%x\n", -ret);
+          break;
+      }
+
+      break;
+    }
+
+    len = ret;
+    mbedtls_printf(" %lu bytes read.", len);
+
+    if (round == 0) {
+      input_len = atol((char*)buf);
+      mbedtls_printf(" the input length is %u.\n", input_len);
+      fflush(stdout);
+
+      round++;
+    } else if (round == 1) {
+      ret =
+          gramine_rust_entry(input_data, input_len, output, 4096, &output_len);
+      if (ret != 0) {
+        mbedtls_printf(" error calling `gramine_rust_entry`!");
+        fflush(stdout);
+      }
+
+      free(input_data);
+      break;
+    }
+  } while (1);
+
+  mbedtls_printf("  > Write to client:");
+  fflush(stdout);
+
+  while ((ret = mbedtls_ssl_write(&ssl, output, output_len)) <= 0) {
+    if (ret == MBEDTLS_ERR_NET_CONN_RESET) {
+      mbedtls_printf(" failed\n  ! peer closed the connection\n\n");
+      return ret;
+    }
+
+    if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
+      mbedtls_printf(" failed\n  ! mbedtls_ssl_write returned %d\n\n", ret);
+      return ret;
+    }
+  }
+
+  mbedtls_printf(" ok\n");
+
+  // Do cleanups.
+  mbedtls_ssl_session_reset(&ssl);
+  return 0;
+}
+
 int main(int argc, char** argv) {
-  int ret;
-  size_t len;
+  int ret = 0;
   mbedtls_net_context listen_fd;
-  mbedtls_net_context client_fd;
-  unsigned char buf[1024];
   const char* pers = "ssl_server";
   void* ra_tls_attest_lib;
 
@@ -98,23 +188,16 @@ int main(int argc, char** argv) {
 
   mbedtls_entropy_context entropy;
   mbedtls_ctr_drbg_context ctr_drbg;
-  mbedtls_ssl_context ssl;
   mbedtls_ssl_config conf;
   mbedtls_x509_crt srvcert;
   mbedtls_pk_context pkey;
 
   mbedtls_net_init(&listen_fd);
-  mbedtls_net_init(&client_fd);
-  mbedtls_ssl_init(&ssl);
   mbedtls_ssl_config_init(&conf);
   mbedtls_x509_crt_init(&srvcert);
   mbedtls_pk_init(&pkey);
   mbedtls_entropy_init(&entropy);
   mbedtls_ctr_drbg_init(&ctr_drbg);
-
-#if defined(MBEDTLS_DEBUG_C)
-  mbedtls_debug_set_threshold(DEBUG_LEVEL);
-#endif
 
   char attestation_type_str[32] = {0};
   ret = file_read("/dev/attestation/attestation_type", attestation_type_str,
@@ -138,8 +221,8 @@ int main(int argc, char** argv) {
     }
 
     char* error;
-    ra_tls_create_key_and_crt_der_f =
-        dlsym(ra_tls_attest_lib, "ra_tls_create_key_and_crt_der");
+    ra_tls_create_key_and_crt_der_f = reinterpret_cast<ra_tls_func_ptr>(
+        dlsym(ra_tls_attest_lib, "ra_tls_create_key_and_crt_der"));
     if ((error = dlerror()) != NULL) {
       mbedtls_printf("%s\n", error);
       return 1;
@@ -199,39 +282,7 @@ int main(int argc, char** argv) {
     mbedtls_printf(" ok\n");
 
     if (argc > 1) {
-      if (strcmp(argv[1], "--test-malicious-quote") != 0) {
-        mbedtls_printf(
-            "Unrecognized command-line argument `%s` (only "
-            "`--test-malicious-quote` is recognized)\n",
-            argv[1]);
-        return 1;
-      }
-
-      /* user asks to maliciously modify the embedded SGX quote (for testing
-       * purposes) */
-      mbedtls_printf(
-          "  . Maliciously modifying SGX quote embedded in RA-TLS cert...");
-      fflush(stdout);
-
-      uint8_t oid[] = {0x06, 0x09, 0x2A, 0x86, 0x48, 0x86,
-                       0xF8, 0x4D, 0x8A, 0x39, 0x06};
-      uint8_t* p =
-          memmem(srvcert.v3_ext.p, srvcert.v3_ext.len, oid, sizeof(oid));
-      if (!p) {
-        mbedtls_printf(" failed\n  !  No embedded SGX quote found\n\n");
-        goto exit;
-      }
-
-      p += sizeof(oid);
-      p += 5; /* jump somewhere in the middle of the SGX quote */
-      if (p + sizeof(MALICIOUS_STR) > srvcert.v3_ext.p + srvcert.v3_ext.len) {
-        mbedtls_printf(
-            " failed\n  !  Size of embedded SGX quote is too small\n\n");
-        goto exit;
-      }
-
-      memcpy(p, MALICIOUS_STR, sizeof(MALICIOUS_STR));
-      mbedtls_printf(" ok\n");
+      // TODO. Add file path.
     }
   } else {
     mbedtls_printf("\n  . Creating normal server cert and key...");
@@ -262,10 +313,10 @@ int main(int argc, char** argv) {
     mbedtls_printf(" ok\n");
   }
 
-  mbedtls_printf("  . Bind on https://localhost:4433/ ...");
+  mbedtls_printf("  . Bind on https://localhost:2333/ ...");
   fflush(stdout);
 
-  ret = mbedtls_net_bind(&listen_fd, NULL, "4433", MBEDTLS_NET_PROTO_TCP);
+  ret = mbedtls_net_bind(&listen_fd, NULL, "2333", MBEDTLS_NET_PROTO_TCP);
   if (ret != 0) {
     mbedtls_printf(" failed\n  ! mbedtls_net_bind returned %d\n\n", ret);
     goto exit;
@@ -273,7 +324,7 @@ int main(int argc, char** argv) {
 
   mbedtls_printf(" ok\n");
 
-  mbedtls_printf("  . Setting up the SSL data....");
+  mbedtls_printf("  . Setting up the SSL configuration....");
   fflush(stdout);
 
   ret = mbedtls_ssl_config_defaults(&conf, MBEDTLS_SSL_IS_SERVER,
@@ -286,7 +337,6 @@ int main(int argc, char** argv) {
   }
 
   mbedtls_ssl_conf_rng(&conf, mbedtls_ctr_drbg_random, &ctr_drbg);
-  mbedtls_ssl_conf_dbg(&conf, my_debug, stdout);
 
   if (!ra_tls_attest_lib) {
     /* no RA-TLS attest library present, use embedded CA chain */
@@ -300,146 +350,46 @@ int main(int argc, char** argv) {
     goto exit;
   }
 
-  ret = mbedtls_ssl_setup(&ssl, &conf);
-  if (ret != 0) {
-    mbedtls_printf(" failed\n  ! mbedtls_ssl_setup returned %d\n\n", ret);
-    goto exit;
-  }
-
   mbedtls_printf(" ok\n");
+  fflush(stdout);
 
 reset:
-#ifdef MBEDTLS_ERROR_C
-  if (ret != 0) {
-    char error_buf[100];
-    mbedtls_strerror(ret, error_buf, sizeof(error_buf));
-    mbedtls_printf("Last error was: %d - %s\n\n", ret, error_buf);
-  }
-#endif
+  // Create a thread pool for handling different connections.
+  while (true) {
+    mbedtls_printf("  . Waiting for a remote connection ...\n");
+    fflush(stdout);
 
-  mbedtls_net_free(&client_fd);
-
-  mbedtls_ssl_session_reset(&ssl);
-
-  mbedtls_printf("  . Waiting for a remote connection ...");
-  fflush(stdout);
-
-  ret = mbedtls_net_accept(&listen_fd, &client_fd, NULL, 0, NULL);
-  if (ret != 0) {
-    mbedtls_printf(" failed\n  ! mbedtls_net_accept returned %d\n\n", ret);
-    goto exit;
-  }
-
-  mbedtls_ssl_set_bio(&ssl, &client_fd, mbedtls_net_send, mbedtls_net_recv,
-                      NULL);
-
-  mbedtls_printf(" ok\n");
-
-  mbedtls_printf("  . Performing the SSL/TLS handshake...");
-  fflush(stdout);
-
-  while ((ret = mbedtls_ssl_handshake(&ssl)) != 0) {
-    if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
-      mbedtls_printf(" failed\n  ! mbedtls_ssl_handshake returned %d\n\n", ret);
-      goto reset;
-    }
-  }
-
-  mbedtls_printf(" ok\n");
-
-  mbedtls_printf("  < Read from client:");
-  fflush(stdout);
-
-  /* Test if Rust entry function works. */
-  uint8_t input_buf[1024] = {0};
-  uint8_t output_buf[1024] = {0};
-  uint32_t outlen = 0;
-  int retval = gramine_rust_entry(input_buf, 1024, output_buf, 1024, &outlen);
-
-  do {
-    len = sizeof(buf) - 1;
-    memset(buf, 0, sizeof(buf));
-    ret = mbedtls_ssl_read(&ssl, buf, len);
-
-    if (ret == MBEDTLS_ERR_SSL_WANT_READ || ret == MBEDTLS_ERR_SSL_WANT_WRITE)
-      continue;
-
-    if (ret <= 0) {
-      switch (ret) {
-        case MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY:
-          mbedtls_printf(" connection was closed gracefully\n");
-          break;
-
-        case MBEDTLS_ERR_NET_CONN_RESET:
-          mbedtls_printf(" connection was reset by peer\n");
-          break;
-
-        default:
-          mbedtls_printf(" mbedtls_ssl_read returned -0x%x\n", -ret);
-          break;
-      }
-
-      break;
+    mbedtls_ssl_context ssl;
+    mbedtls_net_context client;
+    mbedtls_ssl_init(&ssl);
+    // Setup the SSL tunnel.
+    ret = mbedtls_ssl_setup(&ssl, &conf);
+    if (ret != 0) {
+      mbedtls_printf(" failed\n  ! mbedtls_ssl_setup returned %d\n\n", ret);
+      fflush(stdout);
     }
 
-    len = ret;
-    mbedtls_printf(" %lu bytes read\n\n%s", len, (char*)buf);
+    ret = mbedtls_net_accept(&listen_fd, &client, NULL, 0, NULL);
+    if (ret != 0) {
+      mbedtls_printf(" failed\n  ! mbedtls_net_accept returned %d\n\n", ret);
+    } else {
+      mbedtls_ssl_set_bio(&ssl, &client, mbedtls_net_send, mbedtls_net_recv,
+                          NULL);
+      mbedtls_printf(" ok\n");
+      fflush(stdout);
 
-    if (ret > 0) break;
-  } while (1);
-
-  mbedtls_printf("  > Write to client:");
-  fflush(stdout);
-
-  len = sprintf((char*)buf, HTTP_RESPONSE, mbedtls_ssl_get_ciphersuite(&ssl));
-
-  while ((ret = mbedtls_ssl_write(&ssl, buf, len)) <= 0) {
-    if (ret == MBEDTLS_ERR_NET_CONN_RESET) {
-      mbedtls_printf(" failed\n  ! peer closed the connection\n\n");
-      goto reset;
-    }
-
-    if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
-      mbedtls_printf(" failed\n  ! mbedtls_ssl_write returned %d\n\n", ret);
-      goto exit;
+      std::thread t(handler, &listen_fd, ssl);
+      t.detach();
     }
   }
-
-  len = ret;
-  mbedtls_printf(" %lu bytes written\n\n%s\n", len, (char*)buf);
-
-  mbedtls_printf("  . Closing the connection...");
-
-  while ((ret = mbedtls_ssl_close_notify(&ssl)) < 0) {
-    if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
-      mbedtls_printf(" failed\n  ! mbedtls_ssl_close_notify returned %d\n\n",
-                     ret);
-      goto reset;
-    }
-  }
-
-  mbedtls_printf(" ok\n");
-
-  ret = 0;
-  goto reset;
 
 exit:
-#ifdef MBEDTLS_ERROR_C
-  if (ret != 0) {
-    char error_buf[100];
-    mbedtls_strerror(ret, error_buf, sizeof(error_buf));
-    mbedtls_printf("Last error was: %d - %s\n\n", ret, error_buf);
-  }
-#endif
-
   if (ra_tls_attest_lib) dlclose(ra_tls_attest_lib);
 
-  mbedtls_net_free(&client_fd);
   mbedtls_net_free(&listen_fd);
 
   mbedtls_x509_crt_free(&srvcert);
   mbedtls_pk_free(&pkey);
-  mbedtls_ssl_free(&ssl);
   mbedtls_ssl_config_free(&conf);
   mbedtls_ctr_drbg_free(&ctr_drbg);
   mbedtls_entropy_free(&entropy);
