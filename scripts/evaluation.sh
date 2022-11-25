@@ -19,6 +19,11 @@ for task in "${tasks[@]}"; do
     mkdir -p eval/"$task"/rust
 done
 
+# Build data provider first.
+pushd data_provider > /dev/null
+cargo build --release
+popd > /dev/null
+
 echo -e "$MAGENTA[+] Building TVM runtime for native Rust program...$NC"
 pushd others/rust/evaluation_tvm/model_deploy > /dev/null
 make -j
@@ -91,7 +96,7 @@ for task in "${tasks[@]}"; do
     cp ./output.txt ../../data/"$task"/result_pobf.txt
     popd > /dev/null
     
-    killall app
+    kill %%
     wait
     echo -e "$MAGENTA  [+] Finished!$NC"
 done
@@ -112,7 +117,7 @@ for task in "${tasks[@]}"; do
     cp ./output.txt ../../data/"$task"/result_native_enclave.txt
     popd > /dev/null
     
-    killall app
+    kill %%
     wait
     echo -e "$MAGENTA  [+] Finished!$NC"
 done

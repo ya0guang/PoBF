@@ -20,12 +20,16 @@ RUN apt update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt install -y \
   git \
   wget \
   python3 \
-  python3-pip \
-  cmake
-RUN pip3 install coloredlogs
+  python3-pip
+
+RUN mkdir /tmp/cmake_install
+WORKDIR /tmp/cmake_install
+RUN wget -O ./install.sh https://github.com/Kitware/CMake/releases/download/v3.25.0/cmake-3.25.0-linux-x86_64.sh && chmod +x ./install.sh
+RUN ./install.sh --skip-license --exclude-subdir --prefix=/usr/local
+WORKDIR /root
+RUN rm -r /tmp/cmake_install
 
 RUN echo 'deb [arch=amd64] https://download.01.org/intel-sgx/sgx_repo/ubuntu focal main' | tee /etc/apt/sources.list.d/intel-sgx.list
-
 RUN wget -qO - https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.key | apt-key add
 
 RUN apt update && apt install -y \
@@ -81,5 +85,29 @@ WORKDIR /root/MIRAI
 RUN git checkout ${MIRAI_COMMIT}
 RUN source "$HOME/.cargo/env" && rustup override set ${RUST_TOOLCHAIN}
 RUN source "$HOME/.cargo/env" && cargo install --locked --path ./checker
+
+WORKDIR /root
+RUN git clone https://github.com/apache/tvm.git
+WORKDIR /root/tvm
+RUN git submodule init && git submodule update
+RUN apt update && \
+    apt install -y \
+        python3-dev \
+        python3-setuptools \
+        gcc \
+        libtinfo-dev \
+        zlib1g-dev \
+        libedit-dev \
+        libxml2-dev \
+        llvm
+
+RUN mkdir build && cp cmake/config.cmake build
+WORKDIR /root/tvm/build
+RUN sed -i -e 's/USE_LLVM\sOFF/USE_LLVM ON/g' config.cmake
+RUN sed -i -e 's/USE_MICRO\sOFF/USE_MICRO ON/g' config.cmake
+RUN sed -i -e 's/USE_MICRO_STANDALONE_RUNTIME\sOFF/USE_MICRO_STANDALONE_RUNTIME ON/g' config.cmake
+RUN cmake .. && make -j$((`nproc`+1))
+
+WORKDIR /root
 
 ENTRYPOINT ["bash", "-l", "-c"]

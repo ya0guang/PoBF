@@ -1,0 +1,7 @@
+/OUTPUT
+/secret_prov/client
+/secret_prov/server_epid
+/secret_prov/server_dcap
+
+/ssl/ca.*
+/ssl/server.*
