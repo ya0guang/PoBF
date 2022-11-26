@@ -77,12 +77,19 @@ RUST_LIB_DIR := ./rustlib/target/release
 CFLAGS += -I./mbedtls/include
 CXXFLAGS := $(CFLAGS) -std=c++11
 LDFLAGS += -ldl -Wl,--enable-new-dtags $(shell pkg-config --libs mbedtls_gramine)
-SERVER_LDFLAGS := $(LDFLAGS) -L$(RUST_LIB_DIR) -lgramine_task -lpthread
+SERVER_LDFLAGS = $(LDFLAGS) -L$(RUST_LIB_DIR) -lgramine_task -lpthread
+
+ifeq ($(TASK), task_tvm)
+	SERVER_LDFLAGS += -L../evaluation_tvm/target/release -levaluation_tvm
+endif
 
 libgramine_task.a: ./rustlib/src/lib.rs ./rustlib/Cargo.toml
-	@cd rustlib && cargo build --release --features=$(TASK)
+	@cd rustlib && RUSTFLAGS="-C link-args=-pie" cargo build --release --features=$(TASK)
 
-server: src/server.cc mbedtls/.mbedtls_configured libgramine_task.a
+libevaluation_tvm.a: ../evaluation_tvm/src/lib.rs ../evaluation_tvm/build.rs ../evaluation_tvm/Cargo.toml
+	@cd ../evaluation_tvm && RUSTFLAGS="-C link-args=-pie" cargo build --release
+
+server: src/server.cc mbedtls/.mbedtls_configured libgramine_task.a libevaluation_tvm.a
 	@$(CXX) src/server.cc mbedtls/.mbedtls_configured $(CXXFLAGS) $(SERVER_LDFLAGS) -o $@
 
 client: src/client.cc mbedtls/.mbedtls_configured
