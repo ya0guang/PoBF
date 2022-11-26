@@ -158,7 +158,7 @@ int main(int argc, char** argv) {
   int exit_code = MBEDTLS_EXIT_FAILURE;
   mbedtls_net_context server_fd;
   uint32_t flags;
-  unsigned char buf[4096];
+  unsigned char* buf = (unsigned char*)(malloc(262144));
   const char* pers = "ssl_client1";
   bool in_sgx = getenv_client_inside_sgx();
 
@@ -465,7 +465,7 @@ int main(int argc, char** argv) {
   do {
     len = sizeof(buf) - 1;
     memset(buf, 0, sizeof(buf));
-    ret = mbedtls_ssl_read(&ssl, buf, len);
+    ret = mbedtls_ssl_read(&ssl, buf, 262144);
 
     if (ret == MBEDTLS_ERR_SSL_WANT_READ || ret == MBEDTLS_ERR_SSL_WANT_WRITE)
       continue;
@@ -484,6 +484,7 @@ int main(int argc, char** argv) {
 
     len = ret;
     mbedtls_printf(" %lu bytes read\n\n%s", len, (char*)buf);
+    break;
   } while (1);
 
   mbedtls_ssl_close_notify(&ssl);
@@ -494,8 +495,8 @@ exit:
     dlclose(ra_tls_verify_lib);
   }
 
+  free(buf);
   mbedtls_net_free(&server_fd);
-
   mbedtls_x509_crt_free(&cacert);
   mbedtls_ssl_free(&ssl);
   mbedtls_ssl_config_free(&conf);

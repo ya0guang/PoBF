@@ -33,7 +33,7 @@ pub unsafe extern "C" fn gramine_rust_entry(
                 .unwrap()
                 .as_nanos() as u64
         });
-        println!("{}", String::from_utf8(res).unwrap());
+        println!("{}", String::from_utf8(res.clone()).unwrap());
         res
     };
 
@@ -44,7 +44,11 @@ pub unsafe extern "C" fn gramine_rust_entry(
     println!("Elapsed: {:.2?}", elapsed);
 
     if output_buf.len() > output_buf_len as usize {
-        println!("[!] The buffer size is insufficient!");
+        println!(
+            "[!] The buffer size is insufficient! Expected {}, got {}.",
+            output_buf.len(),
+            output_buf_len
+        );
         -1
     } else {
         std::ptr::copy(output_buf.as_ptr(), output, output_buf.len());

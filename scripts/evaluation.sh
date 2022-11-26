@@ -25,10 +25,9 @@ pushd data_provider > /dev/null
 cargo build --release
 popd > /dev/null
 
-echo -e "$MAGENTA[+] Building TVM runtime for native Rust program...$NC"
-pushd others/rust/evaluation_tvm/model_deploy > /dev/null
-make -j
-popd > /dev/null
+echo -e "$MAGENTA[+] Building TVM runtime for PoBF and others...$NC"
+make -C others/evaluation_tvm/model_deploy -j
+make -C cctasks/evaluation_tvm/model_deploy -j
 
 # Build different Rust programs for different tasks.
 for task in "${tasks[@]}"; do
@@ -41,6 +40,26 @@ for task in "${tasks[@]}"; do
         popd > /dev/null
         
         echo -e "$MAGENTA[+] Finished!$NC"
+    else
+        echo -e "$MAGENTA[+] File exists. Skipped!$NC"
+    fi
+done
+
+# Build Gramine backbone.
+for task in "${tasks[@]}"; do
+    if [[ ! -f eval/$task/gramine/server || ! -f eval/$task/gramine/client ||
+        ! -d eval/$task/gramine/ssl ]]; then
+        echo -e "$MAGENTA[+] Building Gramine server and client for $task...$NC"
+        pushd others/gramine > /dev/null
+        make clean
+        make app dcap TASK=$task RA_TYPE=dcap -j$((`nproc`+1)) > ../../data/$task/gramine_meta.txt
+        cp ./server* ../../eval/$task/gramine
+        cp ./client* ../../eval/$task/gramine
+        cp -r ./ssl  ../../eval/$task/gramine
+        popd > /dev/null
+        echo -e "$MAGENTA[+] Finished!$NC"
+    else
+        echo -e "$MAGENTA[+] File exists. Skipped!$NC"
     fi
 done
 
@@ -49,7 +68,7 @@ for task in "${tasks[@]}"; do
     if [[ ! -f eval/$task/native_enclave/app ||
         ! -f eval/$task/native_enclave/enclave.signed.so ]]; then
         echo -e "$MAGENTA[+] Building native enclave for $task...$NC"
-        SGX_MODE=HW TASK=$task NATIVE_ENCLAVE=1 make -j
+        make -j SGX_MODE=HW TASK=$task NATIVE_ENCLAVE=1 
         cp platform_sgx/bin/{app,enclave.signed.so} eval/$task/native_enclave
         echo -e "$MAGENTA[+] Finished!$NC"
     else
@@ -59,10 +78,9 @@ done
 
 # Build different PoBF enclaves for different tasks.
 for task in "${tasks[@]}"; do
-
     if [[ ! -f eval/$task/pobf/app || ! -f eval/$task/pobf/enclave.signed.so ]]; then
         echo -e "$MAGENTA[+] Building enclave for $task...$NC"
-        SGX_MODE=HW TASK=$task NATIVE_ENCLAVE=0 make -j
+        make -j SGX_MODE=HW TASK=$task NATIVE_ENCLAVE=0 
         cp platform_sgx/bin/{app,enclave.signed.so} eval/$task/pobf
         echo -e "$MAGENTA[+] Finished!$NC"
     else
@@ -70,29 +88,52 @@ for task in "${tasks[@]}"; do
     fi
 done
 
-# Build Gramine backbone.
-pushd others/gramine > /dev/null
-make clean
-make app dcap RA_TYPE=dcap -j$((`nproc`+1)) > /tmp/meta.txt
-# Get config keys.
-mr_enclave=$(awk '/mr_enclave/ { print $2 }' /tmp/meta.txt | head -1)
-mr_signer=$(awk '/mr_signer/ { print $2 }' /tmp/meta.txt | head -1)
-isv_prod_id=$(awk '/isv_prod_id/ { print $2 }' /tmp/meta.txt | head -1)
-isv_svn=$(awk '/isv_svn/ { print $2 }' /tmp/meta.txt | head -1)
-rm -r /tmp/meta.txt
-
-# Build its Rust tasks.
-
-popd > /dev/null
-
 # Doing evaluations on Rust programs.
 for task in "${tasks[@]}"; do
     echo -e "$MAGENTA[-] Testing Rust program for $task...$NC"
 
     pushd eval/"$task"/rust > /dev/null
-    { time ./app; } > ../../../data/"$task"/output_enclave_rust.txt 2>&1
+    { time ./app; } > ../../../data/"$task"/output_rust.txt 2>&1
+    popd > /dev/null
+
+    echo -e "$MAGENTA  [+] Finished!$NC"
+done
+
+# Doing evaluations on Gramine.
+for task in "${tasks[@]}"; do
+    echo -e "$MAGENTA[-] Testing Gramine for $task...$NC"
+    
+    pushd eval/"$task"/gramine > /dev/null
+    
+    { time gramine-sgx ./server; } > ../../../data/"$task"/output_enclave_gramine.txt 2>&1 &
+    pid=$!
+    # Wait for the server.
+    while true ; do
+        if grep -q "Waiting for a remote connection" \
+        ../../../data/"$task"/output_enclave_gramine.txt; then
+            break
+        fi
+        
+        sleep 1
+    done
+    
+    export RA_TLS_ALLOW_DEBUG_ENCLAVE_INSECURE=1
+    export RA_TLS_ALLOW_OUTDATED_TCB_INSECURE=1
+    export RA_TLS_MRENCLAVE=$(awk '/mr_enclave/ { print $2 }' ../../../data/$task/gramine_meta.txt | head -1)
+    export RA_TLS_MRSIGNER=$(awk '/mr_signer/ { print $2 }' ../../../data/$task/gramine_meta.txt | head -1)
+    export RA_TLS_ISV_PROD_ID=0
+    export RA_TLS_ISV_SVN=0
+    export DATA_PATH="../../../data/$task/data.bin"
+    ./client dcap > ../../../data/"$task"/output_data_provider_gramine.txt 2>&1
+    unset DATA_PATH
+    unset RA_TLS_MRENCLAVE
+    unset RA_TLS_MRSIGNER
+    
     popd > /dev/null
     
+    kill -9 $pid
+    fuser -k 2333/tcp
+    wait
     echo -e "$MAGENTA  [+] Finished!$NC"
 done
 
@@ -123,7 +164,7 @@ for task in "${tasks[@]}"; do
     
     # Start the enclave.
     pushd eval/"$task"/native_enclave > /dev/null
-    { time ./app $ADDRESS $PORT; } > ../../../data/"$task"/output_enclave_native_enclave.txt 2>&1 &
+    { time ./app $ADDRESS $PORT; } > ../../../data/"$task"/output_enclave_native.txt 2>&1 &
     sleep 1
     popd > /dev/null
     
