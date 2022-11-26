@@ -92,8 +92,8 @@ libevaluation_tvm.a: ../evaluation_tvm/src/lib.rs ../evaluation_tvm/build.rs ../
 server: src/server.cc mbedtls/.mbedtls_configured libgramine_task.a libevaluation_tvm.a
 	@$(CXX) src/server.cc mbedtls/.mbedtls_configured $(CXXFLAGS) $(SERVER_LDFLAGS) -o $@
 
-client: src/client.cc mbedtls/.mbedtls_configured
-	@$(CXX) $< $(CXXFLAGS) $(LDFLAGS) -o $@
+client: server src/client.cc mbedtls/.mbedtls_configured
+	@$(CXX) src/client.cc mbedtls/.mbedtls_configured $(CXXFLAGS) $(LDFLAGS) -o $@
 
 ############################### SERVER MANIFEST ###############################
 

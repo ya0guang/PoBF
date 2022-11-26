@@ -97,7 +97,7 @@ static int handler(mbedtls_net_context* listen_fd, mbedtls_ssl_context ssl) {
   uint32_t round = 0;
   uint32_t input_len = 0;
   uint8_t* input_data = NULL;
-  uint8_t output[4096];
+  uint8_t* output = (uint8_t*)(malloc(262144));
   uint32_t output_len = 0;
   do {
     if (round == 0) {
@@ -143,14 +143,15 @@ static int handler(mbedtls_net_context* listen_fd, mbedtls_ssl_context ssl) {
 
       round++;
     } else if (round == 1) {
-      ret =
-          gramine_rust_entry(input_data, input_len, output, 4096, &output_len);
+      ret = gramine_rust_entry(input_data, input_len, output, 262144,
+                               &output_len);
       if (ret != 0) {
         mbedtls_printf(" error calling `gramine_rust_entry`!");
         fflush(stdout);
       }
 
       free(input_data);
+      free(output);
       break;
     }
   } while (1);
