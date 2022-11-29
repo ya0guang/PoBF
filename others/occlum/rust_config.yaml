@@ -1,0 +1,11 @@
+includes:
+  - base.yaml
+targets:
+  - target: /bin
+    copy:
+      - files:
+        - ./eval/rust_app_task_sample
+        - ./eval/rust_app_task_tvm
+        - ./eval/rust_app_task_fasta
+        - ./eval/rust_app_task_fann
+        - ./eval/rust_app_task_polybench

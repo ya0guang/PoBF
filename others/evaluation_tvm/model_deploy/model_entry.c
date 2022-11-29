@@ -16,6 +16,7 @@
  */
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
 
 #include <tvm/runtime/c_runtime_api.h>
 
@@ -24,6 +25,14 @@
 #define OUTPUT_LEN 1000
 #define INPUT_LEN 1 * 3 * 224 * 224
 
+/* Fix musl. */
+int __fprintf_chk(void* stream, int flag, const char* format, ...) { return 0; }
+
+/* Fix musl. */
+int __vsnprintf_chk(char* s, size_t maxlen, int flag, size_t slen,
+                    const char* format, va_list args) {
+  return 0;
+}
 // Main entry for the Rust enclave to invoke the model.
 // The model is statically linked by the enclave, so everything is secret.
 int32_t tvm_resnet152_run(const uint8_t* json, size_t json_size,
