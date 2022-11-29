@@ -4,5 +4,8 @@ targets:
   - target: /bin
     copy:
       - files:
-        - ./rust_app/target/x86_64-unknown-linux-musl/release/server
-        - ./rust_app/target/x86_64-unknown-linux-musl/release/client
+        - ./eval/rust_app_task_sample
+        - ./eval/rust_app_task_tvm
+        - ./eval/rust_app_task_fasta
+        - ./eval/rust_app_task_fann
+        - ./eval/rust_app_task_polybench
