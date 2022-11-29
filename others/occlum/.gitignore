@@ -1,0 +1,6 @@
+image
+initfs
+.__occlum_status
+.sgx_mode
+build
+run
