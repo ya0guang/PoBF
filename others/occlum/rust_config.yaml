@@ -4,8 +4,9 @@ targets:
   - target: /bin
     copy:
       - files:
-        - ./eval/rust_app_task_sample
-        - ./eval/rust_app_task_tvm
-        - ./eval/rust_app_task_fasta
-        - ./eval/rust_app_task_fann
-        - ./eval/rust_app_task_polybench
+        - ./eval/server_task_sample
+        - ./eval/server_task_tvm
+        - ./eval/server_task_fasta
+        - ./eval/server_task_fann
+        - ./eval/server_task_polybench
+        - ./eval/client

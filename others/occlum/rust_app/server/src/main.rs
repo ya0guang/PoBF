@@ -1,29 +1,14 @@
 ///! Taken from https://github.com/occlum/occlum/blob/master/tools/toolchains/dcap_lib/examples/dcap_test.rs
 extern crate occlum_dcap;
 
-cfg_if::cfg_if! {
-  if #[cfg(feature = "task_tvm")] {
-      use evaluation_tvm::private_computation;
-      const INPUT_DATA: &'static [u8] = include_bytes!("../../../../data/task_tvm/data.bin");
-  } else if #[cfg(feature = "task_fann")] {
-      use fann::private_computation;
-      const INPUT_DATA: &'static [u8] = include_bytes!("../../../../data/task_fann/data.bin");
-  } else if #[cfg(feature = "task_fasta")] {
-      use fasta::private_computation;
-      const INPUT_DATA: &'static [u8] = include_bytes!("../../../../data/task_fasta/data.bin");
-  } else if #[cfg(feature = "task_polybench")] {
-      use polybench::private_computation;
-      const INPUT_DATA: &'static [u8] = include_bytes!("../../../../data/task_polybench/data.bin");
-  } else if #[cfg(feature = "task_sample")] {
-      use sample_add::private_computation;
-      const INPUT_DATA: &'static [u8] = include_bytes!("../../../../data/task_sample/data.bin");
-  }
-}
+mod task;
 
 use occlum_dcap::*;
 use std::io::Result;
-use std::time::*;
+use std::net::TcpListener;
 
+const ENCLAVE_TCS_NUM: usize = 10;
+const ADDRESS: &'static str = "127.0.0.1:7788";
 struct DcapDemo {
     dcap_quote: DcapQuote,
     quote_size: u32,
@@ -154,7 +139,7 @@ impl Drop for DcapDemo {
     }
 }
 
-fn main() {
+fn dcap_demo() {
     let report_str = "Dcap demo sample";
     let mut dcap_demo = DcapDemo::new(report_str);
 
@@ -193,26 +178,36 @@ fn main() {
             result
         ),
     }
+}
 
-    // Perform the task.
-    let now = Instant::now();
-    {
-        #[cfg(feature = "task_polybench")]
-        {
-            let res = private_computation(INPUT_DATA.to_vec(), &|| {
-                SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .unwrap()
-                    .as_nanos() as u64
-            });
-            println!("{}", String::from_utf8(res).unwrap());
+fn main() {
+    dcap_demo();
+    // Start listening to the port.
+    let listener = match TcpListener::bind(ADDRESS) {
+        Ok(res) => res,
+        Err(e) => {
+            panic!(
+                "[-] Failed to bind to the given address due to {}.",
+                e.to_string()
+            );
         }
+    };
 
-        #[cfg(not(feature = "task_polybench"))]
-        {
-            private_computation(INPUT_DATA.to_vec());
+    let pool = task::ThreadPool::new(ENCLAVE_TCS_NUM);
+
+    println!("Server started.");
+    loop {
+        match listener.accept() {
+            Ok((stream, _)) => {
+                if pool
+                    .execute(move || task::handle_client(stream).unwrap())
+                    .is_err()
+                {
+                    println!("[-] Job execution failed.");
+                    break;
+                }
+            }
+            Err(e) => panic!("[-] Failed! {:?}", e),
         }
     }
-    let elapsed = now.elapsed();
-    println!("Elapsed: {:.2?}", elapsed);
 }

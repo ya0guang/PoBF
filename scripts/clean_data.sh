@@ -8,6 +8,7 @@ declare -a tasks=("task_tvm" "task_fann" "task_fasta" "task_polybench" "task_sam
 # Clean outputs.
 for task in "${tasks[@]}"; do
     rm -r ./eval > /dev/null 2>&1
+    rm -r others/occlum/eval > /dev/null 2>&1
     rm -r data/"$task"/output* > /dev/null 2>&1
     rm -r data/"$task"/result* > /dev/null 2>&1
 done
