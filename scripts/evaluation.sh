@@ -18,6 +18,7 @@ for task in "${tasks[@]}"; do
     mkdir -p eval/"$task"/native_enclave
     mkdir -p eval/"$task"/rust
     mkdir -p eval/"$task"/gramine
+    mkdir -p eval/"$task"/occlum
 done
 
 # Build data provider first.
@@ -45,6 +46,27 @@ for task in "${tasks[@]}"; do
     fi
 done
 
+# Build Occlum Rust.
+pushd others/occlum > /dev/null
+mkdir -p "eval"
+for task in "${tasks[@]}"; do
+    if [[ ! -f eval/rust_app_$task ]]; then
+        echo -e "$MAGENTA[+] Building Occlum LibOS for $task...$NC"
+        pushd rust_app > /dev/null
+        occlum-cargo build --release --features=$task
+        cp target/x86_64-unknown-linux-musl/release/rust_app ../eval/rust_app_$task
+        popd > /dev/null
+        echo -e "$MAGENTA[+] Finished!$NC"
+    else
+        echo -e "$MAGENTA[+] File exists. Skipped!$NC"
+    fi
+done
+
+rm -rf build
+copy_bom -f ./rust_config.yaml --root image --include-dir /opt/occlum/etc/template
+occlum build
+popd > /dev/null
+
 # Build Gramine backbone.
 for task in "${tasks[@]}"; do
     if [[ ! -f eval/$task/gramine/server || ! -f eval/$task/gramine/client ||
@@ -68,7 +90,7 @@ for task in "${tasks[@]}"; do
     if [[ ! -f eval/$task/native_enclave/app ||
         ! -f eval/$task/native_enclave/enclave.signed.so ]]; then
         echo -e "$MAGENTA[+] Building native enclave for $task...$NC"
-        make -j SGX_MODE=HW TASK=$task NATIVE_ENCLAVE=1 
+        make -j SGX_MODE=HW TASK=$task NATIVE_ENCLAVE=1
         cp platform_sgx/bin/{app,enclave.signed.so} eval/$task/native_enclave
         echo -e "$MAGENTA[+] Finished!$NC"
     else
@@ -80,7 +102,7 @@ done
 for task in "${tasks[@]}"; do
     if [[ ! -f eval/$task/pobf/app || ! -f eval/$task/pobf/enclave.signed.so ]]; then
         echo -e "$MAGENTA[+] Building enclave for $task...$NC"
-        make -j SGX_MODE=HW TASK=$task NATIVE_ENCLAVE=0 
+        make -j SGX_MODE=HW TASK=$task NATIVE_ENCLAVE=0
         cp platform_sgx/bin/{app,enclave.signed.so} eval/$task/pobf
         echo -e "$MAGENTA[+] Finished!$NC"
     else
@@ -91,13 +113,22 @@ done
 # Doing evaluations on Rust programs.
 for task in "${tasks[@]}"; do
     echo -e "$MAGENTA[-] Testing Rust program for $task...$NC"
-
+    
     pushd eval/"$task"/rust > /dev/null
     { time ./app; } > ../../../data/"$task"/output_rust.txt 2>&1
     popd > /dev/null
-
+    
     echo -e "$MAGENTA  [+] Finished!$NC"
 done
+
+# Doing evaluations on Occlum.
+pushd others/occlum > /dev/null
+for task in "${tasks[@]}"; do
+    echo -e "$MAGENTA[-] Testing Occlum for $task...$NC"
+    occlum run /bin/rust_app_$task > ../../data/$task/output_enclave_occlum.txt
+    echo -e "$MAGENTA  [+] Finished!$NC"
+done
+popd > /dev/null
 
 # Doing evaluations on Gramine.
 for task in "${tasks[@]}"; do

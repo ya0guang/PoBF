@@ -1,5 +1,23 @@
 # Source Files for Other Platforms
 
+## Tasks for `Occlum`
+You can install `Occlum` on the host machine by package manager.
+```sh
+$ echo 'deb [arch=amd64] https://occlum.io/occlum-package-repos/debian focal main' | tee /etc/apt/sources.list.d/occlum.list
+$ wget -qO - https://occlum.io/occlum-package-repos/debian/public.key | sudo apt-key add -
+$ sudo apt update
+$ sudo apt install -y --no-install-recommends occlum ca-certificates gnupg2 jq make gdb wget libfuse-dev libtool tzdata
+$ echo 'source /etc/profile' >> ~/.bashrc # or ~/.zshrc
+```
+
+Next, you will need to set up a the Occlum rust toolchain for Occlum.
+```sh
+$ wget https://raw.githubusercontent.com/occlum/occlum/master/tools/toolchains/rust/build.sh
+$ chmod +x ./build.sh
+$ sudo -E PATH="$HOME/.cargo/bin:$PATH" bash -c ./build.sh
+$ echo 'export PATH="/opt/occlum/toolchains/rust/bin:/opt/occlum/build/bin:$PATH"' >> ~/.bashrc # or ~/.zshrc
+```
+
 ## Tasks for `Gramine`
 The networking interface and remove attestation are integrated with `mbedtls` ported in shared libraries in the `Gramine` LibOS package. This project uses the RA-TLS libraries `ra_tls_attest.so` for server and `ra_tls_verify_epid.so`/ `ra_tls_verify_dcap.so` for client. These libraries are
 installed together with Gramine. For DCAP attestation, the DCAP software infrastructure must be installed and work correctly on the host by the corresponding kernel driver `/dev/isgx` or `/dev/sgx/enclave`.
