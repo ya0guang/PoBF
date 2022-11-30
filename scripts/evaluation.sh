@@ -50,16 +50,13 @@ done
 pushd others/occlum > /dev/null
 mkdir -p "eval"
 for task in "${tasks[@]}"; do
-    if [[ ! -f eval/rust_app_$task ]]; then
-        echo -e "$MAGENTA[+] Building Occlum LibOS for $task...$NC"
-        pushd rust_app > /dev/null
-        occlum-cargo build --release --features=$task
-        cp target/x86_64-unknown-linux-musl/release/rust_app ../eval/rust_app_$task
-        popd > /dev/null
-        echo -e "$MAGENTA[+] Finished!$NC"
-    else
-        echo -e "$MAGENTA[+] File exists. Skipped!$NC"
-    fi
+    echo -e "$MAGENTA[+] Building Occlum LibOS for $task...$NC"
+    pushd rust_app > /dev/null
+    occlum-cargo build --release --features=server/$task
+    cp target/x86_64-unknown-linux-musl/release/server ../eval/server_$task
+    cp target/x86_64-unknown-linux-musl/release/client ../eval/client
+    popd > /dev/null
+    echo -e "$MAGENTA[+] Finished!$NC"
 done
 
 rm -rf build
@@ -125,7 +122,22 @@ done
 pushd others/occlum > /dev/null
 for task in "${tasks[@]}"; do
     echo -e "$MAGENTA[-] Testing Occlum for $task...$NC"
-    occlum run /bin/rust_app_$task > ../../data/$task/output_enclave_occlum.txt
+    { time occlum run /bin/server_$task; } > ../../data/$task/output_enclave_occlum.txt 2>&1 &
+    pid=$!
+    # Wait for the server.
+    while true ; do
+        if grep -q "Server started" ../../data/$task/output_enclave_occlum.txt; then
+            break
+        fi
+        
+        sleep 1
+    done
+    
+    ./eval/client ../../data/$task/data.bin > ../../data/$task/output_data_provider_occlum.txt 2>&1
+    kill -9 $pid
+    fuser -k 7788/tcp
+    wait
+
     echo -e "$MAGENTA  [+] Finished!$NC"
 done
 popd > /dev/null

@@ -4,11 +4,11 @@
   <StackMinSize>0x4000000</StackMinSize>
   <StackMaxSize>0x4000000</StackMaxSize>
   <HeapMinSize>0x800000</HeapMinSize>
-  <HeapInitSize>0x80000000</HeapInitSize>
-  <HeapMaxSize>0x80000000</HeapMaxSize>
-  <TCSNum>10</TCSNum>
-  <TCSMinPool>16</TCSMinPool>
-  <TCSMaxNum>32</TCSMaxNum>
+  <HeapInitSize>0x100000000</HeapInitSize>
+  <HeapMaxSize>0x100000000</HeapMaxSize>
+  <TCSNum>1</TCSNum>
+  <TCSMinPool>1</TCSMinPool>
+  <TCSMaxNum>16</TCSMaxNum>
   <TCSPolicy>1</TCSPolicy>
   <!-- Recommend changing 'DisableDebug' to 1 to make the enclave undebuggable for enclave release -->
   <DisableDebug>0</DisableDebug>
@@ -16,7 +16,7 @@
   <MiscMask>0xFFFFFFFF</MiscMask>
   <ReservedMemMinSize> 0x800000</ReservedMemMinSize>
   <ReservedMemInitSize>0x800000</ReservedMemInitSize>
-  <ReservedMemMaxSize> 0x80000000</ReservedMemMaxSize>
+  <ReservedMemMaxSize> 0x100000000</ReservedMemMaxSize>
   <!-- On SGX1 platform, ReservedMemExecutable==1 means set reserved memory as read, write and execute (RWX) -->
   <ReservedMemExecutable>1</ReservedMemExecutable>
 </EnclaveConfiguration>
