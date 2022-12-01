@@ -5,3 +5,7 @@
 /server
 /ssl/ca.*
 /ssl/server.*
+*.token
+*.sig
+*.sgx
+*.manifest

@@ -10,12 +10,30 @@ $ sudo apt install -y --no-install-recommends occlum ca-certificates gnupg2 jq m
 $ echo 'source /etc/profile' >> ~/.bashrc # or ~/.zshrc
 ```
 
-Next, you will need to set up a the Occlum rust toolchain for Occlum.
+Next, you will need to set up the Rust toolchain for Occlum (musl backend).
 ```sh
 $ wget https://raw.githubusercontent.com/occlum/occlum/master/tools/toolchains/rust/build.sh
 $ chmod +x ./build.sh
 $ sudo -E PATH="$HOME/.cargo/bin:$PATH" bash -c ./build.sh
 $ echo 'export PATH="/opt/occlum/toolchains/rust/bin:/opt/occlum/build/bin:$PATH"' >> ~/.bashrc # or ~/.zshrc
+```
+
+By default, when you create an Occlum instance under `others/occlum`, it will generate a manifest file `Occlum.json` that overwrites the given settings. So you should backup the old `Occlum.json` and replace the newly generated file with the old one. Thereafter you can build rust apps by
+
+```sh
+$ mkdir 'eval'
+$ pushd ../rust_app
+# Build ALL tasks for Occlum.
+$ occlum-cargo build --release --features=server/[task_name],libos
+$ cp target/x86_64_unknown-linux-musl/release/server ../occlum/eval/server_[task_name]
+$ cp target/x86_64_unknown-linux-musl/release/client ../occlum/eval/client
+$ popd
+$ rm -rf build
+$ copy_bom -f ./rust_config.yaml --root image --include-dir /opt/occlum/etc/template
+$ occlum build
+$ occlum run /bin/server_[task_name] &
+$ ./eval/client [data_path]
+$ fuser -k 7788/tcp
 ```
 
 ## Tasks for `Gramine`
@@ -44,6 +62,8 @@ $ RA_TLS_ALLOW_DEBUG_ENCLAVE_INSECURE=1 \
   RA_TLS_ISV_SVN=0 \
   DATA_PATH=[The path to data.bin]
   ./client dcap
+$ kill %%
+$ rm /tmp/meta.txt
 ```
 
 We write the core functionalities in Rust (in `rustlib` and `cctasks`) and utilize the attestation framework offered by `Gramine`. The layout is illustrated below.
@@ -56,10 +76,10 @@ server --------> Rust library interfaces (private_computation) --------> Rust cc
 
 ## Bare Rust Programs
 
-`rust` folder contains the unmodified code that contains tasks running in native host machine for baseline benchmarking. Compile by
+`rust_app` folder contains the unmodified code that contains tasks running in native host machine for baseline benchmarking. Compile by
 
 ```sh
-$ cargo build --release --features=[task_tvm | task_sample | task_fann | task_faste | task_polybench]
+$ cargo build --release --features=server/[task_tvm | task_sample | task_fann | task_faste | task_polybench]
 ```
 
 ## Evaluation TVM

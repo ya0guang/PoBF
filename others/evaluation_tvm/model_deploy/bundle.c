@@ -17,6 +17,7 @@
  * under the License.
  */
 
+#include <threads.h>
 #include <stdarg.h>
 #include <stdlib.h>
 #include <tvm/runtime/crt/crt.h>
@@ -26,13 +27,15 @@
 
 #include "bundle.h"
 
-// We create an arena sized 4 GiB.
+// We create an arena sized 1 GiB.
 #define CRT_MEMORY_NUM_PAGES 1048576
 #define CRT_MEMORY_PAGE_SIZE_LOG2 10
 
 // Serves as an arena for memory allocation.
-static uint8_t* g_crt_memory;
-static MemoryManagerInterface* g_memory_manager;
+// Without `thread_local`, the threads share the memory pool and they may interfere with each other.
+// This is very annoying.
+static thread_local uint8_t* g_crt_memory;
+static thread_local MemoryManagerInterface* g_memory_manager;
 
 /*! \brief macro to do C API call */
 #define TVM_CCALL(func)            \

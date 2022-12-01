@@ -17,6 +17,7 @@
  * under the License.
  */
 
+#include <threads.h>
 #include <stdarg.h>
 #include <stdlib.h>
 #include <tvm/runtime/crt/crt.h>
@@ -31,8 +32,8 @@
 #define CRT_MEMORY_PAGE_SIZE_LOG2 10
 
 // Serves as an arena for memory allocation.
-static uint8_t* g_crt_memory;
-static MemoryManagerInterface* g_memory_manager;
+static thread_local uint8_t* g_crt_memory;
+static thread_local MemoryManagerInterface* g_memory_manager;
 
 /*! \brief macro to do C API call */
 #define TVM_CCALL(func)            \

@@ -1,3 +1,7 @@
+#![allow(unused_imports)]
+#![allow(unused_variables)]
+#![allow(dead_code)]
+
 ///! Taken from https://github.com/occlum/occlum/blob/master/tools/toolchains/dcap_lib/examples/dcap_test.rs
 extern crate occlum_dcap;
 
@@ -181,6 +185,7 @@ fn dcap_demo() {
 }
 
 fn main() {
+    #[cfg(feature = "libos")]
     dcap_demo();
     // Start listening to the port.
     let listener = match TcpListener::bind(ADDRESS) {

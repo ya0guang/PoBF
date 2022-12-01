@@ -18,11 +18,12 @@ make clean && make -j
 popd > /dev/null
 
 # Build the Rust program.
-pushd ./rust_app > /dev/null
+pushd ../rust_app > /dev/null
 
 for task in "${tasks[@]}"; do
-    occlum-cargo build --release --features=$task
-    cp target/x86_64-unknown-linux-musl/release/rust_app ../eval/rust_app_$task
+    occlum-cargo build --release --features=server/$task,libos
+    cp target/x86_64-unknown-linux-musl/release/server ./occlum/eval/server_$task
+    cp target/x86_64-unknown-linux-musl/release/client ./occlum/eval/client
 done
 
 popd > /dev/null

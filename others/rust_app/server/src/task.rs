@@ -1,3 +1,5 @@
+#![allow(unused_imports)]
+
 use std::io::{BufRead, BufReader, BufWriter, Error, ErrorKind, Read, Result, Write};
 use std::net::TcpStream;
 use std::sync::{mpsc, Arc, Mutex};
