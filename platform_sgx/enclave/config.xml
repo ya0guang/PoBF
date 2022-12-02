@@ -6,7 +6,7 @@
   <HeapMinSize>0x800000</HeapMinSize>
   <HeapInitSize>0x100000000</HeapInitSize>
   <HeapMaxSize>0x100000000</HeapMaxSize>
-  <TCSNum>1</TCSNum>
+  <TCSNum>16</TCSNum>
   <TCSMinPool>1</TCSMinPool>
   <TCSMaxNum>16</TCSMaxNum>
   <TCSPolicy>1</TCSPolicy>

@@ -27,7 +27,7 @@
 
 #include "bundle.h"
 
-// We create an arena sized 1 GiB.
+// We create an arena sized 4 GiB.
 #define CRT_MEMORY_NUM_PAGES 1048576
 #define CRT_MEMORY_PAGE_SIZE_LOG2 10
 

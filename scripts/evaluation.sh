@@ -41,16 +41,16 @@ make -C cctasks/evaluation_tvm/model_deploy -j
 if [[ $2 = "rust" || $2 = "all" ]]; then
     for task in "${tasks[@]}"; do
         if [[ ! -f eval/$task/rust/server || ! -f eval/$task/rust/client ]]; then
-            echo -e "$MAGENTA[+] Building Rust binary for $task...$NC"
+            echo -e "$MAGENTA[-] Building Rust binary for $task...$NC"
             pushd others/rust_app > /dev/null
             cargo build --release --features=server/$task
             cp target/release/server ../../eval/"$task"/rust/server
             cp target/release/client ../../eval/"$task"/rust/client
             popd > /dev/null
             
-            echo -e "$MAGENTA[+] Finished!$NC"
+            echo -e "$MAGENTA\t[+] Finished!$NC"
         else
-            echo -e "$MAGENTA[+] File exists. Skipped!$NC"
+            echo -e "$MAGENTA\t[+] File exists. Skipped!$NC"
         fi
     done
 fi
@@ -60,13 +60,13 @@ if [[ $2 = "occlum" || $2 = "all" ]]; then
     pushd others/occlum > /dev/null
     mkdir -p "eval"
     for task in "${tasks[@]}"; do
-        echo -e "$MAGENTA[+] Building Occlum LibOS for $task...$NC"
+        echo -e "$MAGENTA[-] Building Occlum LibOS for $task...$NC"
         pushd ../rust_app > /dev/null
         occlum-cargo build --release --features=server/$task,libos
         cp target/x86_64-unknown-linux-musl/release/server ../occlum/eval/server_$task
         cp target/x86_64-unknown-linux-musl/release/client ../occlum/eval/client
         popd > /dev/null
-        echo -e "$MAGENTA[+] Finished!$NC"
+        echo -e "$MAGENTA\t[+] Finished!$NC"
     done
     rm -rf build
     copy_bom -f ./rust_config.yaml --root image --include-dir /opt/occlum/etc/template
@@ -79,7 +79,7 @@ if [[ $2 = "gramine" || $2 = "all" ]]; then
     for task in "${tasks[@]}"; do
         if [[ ! -f eval/$task/gramine/server || ! -f eval/$task/gramine/client ||
             ! -d eval/$task/gramine/ssl ]]; then
-            echo -e "$MAGENTA[+] Building Gramine server and client for $task...$NC"
+            echo -e "$MAGENTA[-] Building Gramine server and client for $task...$NC"
             pushd others/gramine > /dev/null
             make clean
             make app dcap TASK=$task RA_TYPE=dcap -j$((`nproc`+1)) > ../../data/$task/gramine_meta.txt
@@ -87,9 +87,9 @@ if [[ $2 = "gramine" || $2 = "all" ]]; then
             cp ./client* ../../eval/$task/gramine
             cp -r ./ssl  ../../eval/$task/gramine
             popd > /dev/null
-            echo -e "$MAGENTA[+] Finished!$NC"
+            echo -e "$MAGENTA\t[+] Finished!$NC"
         else
-            echo -e "$MAGENTA[+] File exists. Skipped!$NC"
+            echo -e "$MAGENTA\t[+] File exists. Skipped!$NC"
         fi
     done
 fi
@@ -99,12 +99,12 @@ if [[ $2 = "native" || $2 = "all" ]]; then
     for task in "${tasks[@]}"; do
         if [[ ! -f eval/$task/native_enclave/app ||
             ! -f eval/$task/native_enclave/enclave.signed.so ]]; then
-            echo -e "$MAGENTA[+] Building native enclave for $task...$NC"
+            echo -e "$MAGENTA[-] Building native enclave for $task...$NC"
             make -j SGX_MODE=HW TASK=$task NATIVE_ENCLAVE=1
             cp platform_sgx/bin/{app,enclave.signed.so} eval/$task/native_enclave
-            echo -e "$MAGENTA[+] Finished!$NC"
+            echo -e "$MAGENTA\t[+] Finished!$NC"
         else
-            echo -e "$MAGENTA[+] File exists. Skipped!$NC"
+            echo -e "$MAGENTA\t[+] File exists. Skipped!$NC"
         fi
     done
 fi
@@ -113,12 +113,12 @@ fi
 if [[ $2 = "pobf" || $2 = "all" ]]; then
     for task in "${tasks[@]}"; do
         if [[ ! -f eval/$task/pobf/app || ! -f eval/$task/pobf/enclave.signed.so ]]; then
-            echo -e "$MAGENTA[+] Building enclave for $task...$NC"
+            echo -e "$MAGENTA[-] Building enclave for $task...$NC"
             make -j SGX_MODE=HW TASK=$task NATIVE_ENCLAVE=0
             cp platform_sgx/bin/{app,enclave.signed.so} eval/$task/pobf
-            echo -e "$MAGENTA[+] Finished!$NC"
+            echo -e "$MAGENTA\t[+] Finished!$NC"
         else
-            echo -e "$MAGENTA[+] File exists. Skipped!$NC"
+            echo -e "$MAGENTA\t[+] File exists. Skipped!$NC"
         fi
     done
 fi
@@ -206,7 +206,7 @@ if [[ $2 = "gramine" || $2 = "all" ]]; then
         
         fuser -k 2333/tcp > /dev/null 2>&1
         wait
-        echo -e "$MAGENTA  [+] Finished!$NC"
+        echo -e "$MAGENTA\t[+] Finished!$NC"
     done
 fi
 
@@ -259,6 +259,5 @@ fi
 popd > /dev/null
 
 # Test multi-threading.
-echo -e "$MAGENTA[-] Testing multi-threading...$NC"
+echo -e "$MAGENTA[+] Testing multi-threading...$NC"
 ./multi_threading.sh $1 $2
-echo -e "$MAGENTA[+] Finished! $NC"
