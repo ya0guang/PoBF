@@ -65,7 +65,7 @@ $(MODEL_TAR): build_model.py
 	@python3 ./build_model.py -o $(OUT_DIR) 2> /dev/null
 
 $(PYTHON_MODEL): $(MODEL_TAR)
-	@tar -xvf $^ -C $(OUT_DIR) 
+	@tar -xvf $^ -C $(OUT_DIR) > /dev/null 2>&1
 	@printf "$(MAGENTA)+ Finished! \n"
 
 $(LIB_MEMORY): $(CRT_SRCS)

@@ -62,7 +62,7 @@ $(MBEDTLS_SRC):
 
 .SECONDARY: mbedtls/.mbedtls_downloaded
 mbedtls/.mbedtls_downloaded: $(MBEDTLS_SRC)
-	tar --touch -xzf $(MBEDTLS_SRC)
+	tar --touch -xzf $(MBEDTLS_SRC) > /dev/null 2>&1
 	mv mbedtls-mbedtls-$(MBEDTLS_VERSION) mbedtls
 	touch $@
 
