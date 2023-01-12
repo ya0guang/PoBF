@@ -3,7 +3,7 @@ use std::fs;
 use std::io::*;
 use std::net::TcpStream;
 
-const ADDRESS: &'static str = "127.0.0.1:7788";
+const ADDRESS: &str = "127.0.0.1:7788";
 
 fn main() {
     let stream = TcpStream::connect(ADDRESS).unwrap();

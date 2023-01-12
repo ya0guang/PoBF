@@ -12,10 +12,10 @@ task_tvm = ["evaluation_tvm"]
 task_polybench = ["polybench"]
 task_fann = ["fann"]
 task_fasta = ["fasta"]
-libos = []
+occlum = ["occlum_dcap"]
 
 [dependencies]
-occlum_dcap = { git = "https://github.com/occlum/occlum.git", branch = "master" }
+occlum_dcap = { git = "https://github.com/occlum/occlum.git", branch = "master", optional = true }
 # Evaluations.
 evaluation_tvm = { path = "../../evaluation_tvm", optional = true }
 fann = { path = "../../../cctasks/fann", optional = true }

@@ -57,8 +57,7 @@ impl ThreadPool {
         self.sender
             .as_ref()
             .unwrap()
-            .send(job)
-            .or_else(|_| Err(Error::from(ErrorKind::Other)))
+            .send(job).map_err(|_| Error::from(ErrorKind::Other))
     }
 }
 
