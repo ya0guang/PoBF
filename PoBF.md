@@ -29,6 +29,7 @@ Zone <-> Stack + Reg + Heap
 
 - RA-TLS
 - Secure secret provisioning
+- Enarx Evaluation (TVM in WASM)
 
 ## Evaluation
 
@@ -36,10 +37,10 @@ Zone <-> Stack + Reg + Heap
 
 - What attack vectors are defended?
 
-### Performace Evaluation
+### Performance Evaluation
 
 - Verification Overhead
-- Runtime Overhead 
+- Runtime Overhead
 - Single- vs. Multi-User Enclave
 
 ### Case Study

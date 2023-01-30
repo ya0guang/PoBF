@@ -13,7 +13,7 @@ PORT=1234
 
 if [ ! $# -eq 2 ]; then
     echo -e "${RED}Error: Argument number mismatch! Got $#.$NC"
-    echo -e "  Usage: ./evaluation.sh ${YELLOW}[thread_num] [rust|native|pobf|occlum|gramine|all|none]$NC"
+    echo -e "  Usage: ./evaluation.sh ${YELLOW}[thread_num] [rust|native|pobf|occlum|gramine|enarx|all|none]$NC"
     exit 1
 fi
 
@@ -26,6 +26,7 @@ for task in "${tasks[@]}"; do
     mkdir -p eval/"$task"/native_enclave
     mkdir -p eval/"$task"/rust
     mkdir -p eval/"$task"/gramine
+    mkdir -p eval/"$task"/enarx
 done
 
 # Build data provider first.
@@ -62,13 +63,14 @@ if [[ $2 = "occlum" || $2 = "all" ]]; then
     for task in "${tasks[@]}"; do
         echo -e "$MAGENTA[-] Building Occlum LibOS for $task...$NC"
         pushd ../rust_app > /dev/null
-        occlum-cargo build --release --features=server/$task,libos
+        occlum-cargo build --release --features=server/$task,occlum
         cp target/x86_64-unknown-linux-musl/release/server ../occlum/eval/server_$task
         cp target/x86_64-unknown-linux-musl/release/client ../occlum/eval/client
         popd > /dev/null
         echo -e "$MAGENTA\t[+] Finished!$NC"
     done
     rm -rf build
+    occlum init
     copy_bom -f ./rust_config.yaml --root image --include-dir /opt/occlum/etc/template
     occlum build
     popd > /dev/null
@@ -93,6 +95,24 @@ if [[ $2 = "gramine" || $2 = "all" ]]; then
         fi
     done
 fi
+
+# # Build Enarx backbone.
+# if [[ $2 = "enarx" || $2 = "all" ]]; then
+#     for task in "${tasks[@]}"; do
+#         if [[ ! -f eval/$task/enarx/server || ! -f eval/$task/enarx/client ]]; then
+#             echo -e "$MAGENTA[-] Building Rust binary for $task...$NC"
+#             pushd others/rust_app > /dev/null
+#             cargo +nightly build --release --target=wasm32-wasi --features=server/$task
+#             cp target/release/server ../../eval/"$task"/rust/server
+#             cp target/release/client ../../eval/"$task"/rust/client
+#             popd > /dev/null
+            
+#             echo -e "$MAGENTA\t[+] Finished!$NC"
+#         else
+#             echo -e "$MAGENTA\t[+] File exists. Skipped!$NC"
+#         fi
+#     done
+# fi
 
 # Build different native enclaves for different tasks.
 if [[ $2 = "native" || $2 = "all" ]]; then
@@ -255,6 +275,29 @@ if [[ $2 = "native" || $2 = "all" ]]; then
         echo -e "$MAGENTA\t[+] Finished!$NC"
     done
 fi
+
+# # Doing evaluations on the Enarx.
+# if [[ $2 = "enarx" || $2 = "all" ]]; then
+#     for task in "${tasks[@]}"; do
+#         echo -e "$MAGENTA[-] Testing Enarx enclave for $task...$NC"
+        
+#         # Start the enclave.
+#         pushd eval/"$task"/enarx > /dev/null
+#         { time ./app $ADDRESS $PORT; } > ../../../data/"$task"/output_enclave_enarx.txt 2>&1 &
+#         sleep 1
+#         popd > /dev/null
+        
+#         # Start the data provider.
+#         pushd ./data_provider/bin > /dev/null
+#         { time ./data_provider run ../../data/"$task"/manifest.json; } > ../../data/"$task"/output_data_provider_native_enclave.txt 2>&1
+#         cp ./output.txt ../../data/"$task"/result_native_enclave.txt
+#         popd > /dev/null
+        
+#         fuser -k $PORT/tcp > /dev/null 2>&1
+#         wait
+#         echo -e "$MAGENTA\t[+] Finished!$NC"
+#     done
+# fi
 
 popd > /dev/null
 
