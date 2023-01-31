@@ -1,9 +1,8 @@
 #![allow(unused_imports)]
 
-use std::io::{BufRead, BufReader, BufWriter, Error, ErrorKind, Read, Result, Write};
-use std::net::TcpStream;
-use std::sync::{mpsc, Arc, Mutex};
-use std::thread;
+use std::io::{Read, Result, Write};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpStream;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 cfg_if::cfg_if! {
@@ -20,118 +19,22 @@ cfg_if::cfg_if! {
   }
 }
 
-const ENCLAVE_THREAD_STACK_SIZE: usize = 0x8000000;
-
-pub struct ThreadPool {
-    workers: Vec<Worker>,
-    sender: Option<mpsc::Sender<Job>>,
-}
-
-type Job = Box<dyn FnOnce() + Send + 'static>;
-
-impl ThreadPool {
-    pub fn new(size: usize) -> ThreadPool {
-        assert!(size > 0);
-        let (sender, receiver) = mpsc::channel();
-
-        let receiver = Arc::new(Mutex::new(receiver));
-
-        let mut workers = Vec::with_capacity(size);
-
-        for id in 0..size {
-            workers.push(Worker::new(id, Arc::clone(&receiver)));
-        }
-
-        ThreadPool {
-            workers,
-            sender: Some(sender),
-        }
-    }
-
-    pub fn execute<F>(&self, f: F) -> Result<()>
-    where
-        F: FnOnce() + Send + 'static,
-    {
-        let job = Box::new(f);
-
-        self.sender
-            .as_ref()
-            .unwrap()
-            .send(job)
-            .map_err(|_| Error::from(ErrorKind::Other))
-    }
-}
-
-impl Drop for ThreadPool {
-    fn drop(&mut self) {
-        drop(self.sender.take());
-
-        for worker in &mut self.workers {
-            println!("Shutting down worker {}", worker.id);
-
-            if let Some(thread) = worker.thread.take() {
-                thread.join().unwrap();
-            }
-        }
-    }
-}
-
-struct Worker {
-    id: usize,
-    thread: Option<thread::JoinHandle<()>>,
-}
-
-impl Worker {
-    fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Job>>>) -> Worker {
-        let builder = thread::Builder::new()
-            .name(format!("worker-{}", id))
-            .stack_size(ENCLAVE_THREAD_STACK_SIZE);
-
-        let thread = builder
-            .spawn(move || loop {
-                let message = receiver.lock().unwrap().recv();
-
-                match message {
-                    Ok(job) => {
-                        println!("Worker {id} got a job; executing.");
-
-                        job();
-                    }
-                    Err(_) => {
-                        println!("Worker {id} disconnected; shutting down.");
-                        break;
-                    }
-                }
-            })
-            .unwrap();
-
-        Worker {
-            id,
-            thread: Some(thread),
-        }
-    }
-}
-
-pub fn handle_client(stream: TcpStream) -> Result<()> {
-    let socket_clone = stream.try_clone().unwrap();
-    let mut reader = BufReader::new(stream);
-    let mut writer = BufWriter::new(socket_clone);
-
-    let mut length_str = String::with_capacity(512);
-    reader.read_line(&mut length_str)?;
-    let data_len = length_str[..length_str.len() - 1].parse::<usize>().unwrap();
+pub async fn handle_client(mut stream: TcpStream) -> Result<()> {
+    let mut length = vec![0u8; 1024];
+    let read_len = stream.read(&mut length).await?;
+    let data_len = String::from_utf8(length[..read_len - 1].to_vec()).unwrap().parse::<usize>().unwrap();
     println!("Data length = {}", data_len);
     let mut input = vec![0u8; data_len];
-    reader.read_exact(&mut input)?;
+    stream.read_exact(&mut input).await?;
     println!("Read data.");
 
     let output = perform_task(input);
-    writer.write(output.len().to_string().as_bytes())?;
-    writer.write(b"\n")?;
-    writer.flush()?;
-    writer.write(&output)?;
-    writer.write(b"\n")?;
-    writer.flush()?;
+    stream.write(output.len().to_string().as_bytes()).await?;
+    stream.write(b"\n").await?;
+    stream.flush().await?;
+    stream.write(&output).await?;
+    stream.write(b"\n").await?;
+    stream.flush().await?;
     println!("Sent data. Length = {}", output.len());
     println!("Finished!");
 

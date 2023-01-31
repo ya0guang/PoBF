@@ -116,7 +116,8 @@ where
 }
 
 pub fn private_computation(input: Vec<u8>) -> Vec<u8> {
-    let n = usize::from_le_bytes(input[..8].try_into().unwrap());
+    // Do not use usize because wasm is 32bit.
+    let n = u32::from_le_bytes(input[..4].try_into().unwrap()) as usize;
     // Generate a DNA sequence by copying from the given sequence.
     let mut it = input[4..].iter().cloned().cycle();
 
@@ -157,7 +158,7 @@ pub fn private_computation(input: Vec<u8>) -> Vec<u8> {
     ]);
 
     let mut rng = Rng::new();
-    
+
     ans.extend_from_slice(b"\n>TWO IUB ambiguity codes\n");
     ans.extend_from_slice(&make_fasta(n * 3, |block| rng.gen(&p0, block)).unwrap());
     ans.extend_from_slice(b"\n>THREE Homo sapiens frequency\n");

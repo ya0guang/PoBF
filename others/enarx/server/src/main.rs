@@ -2,26 +2,25 @@
 #![allow(unused_variables)]
 #![allow(dead_code)]
 
-///! Taken from https://github.com/occlum/occlum/blob/master/tools/toolchains/dcap_lib/examples/dcap_test.rs
-#[cfg(feature = "occlum")]
-mod dcap;
 mod task;
 use std::env;
 use std::io::Result;
-use std::net::TcpListener;
+use tokio::net::{TcpListener, TcpStream};
+use std::os::wasi::prelude::FromRawFd;
 use std::str::FromStr;
-use std::os::fd::FromRawFd;
+
+use crate::task::handle_client;
 
 const ENCLAVE_TCS_NUM: usize = 10;
 const ADDRESS: &str = "127.0.0.1:7788";
 
-fn main() {
-    #[cfg(feature = "occlum")]
-    dcap::dcap_demo();
-
-    #[cfg(feature = "enarx")]
+#[tokio::main(flavor = "current_thread")]
+async fn main() -> Result<()> {
     {
+        let fd_names = env::var("FD_NAMES").unwrap();
         let fd_count = env::var("FD_COUNT").unwrap();
+
+        println!("{fd_names}, {fd_count}.");
         let fd_count = usize::from_str(&fd_count).unwrap();
         assert_eq!(
             fd_count,
@@ -31,33 +30,27 @@ fn main() {
         println!("Enarx FD NUM check passed");
     }
 
-    #[cfg(feature = "enarx")]
-    let listener = unsafe {TcpListener::from_raw_fd(4)};
-
-    // Start listening to the port.
-    #[cfg(not(feature = "enarx"))]
-    let listener = match TcpListener::bind(ADDRESS) {
-        Ok(res) => res,
-        Err(e) => {
-            panic!("[-] Failed to bind to the given address due to {}.", e);
-        }
+    let listener = {
+      let listener = unsafe { std::net::TcpListener::from_raw_fd(3) };
+      listener.set_nonblocking(true).unwrap();
+      TcpListener::from_std(listener)?
     };
 
-    let pool = task::ThreadPool::new(ENCLAVE_TCS_NUM);
-
     println!("Server started.");
+
     loop {
-        match listener.accept() {
-            Ok((stream, _)) => {
-                if pool
-                    .execute(move || task::handle_client(stream).unwrap())
-                    .is_err()
-                {
-                    println!("[-] Job execution failed.");
-                    break;
-                }
-            }
+        let socket = match listener.accept().await {
+            Ok((socket, _)) => socket,
             Err(e) => panic!("[-] Failed! {:?}", e),
-        }
+        };
+
+        // Spawn a background task for each new connection.
+        tokio::spawn(async move {
+            println!("> CONNECTED");
+            match handle_client(socket).await {
+                Ok(()) => println!("> DISCONNECTED"),
+                Err(e) => println!("> ERROR: {}", e),
+            }
+        });
     }
 }
