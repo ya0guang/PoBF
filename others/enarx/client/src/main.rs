@@ -17,7 +17,7 @@ fn main() {
     println!("Reading {}", data_path);
 
     // Send to the server.
-    writer.write(data.len().to_string().as_bytes()).unwrap();
+    writer.write(&data.len().to_le_bytes()).unwrap();
     writer.write(b"\n").unwrap();
     writer.flush().unwrap();
     writer.write(&data).unwrap();

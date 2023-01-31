@@ -7,7 +7,7 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 cfg_if::cfg_if! {
   if #[cfg(feature = "task_tvm")] {
-      use evaluation_tvm::private_computation;
+      // use evaluation_tvm::private_computation;
   } else if #[cfg(feature = "task_fann")] {
       use fann::private_computation;
   } else if #[cfg(feature = "task_fasta")] {
@@ -20,13 +20,15 @@ cfg_if::cfg_if! {
 }
 
 pub async fn handle_client(mut stream: TcpStream) -> Result<()> {
-    let mut length = vec![0u8; 1024];
-    let read_len = stream.read(&mut length).await?;
-    let data_len = String::from_utf8(length[..read_len - 1].to_vec()).unwrap().parse::<usize>().unwrap();
-    println!("Data length = {}", data_len);
-    let mut input = vec![0u8; data_len];
-    stream.read_exact(&mut input).await?;
-    println!("Read data.");
+    let mut length = vec![0u8; std::mem::size_of::<u64>()];
+    stream.read_exact(&mut length).await?;
+    let data_len = u64::from_le_bytes(length.try_into().unwrap()) as usize;
+    let input = {
+        let mut input = vec![0u8; data_len + 1];
+        stream.read_exact(&mut input).await?;
+        println!("Read data.");
+        input[1..].to_vec()
+    };
 
     let output = perform_task(input);
     stream.write(output.len().to_string().as_bytes()).await?;

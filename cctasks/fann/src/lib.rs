@@ -119,7 +119,8 @@ const fn calculate(n: usize) -> (i32, u32) {
 }
 
 pub fn private_computation(input: Vec<u8>) -> Vec<u8> {
-    let n = usize::from_le_bytes(input[..8].try_into().unwrap());
+    // Do not use usize because wasm is 32bit.
+    let n = u64::from_le_bytes(input[..8].try_into().unwrap()) as usize;
 
     let (checksum, maxflips) = calculate(n);
 
