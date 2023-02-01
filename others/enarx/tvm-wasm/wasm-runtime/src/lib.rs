@@ -31,11 +31,11 @@ lazy_static::lazy_static! {
       }
       let graph = Graph::try_from(include_str!(concat!(
           env!("CARGO_MANIFEST_DIR"),
-          "/../wasm-graph/lib/graph.json"
+          "/../lib/graph.json"
       )))
       .unwrap();
       let params_bytes =
-          include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/../wasm-graph/lib/graph.params"));
+          include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/../lib/graph.params"));
       let params = tvm_graph_rt::load_param_dict(params_bytes)
           .unwrap()
           .into_iter()

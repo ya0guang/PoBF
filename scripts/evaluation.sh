@@ -11,6 +11,23 @@ NC="\033[0m"
 ADDRESS=127.0.0.1
 PORT=1234
 
+function build_tvm_wasm {
+    # Build wasm32-wasi targeted TVM model for ResNet152.
+    pushd others/enarx/tvm-wasm/tools
+    # Remember to set `TVM_HOME` and `PYTHONPATH`.
+    if [[ -z $TVM_HOME ]]; then
+        echo -e "${RED} TVM_HOME is not set.${NC}"
+        exit 1
+    fi
+    export PYTHONPATH=$TVM_HOME/python:$PYTHONPATH
+    export LLVM_AR=llvm-ar-10
+    echo -e "${MAGENTA} Building TVM model for wasm32-wasi target...${NC}"
+    python3 ./build_graph_lib.py -O3
+    echo -e "${MAGENTA} Finished!${NC}"
+    
+    popd > /dev/null
+}
+
 if [ ! $# -eq 2 ]; then
     echo -e "${RED}Error: Argument number mismatch! Got $#.$NC"
     echo -e "  Usage: ./evaluation.sh ${YELLOW}[thread_num] [rust|native|pobf|occlum|gramine|enarx|all|none]$NC"
@@ -96,23 +113,32 @@ if [[ $2 = "gramine" || $2 = "all" ]]; then
     done
 fi
 
-# # Build Enarx backbone.
-# if [[ $2 = "enarx" || $2 = "all" ]]; then
-#     for task in "${tasks[@]}"; do
-#         if [[ ! -f eval/$task/enarx/server || ! -f eval/$task/enarx/client ]]; then
-#             echo -e "$MAGENTA[-] Building Rust binary for $task...$NC"
-#             pushd others/rust_app > /dev/null
-#             cargo +nightly build --release --target=wasm32-wasi --features=server/$task
-#             cp target/release/server ../../eval/"$task"/rust/server
-#             cp target/release/client ../../eval/"$task"/rust/client
-#             popd > /dev/null
+# Build Enarx backbone.
+if [[ $2 = "enarx" || $2 = "all" ]]; then
+    if [[ ! -f others/enarx/tvm-wasm/lib/libgraph_wasm32.a ]]; then
+        build_tvm_wasm
+    fi
+
+    for task in "${tasks[@]}"; do
+        if [[ ! -f eval/$task/enarx/server.wasm || ! -f eval/$task/enarx/client ]]; then
+            echo -e "$MAGENTA[-] Building Enarx server and client for $task...$NC"
+            pushd others/enarx > /dev/null
+            cargo +nightly build --release --target=wasm32-wasi --features=server/$task
+
+            pushd client > /dev/null
+            cargo build --release
+            popd > /dev/null
             
-#             echo -e "$MAGENTA\t[+] Finished!$NC"
-#         else
-#             echo -e "$MAGENTA\t[+] File exists. Skipped!$NC"
-#         fi
-#     done
-# fi
+            cp target/wasm32-wasi/release/server.wasm ../../eval/"$task"/enarx/server.wasm
+            cp target/release/client ../../eval/"$task"/enarx/client
+            popd > /dev/null
+            
+            echo -e "$MAGENTA\t[+] Finished!$NC"
+        else
+            echo -e "$MAGENTA\t[+] File exists. Skipped!$NC"
+        fi
+    done
+fi
 
 # Build different native enclaves for different tasks.
 if [[ $2 = "native" || $2 = "all" ]]; then
@@ -280,19 +306,19 @@ fi
 # if [[ $2 = "enarx" || $2 = "all" ]]; then
 #     for task in "${tasks[@]}"; do
 #         echo -e "$MAGENTA[-] Testing Enarx enclave for $task...$NC"
-        
+
 #         # Start the enclave.
 #         pushd eval/"$task"/enarx > /dev/null
 #         { time ./app $ADDRESS $PORT; } > ../../../data/"$task"/output_enclave_enarx.txt 2>&1 &
 #         sleep 1
 #         popd > /dev/null
-        
+
 #         # Start the data provider.
 #         pushd ./data_provider/bin > /dev/null
 #         { time ./data_provider run ../../data/"$task"/manifest.json; } > ../../data/"$task"/output_data_provider_native_enclave.txt 2>&1
 #         cp ./output.txt ../../data/"$task"/result_native_enclave.txt
 #         popd > /dev/null
-        
+
 #         fuser -k $PORT/tcp > /dev/null 2>&1
 #         wait
 #         echo -e "$MAGENTA\t[+] Finished!$NC"

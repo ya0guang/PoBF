@@ -13,17 +13,15 @@ Finally, follow the instruction [here](https://github.com/apache/tvm/tree/main/a
 **Warning:** The instruction "Build wasm-graph package" is somehow not correct. You may need to run the following command:
 
 ```sh
-$ cd wasm-graph
+$ cd tools
 $ export TVM_HOME=...
 $ export PYTHONPATH=...
 $ LLVM_AR=llvm-ar-10 python3 ./build_graph_lib.py -O3
-$ cargo +nightly build --target wasm32-wasi --release
-$ cp ./target/wasm32-wasi/release/wasm_graph.wasm ./lib/wasm_graph_resnet172.wasm
 ```
 
 Enarx needs to link against `wasm-runtime` for creating a runtime for TVM graph executor.
 
-## Problems
+## Problems (fixed)
 
 1. Cannot build `wasm-runtime` for `wasi`. Caused by `cranelift-codegen`:
 ```sh

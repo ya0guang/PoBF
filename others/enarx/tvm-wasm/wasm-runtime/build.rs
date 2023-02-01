@@ -5,7 +5,7 @@ fn main() {
         format!(
             "{}/{}",
             std::env::var("CARGO_MANIFEST_DIR").unwrap(),
-            "../wasm-graph/lib"
+            "../lib"
         )
     );
 }
