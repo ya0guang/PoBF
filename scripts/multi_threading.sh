@@ -80,7 +80,7 @@ fi
 
 # Test multi-threading for Gramine program.
 if [[ $2 = "gramine" || $2 = "all" ]]; then
-    for task in "${tasksp[@]}"; do
+    for task in "${tasks[@]}"; do
         echo -e "$MAGENTA\t[+] Testing multi-threading on Gramine for $task...$NC"
         
         pushd eval/$task/gramine > /dev/null
@@ -105,7 +105,7 @@ if [[ $2 = "gramine" || $2 = "all" ]]; then
         export DATA_PATH="../../../data/$task/data.bin"
 
         { time eval 'parallel -j0 -N0 ./client dcap ::: '{1..$1}''; } \
-             > ../../data/$task/mt_output_data_provider_gramine.txt 2>&1
+             > ../../../data/$task/mt_output_data_provider_gramine.txt 2>&1
         unset DATA_PATH
         unset RA_TLS_MRENCLAVE
         unset RA_TLS_MRSIGNER

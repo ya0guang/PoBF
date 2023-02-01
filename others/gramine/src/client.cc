@@ -331,8 +331,8 @@ int main(int argc, char** argv) {
   mbedtls_printf("\n  . Seeding the random number generator...");
   fflush(stdout);
 
-  ret = mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy,
-                              (const unsigned char*)pers, strlen(pers));
+  ret =
+      mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy, NULL, 0);
   if (ret != 0) {
     mbedtls_printf(" failed\n  ! mbedtls_ctr_drbg_seed returned %d\n", ret);
     goto exit;
