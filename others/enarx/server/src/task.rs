@@ -7,7 +7,7 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 cfg_if::cfg_if! {
   if #[cfg(feature = "task_tvm")] {
-      // use evaluation_tvm::private_computation;
+      use wasm_runtime::private_computation;
   } else if #[cfg(feature = "task_fann")] {
       use fann::private_computation;
   } else if #[cfg(feature = "task_fasta")] {

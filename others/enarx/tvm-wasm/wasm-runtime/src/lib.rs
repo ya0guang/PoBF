@@ -49,6 +49,7 @@ lazy_static::lazy_static! {
   };
 }
 
+/// Convert a raw imnage into Tensor if needed.
 pub fn preprocess(img: image::DynamicImage) -> Tensor<'static> {
     println!("original image dimensions: {:?}", img.dimensions());
     let img = img
@@ -72,6 +73,20 @@ pub fn preprocess(img: image::DynamicImage) -> Tensor<'static> {
     // (H,W,C) -> (C,H,W)
     let arr = Array::from_shape_vec((IMG_HEIGHT, IMG_WIDTH, 3), pixels).unwrap();
     let arr = arr.permuted_axes([2, 0, 1]);
+    let arr = Array::from_iter(arr.into_iter().map(|&v| v));
 
     Tensor::from(arr)
+}
+
+/// Perform the ResNet prediction phase.
+pub fn private_computation(input: Vec<u8>) -> Vec<u8> {
+    // Load image from byte array.
+    let img = image::load_from_memory_with_format(&input, image::ImageFormat::Png).unwrap();
+    let tensor = preprocess(img);
+
+    let mut executor = GRAPH_EXECUTOR.lock().unwrap();
+    executor.set_input("data", tensor);
+    executor.run();
+    let output = executor.get_output(0).unwrap().to_vec::<f32>();
+    unsafe { std::slice::from_raw_parts(output.as_ptr() as *const u8, output.len() * 4) }.to_vec()
 }
