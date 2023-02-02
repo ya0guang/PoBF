@@ -21,4 +21,4 @@ fasta = { path = "../../../cctasks/fasta", optional = true }
 polybench = { path = "../../../cctasks/polybench", optional = true }
 sample_add = { path = "../../../cctasks/sample_add", optional = true }
 cfg-if = "1.0.0"
-tokio = { version = "1.25.0", default-features = false, features = ["net", "rt", "macros", "io-util", "io-std"]  }
+tokio = { version = "1.25.0", features = ["full"]  }

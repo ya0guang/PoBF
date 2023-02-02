@@ -31,9 +31,9 @@ async fn main() -> Result<()> {
     }
 
     let listener = {
-      let listener = unsafe { std::net::TcpListener::from_raw_fd(3) };
-      listener.set_nonblocking(true).unwrap();
-      TcpListener::from_std(listener)?
+        let listener = unsafe { std::net::TcpListener::from_raw_fd(3) };
+        listener.set_nonblocking(true).unwrap();
+        TcpListener::from_std(listener)?
     };
 
     println!("Server started.");
@@ -45,7 +45,7 @@ async fn main() -> Result<()> {
         };
 
         // Spawn a background task for each new connection.
-        tokio::spawn(async move {
+        tokio::task::spawn(async move {
             println!("> CONNECTED");
             match handle_client(socket).await {
                 Ok(()) => println!("> DISCONNECTED"),

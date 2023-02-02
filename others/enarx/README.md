@@ -29,3 +29,7 @@ thread 'main' panicked at 'error when identifying target: "no supported isa foun
 ```
 
 This is because wastime needs a JIT backend but WASI does not support this. You need to instead compile wasi target from barebone Rust programs.
+
+2. tokio for wasm32-wasi does not support multithreading for `async fn main`.
+
+3. Enarx may not support `std::thread::spawn` (?). See issues.

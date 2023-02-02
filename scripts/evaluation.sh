@@ -118,19 +118,20 @@ if [[ $2 = "enarx" || $2 = "all" ]]; then
     if [[ ! -f others/enarx/tvm-wasm/lib/libgraph_wasm32.a ]]; then
         build_tvm_wasm
     fi
-
+    
     for task in "${tasks[@]}"; do
         if [[ ! -f eval/$task/enarx/server.wasm || ! -f eval/$task/enarx/client ]]; then
             echo -e "$MAGENTA[-] Building Enarx server and client for $task...$NC"
             pushd others/enarx > /dev/null
             cargo +nightly build --release --target=wasm32-wasi --features=server/$task
-
+            
             pushd client > /dev/null
             cargo build --release
             popd > /dev/null
             
             cp target/wasm32-wasi/release/server.wasm ../../eval/"$task"/enarx/server.wasm
             cp target/release/client ../../eval/"$task"/enarx/client
+            cp Enarx.toml ../../eval/"$task"/enarx/Enarx.toml
             popd > /dev/null
             
             echo -e "$MAGENTA\t[+] Finished!$NC"
@@ -302,28 +303,44 @@ if [[ $2 = "native" || $2 = "all" ]]; then
     done
 fi
 
-# # Doing evaluations on the Enarx.
-# if [[ $2 = "enarx" || $2 = "all" ]]; then
-#     for task in "${tasks[@]}"; do
-#         echo -e "$MAGENTA[-] Testing Enarx enclave for $task...$NC"
-
-#         # Start the enclave.
-#         pushd eval/"$task"/enarx > /dev/null
-#         { time ./app $ADDRESS $PORT; } > ../../../data/"$task"/output_enclave_enarx.txt 2>&1 &
-#         sleep 1
-#         popd > /dev/null
-
-#         # Start the data provider.
-#         pushd ./data_provider/bin > /dev/null
-#         { time ./data_provider run ../../data/"$task"/manifest.json; } > ../../data/"$task"/output_data_provider_native_enclave.txt 2>&1
-#         cp ./output.txt ../../data/"$task"/result_native_enclave.txt
-#         popd > /dev/null
-
-#         fuser -k $PORT/tcp > /dev/null 2>&1
-#         wait
-#         echo -e "$MAGENTA\t[+] Finished!$NC"
-#     done
-# fi
+# Doing evaluations on the Enarx.
+if [[ $2 = "enarx" || $2 = "all" ]]; then
+    for task in "${tasks[@]}"; do
+        echo -e "$MAGENTA[-] Testing Enarx enclave for $task...$NC"
+        
+        backend=nil
+        if [[ ! -z $BACKEND ]]; then
+            backend=$BACKEND
+        fi
+        
+        # Start the enclave.
+        pushd eval/"$task"/enarx > /dev/null
+        { time enarx run --backend=$backend ./server.wasm --wasmcfgfile ./Enarx.toml; } > \
+        ../../../data/"$task"/output_enclave_enarx.txt 2>&1 &
+        sleep 1
+        # Wait for the server.
+        while true ; do
+            if grep -q "Server started" \
+            ../../../data/"$task"/output_enclave_enarx.txt; then
+                break
+            fi
+            
+            sleep 1
+        done
+        
+        # Start the client.
+        if [[ $task = "task_tvm" ]]; then
+            ./client ../../../data/"$task"/cat.png > ../../../data/"$task"/output_data_provider_enarx.txt 2>&1
+        else
+            ./client ../../../data/"$task"/data.bin > ../../../data/"$task"/output_data_provider_enarx.txt 2>&1
+        fi
+        popd > /dev/null
+        
+        pkill enarx > /dev/null 2>&1
+        wait
+        echo -e "$MAGENTA\t[+] Finished!$NC"
+    done
+fi
 
 popd > /dev/null
 
