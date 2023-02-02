@@ -69,13 +69,110 @@ static ssize_t file_read(const char* path, char* buf, size_t count) {
   return bytes;
 }
 
-static int handler(mbedtls_net_context* listen_fd, mbedtls_ssl_context ssl) {
+static int handler(mbedtls_net_context client) {
   int ret = 0;
-  mbedtls_printf("  . Performing the SSL/TLS handshake...");
+  mbedtls_printf("  . Performing the SSL/TLS handshake... %d", client.fd);
+  fflush(stdout);
+
+  uint8_t* der_key = NULL;
+  uint8_t* der_crt = NULL;
+
+  mbedtls_entropy_context entropy;
+  mbedtls_ctr_drbg_context ctr_drbg;
+  mbedtls_ssl_config conf;
+  mbedtls_x509_crt srvcert;
+  mbedtls_pk_context pkey;
+  mbedtls_ssl_context ssl;
+
+  mbedtls_ssl_config_init(&conf);
+  mbedtls_x509_crt_init(&srvcert);
+  mbedtls_pk_init(&pkey);
+  mbedtls_entropy_init(&entropy);
+  mbedtls_ssl_init(&ssl);
+  mbedtls_ctr_drbg_init(&ctr_drbg);
+
+  mbedtls_printf("  . Seeding the random number generator...");
+  fflush(stdout);
+
+  ret =
+      mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy, NULL, 0);
+  if (ret != 0) {
+    mbedtls_printf(" failed\n  ! mbedtls_ctr_drbg_seed returned %d\n", ret);
+    return ret;
+  }
+
+  mbedtls_printf(" ok\n");
+
+  mbedtls_printf("  . Setting up the SSL configuration....");
+  fflush(stdout);
+
+  ret = mbedtls_ssl_config_defaults(&conf, MBEDTLS_SSL_IS_SERVER,
+                                    MBEDTLS_SSL_TRANSPORT_STREAM,
+                                    MBEDTLS_SSL_PRESET_DEFAULT);
+  if (ret != 0) {
+    mbedtls_printf(" failed\n  ! mbedtls_ssl_config_defaults returned %d\n\n",
+                   ret);
+    return ret;
+  }
+  mbedtls_printf(" ok\n");
+  
+  mbedtls_ssl_conf_rng(&conf, mbedtls_ctr_drbg_random, &ctr_drbg);
+
+  mbedtls_printf(
+      "\n  . Creating the RA-TLS server cert and key (using dcap as "
+      "attestation type)...");
+  fflush(stdout);
+
+  size_t der_key_size;
+  size_t der_crt_size;
+
+  ret = (*ra_tls_create_key_and_crt_der_f)(&der_key, &der_key_size, &der_crt,
+                                           &der_crt_size);
+  if (ret != 0) {
+    mbedtls_printf(
+        " failed\n  !  ra_tls_create_key_and_crt_der returned %d\n\n", ret);
+    return ret;
+  }
+
+  ret = mbedtls_x509_crt_parse(&srvcert, (unsigned char*)der_crt, der_crt_size);
+  if (ret != 0) {
+    mbedtls_printf(" failed\n  !  mbedtls_x509_crt_parse returned %d\n\n", ret);
+    return ret;
+  }
+
+  ret =
+      mbedtls_pk_parse_key(&pkey, (unsigned char*)der_key, der_key_size,
+                           /*pwd=*/NULL, 0, mbedtls_ctr_drbg_random, &ctr_drbg);
+  if (ret != 0) {
+    mbedtls_printf(" failed\n  !  mbedtls_pk_parse_key returned %d\n\n", ret);
+    return ret;
+  }
+
+  mbedtls_printf(" ok\n");
+
+  ret = mbedtls_ssl_conf_own_cert(&conf, &srvcert, &pkey);
+  if (ret != 0) {
+    mbedtls_printf(" failed\n  ! mbedtls_ssl_conf_own_cert returned %d\n\n",
+                   ret);
+    return ret;
+  }
+
+  mbedtls_printf(" ok\n");
+  fflush(stdout);
+
+  // Setup the SSL tunnel.
+  ret = mbedtls_ssl_setup(&ssl, &conf);
+  if (ret != 0) {
+    mbedtls_printf(" failed\n  ! mbedtls_ssl_setup returned %d\n\n", ret);
+    fflush(stdout);
+  }
+
+  mbedtls_ssl_set_bio(&ssl, &client, mbedtls_net_send, mbedtls_net_recv, NULL);
 
   while ((ret = mbedtls_ssl_handshake(&ssl)) != 0) {
     if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
-      mbedtls_printf(" failed\n  ! mbedtls_ssl_handshake returned %d\n\n", ret);
+      mbedtls_printf(" failed\n  ! mbedtls_ssl_handshake returned -0x%04x\n\n",
+                     (unsigned int)(-ret));
       fflush(stdout);
 
       char error_buf[100];
@@ -175,6 +272,15 @@ static int handler(mbedtls_net_context* listen_fd, mbedtls_ssl_context ssl) {
 
   // Do cleanups.
   mbedtls_ssl_session_reset(&ssl);
+
+  mbedtls_x509_crt_free(&srvcert);
+  mbedtls_pk_free(&pkey);
+  mbedtls_ssl_config_free(&conf);
+  mbedtls_ctr_drbg_free(&ctr_drbg);
+  mbedtls_entropy_free(&entropy);
+
+  free(der_key);
+  free(der_crt);
   return 0;
 }
 
@@ -183,22 +289,6 @@ int main(int argc, char** argv) {
   mbedtls_net_context listen_fd;
   const char* pers = "ssl_server";
   void* ra_tls_attest_lib;
-
-  uint8_t* der_key = NULL;
-  uint8_t* der_crt = NULL;
-
-  mbedtls_entropy_context entropy;
-  mbedtls_ctr_drbg_context ctr_drbg;
-  mbedtls_ssl_config conf;
-  mbedtls_x509_crt srvcert;
-  mbedtls_pk_context pkey;
-
-  mbedtls_net_init(&listen_fd);
-  mbedtls_ssl_config_init(&conf);
-  mbedtls_x509_crt_init(&srvcert);
-  mbedtls_pk_init(&pkey);
-  mbedtls_entropy_init(&entropy);
-  mbedtls_ctr_drbg_init(&ctr_drbg);
 
   char attestation_type_str[32] = {0};
   ret = file_read("/dev/attestation/attestation_type", attestation_type_str,
@@ -234,89 +324,10 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  mbedtls_printf("  . Seeding the random number generator...");
-  fflush(stdout);
-
-  ret = mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy,
-                              (const unsigned char*)pers, strlen(pers));
-  if (ret != 0) {
-    mbedtls_printf(" failed\n  ! mbedtls_ctr_drbg_seed returned %d\n", ret);
-    goto exit;
-  }
-
-  mbedtls_printf(" ok\n");
-
-  if (ra_tls_attest_lib) {
-    mbedtls_printf(
-        "\n  . Creating the RA-TLS server cert and key (using \"%s\" as "
-        "attestation type)...",
-        attestation_type_str);
-    fflush(stdout);
-
-    size_t der_key_size;
-    size_t der_crt_size;
-
-    ret = (*ra_tls_create_key_and_crt_der_f)(&der_key, &der_key_size, &der_crt,
-                                             &der_crt_size);
-    if (ret != 0) {
-      mbedtls_printf(
-          " failed\n  !  ra_tls_create_key_and_crt_der returned %d\n\n", ret);
-      goto exit;
-    }
-
-    ret =
-        mbedtls_x509_crt_parse(&srvcert, (unsigned char*)der_crt, der_crt_size);
-    if (ret != 0) {
-      mbedtls_printf(" failed\n  !  mbedtls_x509_crt_parse returned %d\n\n",
-                     ret);
-      goto exit;
-    }
-
-    ret = mbedtls_pk_parse_key(&pkey, (unsigned char*)der_key, der_key_size,
-                               /*pwd=*/NULL, 0, mbedtls_ctr_drbg_random,
-                               &ctr_drbg);
-    if (ret != 0) {
-      mbedtls_printf(" failed\n  !  mbedtls_pk_parse_key returned %d\n\n", ret);
-      goto exit;
-    }
-
-    mbedtls_printf(" ok\n");
-
-    if (argc > 1) {
-      // TODO. Add file path.
-    }
-  } else {
-    mbedtls_printf("\n  . Creating normal server cert and key...");
-    fflush(stdout);
-
-    ret = mbedtls_x509_crt_parse_file(&srvcert, SRV_CRT_PATH);
-    if (ret != 0) {
-      mbedtls_printf(
-          " failed\n  !  mbedtls_x509_crt_parse_file returned %d\n\n", ret);
-      goto exit;
-    }
-
-    ret = mbedtls_x509_crt_parse_file(&srvcert, CA_CRT_PATH);
-    if (ret != 0) {
-      mbedtls_printf(
-          " failed\n  !  mbedtls_x509_crt_parse_file returned %d\n\n", ret);
-      goto exit;
-    }
-
-    ret = mbedtls_pk_parse_keyfile(&pkey, SRV_KEY_PATH, /*password=*/NULL,
-                                   mbedtls_ctr_drbg_random, &ctr_drbg);
-    if (ret != 0) {
-      mbedtls_printf(" failed\n  !  mbedtls_pk_parse_keyfile returned %d\n\n",
-                     ret);
-      goto exit;
-    }
-
-    mbedtls_printf(" ok\n");
-  }
-
   mbedtls_printf("  . Bind on https://localhost:2333/ ...");
   fflush(stdout);
 
+  mbedtls_net_init(&listen_fd);
   ret = mbedtls_net_bind(&listen_fd, NULL, "2333", MBEDTLS_NET_PROTO_TCP);
   if (ret != 0) {
     mbedtls_printf(" failed\n  ! mbedtls_net_bind returned %d\n\n", ret);
@@ -325,78 +336,25 @@ int main(int argc, char** argv) {
 
   mbedtls_printf(" ok\n");
 
-  mbedtls_printf("  . Setting up the SSL configuration....");
-  fflush(stdout);
-
-  ret = mbedtls_ssl_config_defaults(&conf, MBEDTLS_SSL_IS_SERVER,
-                                    MBEDTLS_SSL_TRANSPORT_STREAM,
-                                    MBEDTLS_SSL_PRESET_DEFAULT);
-  if (ret != 0) {
-    mbedtls_printf(" failed\n  ! mbedtls_ssl_config_defaults returned %d\n\n",
-                   ret);
-    goto exit;
-  }
-
-  mbedtls_ssl_conf_rng(&conf, mbedtls_ctr_drbg_random, &ctr_drbg);
-
-  if (!ra_tls_attest_lib) {
-    /* no RA-TLS attest library present, use embedded CA chain */
-    mbedtls_ssl_conf_ca_chain(&conf, srvcert.next, NULL);
-  }
-
-  ret = mbedtls_ssl_conf_own_cert(&conf, &srvcert, &pkey);
-  if (ret != 0) {
-    mbedtls_printf(" failed\n  ! mbedtls_ssl_conf_own_cert returned %d\n\n",
-                   ret);
-    goto exit;
-  }
-
-  mbedtls_printf(" ok\n");
-  fflush(stdout);
-
-reset:
   // Create a thread pool for handling different connections.
   while (true) {
     mbedtls_printf("  . Waiting for a remote connection ...\n");
     fflush(stdout);
 
-    mbedtls_ssl_context ssl;
     mbedtls_net_context client;
-    mbedtls_ssl_init(&ssl);
-    // Setup the SSL tunnel.
-    ret = mbedtls_ssl_setup(&ssl, &conf);
-    if (ret != 0) {
-      mbedtls_printf(" failed\n  ! mbedtls_ssl_setup returned %d\n\n", ret);
-      fflush(stdout);
-    }
-
+    mbedtls_net_init(&client);
     ret = mbedtls_net_accept(&listen_fd, &client, NULL, 0, NULL);
     if (ret != 0) {
       mbedtls_printf(" failed\n  ! mbedtls_net_accept returned %d\n\n", ret);
     } else {
-      mbedtls_ssl_set_bio(&ssl, &client, mbedtls_net_send, mbedtls_net_recv,
-                          NULL);
-      mbedtls_printf(" ok\n");
-      fflush(stdout);
-
-      std::thread t(handler, &listen_fd, ssl);
+      std::thread t(handler, client);
       t.detach();
     }
   }
 
 exit:
   if (ra_tls_attest_lib) dlclose(ra_tls_attest_lib);
-
   mbedtls_net_free(&listen_fd);
-
-  mbedtls_x509_crt_free(&srvcert);
-  mbedtls_pk_free(&pkey);
-  mbedtls_ssl_config_free(&conf);
-  mbedtls_ctr_drbg_free(&ctr_drbg);
-  mbedtls_entropy_free(&entropy);
-
-  free(der_key);
-  free(der_crt);
 
   return ret;
 }

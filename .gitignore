@@ -18,6 +18,7 @@ Enclave_t.*
 .lia.cache
 *.log
 *.txt
+*.wasm
 
 # MISC
 Cargo.lock
@@ -27,6 +28,10 @@ outlib
 .config_HW_DEBUG_x64
 data_provider/tvl/app
 eval
+*.bin
+*.json
+*.png
+*.params
 
 # Coq
 *.aux

@@ -11,9 +11,26 @@ NC="\033[0m"
 ADDRESS=127.0.0.1
 PORT=1234
 
+function build_tvm_wasm {
+    # Build wasm32-wasi targeted TVM model for ResNet152.
+    pushd others/enarx/tvm-wasm/tools
+    # Remember to set `TVM_HOME` and `PYTHONPATH`.
+    if [[ -z $TVM_HOME ]]; then
+        echo -e "${RED} TVM_HOME is not set.${NC}"
+        exit 1
+    fi
+    export PYTHONPATH=$TVM_HOME/python:$PYTHONPATH
+    export LLVM_AR=llvm-ar-10
+    echo -e "${MAGENTA} Building TVM model for wasm32-wasi target...${NC}"
+    python3 ./build_graph_lib.py -O3
+    echo -e "${MAGENTA} Finished!${NC}"
+    
+    popd > /dev/null
+}
+
 if [ ! $# -eq 2 ]; then
     echo -e "${RED}Error: Argument number mismatch! Got $#.$NC"
-    echo -e "  Usage: ./evaluation.sh ${YELLOW}[thread_num] [rust|native|pobf|occlum|gramine|all|none]$NC"
+    echo -e "  Usage: ./evaluation.sh ${YELLOW}[thread_num] [rust|native|pobf|occlum|gramine|enarx|all|none]$NC"
     exit 1
 fi
 
@@ -26,6 +43,7 @@ for task in "${tasks[@]}"; do
     mkdir -p eval/"$task"/native_enclave
     mkdir -p eval/"$task"/rust
     mkdir -p eval/"$task"/gramine
+    mkdir -p eval/"$task"/enarx
 done
 
 # Build data provider first.
@@ -62,13 +80,14 @@ if [[ $2 = "occlum" || $2 = "all" ]]; then
     for task in "${tasks[@]}"; do
         echo -e "$MAGENTA[-] Building Occlum LibOS for $task...$NC"
         pushd ../rust_app > /dev/null
-        occlum-cargo build --release --features=server/$task,libos
+        occlum-cargo build --release --features=server/$task,occlum
         cp target/x86_64-unknown-linux-musl/release/server ../occlum/eval/server_$task
         cp target/x86_64-unknown-linux-musl/release/client ../occlum/eval/client
         popd > /dev/null
         echo -e "$MAGENTA\t[+] Finished!$NC"
     done
     rm -rf build
+    occlum init
     copy_bom -f ./rust_config.yaml --root image --include-dir /opt/occlum/etc/template
     occlum build
     popd > /dev/null
@@ -87,6 +106,34 @@ if [[ $2 = "gramine" || $2 = "all" ]]; then
             cp ./client* ../../eval/$task/gramine
             cp -r ./ssl  ../../eval/$task/gramine
             popd > /dev/null
+            echo -e "$MAGENTA\t[+] Finished!$NC"
+        else
+            echo -e "$MAGENTA\t[+] File exists. Skipped!$NC"
+        fi
+    done
+fi
+
+# Build Enarx backbone.
+if [[ $2 = "enarx" || $2 = "all" ]]; then
+    if [[ ! -f others/enarx/tvm-wasm/lib/libgraph_wasm32.a ]]; then
+        build_tvm_wasm
+    fi
+    
+    for task in "${tasks[@]}"; do
+        if [[ ! -f eval/$task/enarx/server.wasm || ! -f eval/$task/enarx/client ]]; then
+            echo -e "$MAGENTA[-] Building Enarx server and client for $task...$NC"
+            pushd others/enarx > /dev/null
+            cargo +nightly build --release --target=wasm32-wasi --features=server/$task
+            
+            pushd client > /dev/null
+            cargo build --release
+            popd > /dev/null
+            
+            cp target/wasm32-wasi/release/server.wasm ../../eval/"$task"/enarx/server.wasm
+            cp target/release/client ../../eval/"$task"/enarx/client
+            cp Enarx.toml ../../eval/"$task"/enarx/Enarx.toml
+            popd > /dev/null
+            
             echo -e "$MAGENTA\t[+] Finished!$NC"
         else
             echo -e "$MAGENTA\t[+] File exists. Skipped!$NC"
@@ -251,6 +298,45 @@ if [[ $2 = "native" || $2 = "all" ]]; then
         popd > /dev/null
         
         fuser -k $PORT/tcp > /dev/null 2>&1
+        wait
+        echo -e "$MAGENTA\t[+] Finished!$NC"
+    done
+fi
+
+# Doing evaluations on the Enarx.
+if [[ $2 = "enarx" || $2 = "all" ]]; then
+    for task in "${tasks[@]}"; do
+        echo -e "$MAGENTA[-] Testing Enarx enclave for $task...$NC"
+        
+        backend=nil
+        if [[ ! -z $BACKEND ]]; then
+            backend=$BACKEND
+        fi
+        
+        # Start the enclave.
+        pushd eval/"$task"/enarx > /dev/null
+        { time enarx run --backend=$backend ./server.wasm --wasmcfgfile ./Enarx.toml; } > \
+        ../../../data/"$task"/output_enclave_enarx.txt 2>&1 &
+        sleep 1
+        # Wait for the server.
+        while true ; do
+            if grep -q "Server started" \
+            ../../../data/"$task"/output_enclave_enarx.txt; then
+                break
+            fi
+            
+            sleep 1
+        done
+        
+        # Start the client.
+        if [[ $task = "task_tvm" ]]; then
+            ./client ../../../data/"$task"/cat.png > ../../../data/"$task"/output_data_provider_enarx.txt 2>&1
+        else
+            ./client ../../../data/"$task"/data.bin > ../../../data/"$task"/output_data_provider_enarx.txt 2>&1
+        fi
+        popd > /dev/null
+        
+        pkill enarx > /dev/null 2>&1
         wait
         echo -e "$MAGENTA\t[+] Finished!$NC"
     done

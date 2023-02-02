@@ -1,0 +1,3 @@
+[workspace]
+members = ["client", "server"]
+exclude = ["tvm-wasm/wasm-graph"]

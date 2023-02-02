@@ -44,9 +44,9 @@ if [[ $2 = "rust" || $2 = "all" ]]; then
             
             sleep 1
         done
-
+        
         { time eval 'parallel -j0 -N0 ./client ../../../data/'$task'/data.bin ::: '{1..$1}''; } \
-             > ../../../data/$task/mt_output_data_provider_rust.txt 2>&1
+        > ../../../data/$task/mt_output_data_provider_rust.txt 2>&1
         fuser -k 7788/tcp > /dev/null 2>&1
         wait
         echo -e "$MAGENTA\t\t[+] Finished!$NC"
@@ -65,12 +65,12 @@ if [[ $2 = "occlum" || $2 = "all" ]]; then
             if grep -q "Server started" ../../data/$task/mt_output_enclave_occlum.txt; then
                 break
             fi
-
+            
             sleep 1
         done
-
+        
         { time eval 'parallel -j0 -N0 ./eval/client ../../data/'$task'/data.bin ::: '{1..$1}''; } \
-             > ../../data/$task/mt_output_data_provider_occlum.txt 2>&1
+        > ../../data/$task/mt_output_data_provider_occlum.txt 2>&1
         fuser -k 7788/tcp > /dev/null 2>&1
         wait
         echo -e "$MAGENTA\t\t[+] Finished!$NC"
@@ -80,11 +80,11 @@ fi
 
 # Test multi-threading for Gramine program.
 if [[ $2 = "gramine" || $2 = "all" ]]; then
-    for task in "${tasksp[@]}"; do
+    for task in "${tasks[@]}"; do
         echo -e "$MAGENTA\t[+] Testing multi-threading on Gramine for $task...$NC"
         
         pushd eval/$task/gramine > /dev/null
-
+        
         { time gramine-sgx ./server; } > ../../../data/$task/mt_output_enclave_gramine.txt 2>&1 &
         # Wait for the server.
         while true ; do
@@ -92,10 +92,10 @@ if [[ $2 = "gramine" || $2 = "all" ]]; then
             ../../../data/$task/mt_output_enclave_gramine.txt; then
                 break
             fi
-
+            
             sleep 1
         done
-
+        
         export RA_TLS_ALLOW_DEBUG_ENCLAVE_INSECURE=1
         export RA_TLS_ALLOW_OUTDATED_TCB_INSECURE=1
         export RA_TLS_MRENCLAVE=$(awk '/mr_enclave/ { print $2 }' ../../../data/$task/gramine_meta.txt | head -1)
@@ -103,18 +103,18 @@ if [[ $2 = "gramine" || $2 = "all" ]]; then
         export RA_TLS_ISV_PROD_ID=0
         export RA_TLS_ISV_SVN=0
         export DATA_PATH="../../../data/$task/data.bin"
-
+        
         { time eval 'parallel -j0 -N0 ./client dcap ::: '{1..$1}''; } \
-             > ../../data/$task/mt_output_data_provider_gramine.txt 2>&1
+        > ../../../data/$task/mt_output_data_provider_gramine.txt 2>&1
         unset DATA_PATH
         unset RA_TLS_MRENCLAVE
         unset RA_TLS_MRSIGNER
-
+        
         fuser -k 2333/tcp > /dev/null 2>&1
         wait
-
+        
         popd > /dev/null
-
+        
         echo -e "$MAGENTA\t\t[+] Finished!$NC"
     done
 fi
@@ -123,17 +123,17 @@ fi
 if [[ $2 = "pobf" || $2 = "all" ]]; then
     for task in "${tasks[@]}"; do
         echo -e "$MAGENTA\t[+] Testing multi-threading on PoBF for $task...$NC"
-
+        
         pushd eval/$task/pobf > /dev/null
         { time ./app $ADDRESS $PORT; } > ../../../data/$task/mt_output_enclave_pobf.txt 2>&1 &
         sleep 1
         popd > /dev/null
-
+        
         pushd ./data_provider/bin > /dev/null
         { time eval 'parallel -j0 -N0 ./data_provider run ../../data/$task/manifest.json ::: '{1..$1}''; } \
-            > ../../data/$task/mt_output_data_provider_pobf.txt 2>&1
+        > ../../data/$task/mt_output_data_provider_pobf.txt 2>&1
         popd > /dev/null
-
+        
         fuser -k $PORT/tcp > /dev/null 2>&1
         wait
         echo -e "$MAGENTA\t\t[+] Finished!$NC"
@@ -144,21 +144,26 @@ fi
 if [[ $2 = "native" || $2 = "all" ]]; then
     for task in "${tasks[@]}"; do
         echo -e "$MAGENTA\t[+] Testing multi-threading on native enclave for $task...$NC"
-
+        
         pushd eval/$task/native_enclave > /dev/null
         { time ./app $ADDRESS $PORT; } > ../../../data/$task/mt_output_enclave_native.txt 2>&1 &
         sleep 1
         popd > /dev/null
-
+        
         pushd ./data_provider/bin > /dev/null
         { time eval 'parallel -j0 -N0 ./data_provider run ../../data/$task/manifest.json ::: '{1..$1}''; } \
-            > ../../data/$task/mt_output_data_provider_native.txt 2>&1
+        > ../../data/$task/mt_output_data_provider_native.txt 2>&1
         popd > /dev/null
-
+        
         fuser -k $PORT/tcp > /dev/null 2>&1
         wait
         echo -e "$MAGENTA\t\t[+] Finished!$NC"
     done
+fi
+
+# Test multi-threading for enarx.
+if [[ $2 = "enarx" || $2 = "all" ]]; then
+    echo -e "$RED[!] Enarx does not support multi-threading!$NC"
 fi
 
 popd > /dev/null
