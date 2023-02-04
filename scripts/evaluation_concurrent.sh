@@ -9,7 +9,7 @@ RED="\033[0;31m"
 YELLOW="\033[0;33m"
 NC="\033[0m"
 ADDRESS=127.0.0.1
-PORT=1234
+PORT=1235
 TIMES=10
 
 function build_tvm_wasm {

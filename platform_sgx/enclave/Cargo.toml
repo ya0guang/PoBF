@@ -35,10 +35,43 @@ native_enclave = []
 # The tasks are enabled by `cfg_if`.
 task_sample = ["sample_add"]
 task_tvm = ["evaluation_tvm"]
-task_polybench = ["polybench"]
+task_polybench = ["polybench", "polybench-rs"]
 task_fann = ["fann"]
 task_fasta = ["fasta"]
 mirai_sample = []
+
+nussinov = []
+_2mm = []
+_3mm = []
+gemm = []
+gemver = []
+gesummv = []
+symm = []
+syrk = []
+syr2k = []
+trmm = []
+mvt = []
+
+durbin = []
+gramschmidt = []
+cholesky = []
+lu = []
+ludcmp = []
+trisolv = []
+covariance = []
+deriche = []
+floyd_warshall = []
+adi = []
+fdtd_2d = []
+heat_3d = []
+jacobi_1d = []
+jacobi_2d = []
+seidel_2d = []
+
+atax = []
+bicg = []
+doitgen = []
+correlation = []
 
 [dependencies]
 base64 = { version = "0.13.0", default-features = false, features = [ "alloc" ] }
@@ -49,6 +82,7 @@ evaluation_tvm = { path = "../../cctasks/evaluation_tvm", optional = true }
 fann = { path = "../../cctasks/fann", optional = true }
 fasta = { path = "../../cctasks/fasta", optional = true }
 polybench = { path = "../../cctasks/polybench", optional = true }
+polybench-rs = { git = "https://github.com/hiroki-chen/polybench-rs.git", optional = true}
 sample_add = { path = "../../cctasks/sample_add", optional = true }
 
 # Patched version.

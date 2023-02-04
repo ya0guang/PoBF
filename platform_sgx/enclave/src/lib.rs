@@ -41,8 +41,7 @@ use sgx_types::{error::SgxStatus, types::*};
 
 use crate::dh::*;
 
-static DEFAULT_PAGE_SIZE_ENTRY: usize = 0x4;
-static DEFAULT_PAGE_SIZE_LEAF: usize = 0x1;
+static DEFAULT_PAGE_SIZE_LEAF: usize = 0x20;
 
 #[no_mangle]
 pub extern "C" fn private_computing_entry(
@@ -75,8 +74,7 @@ pub extern "C" fn private_computing_entry(
             .unwrap();
     let signature = unsafe { slice::from_raw_parts(signature_ptr, signature_len as usize) };
 
-    let f = || pobf_workflow(socket_fd, spid, linkable, ra_type, public_key, signature);
-    let mut result = clear_stack_and_regs_on_return(DEFAULT_PAGE_SIZE_ENTRY, f);
+    let mut result = pobf_workflow(socket_fd, spid, linkable, ra_type, public_key, signature);
 
     let output_size = result.as_ref().len() as u32;
     let rv = if output_size <= encrypted_output_buffer_size {

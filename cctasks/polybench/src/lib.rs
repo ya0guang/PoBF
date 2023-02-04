@@ -2,16 +2,9 @@
 
 extern crate alloc;
 
-use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
 use core::time::Duration;
-use polybench_rs::datamining::*;
-use polybench_rs::linear_algebra::blas::*;
-use polybench_rs::linear_algebra::kernels::*;
-use polybench_rs::linear_algebra::solvers::*;
-use polybench_rs::medley::*;
-use polybench_rs::stencils::*;
 
 pub struct BenchResult {
     pub inner: Vec<(String, Vec<(String, Duration)>)>,
@@ -41,128 +34,152 @@ impl core::fmt::Debug for BenchResult {
     }
 }
 
-/// Invokes `polybench_run` but the parameter is not used.
-pub fn private_computation(input: Vec<u8>, f: &dyn Fn() -> u64) -> Vec<u8> {
-    let result = polybench_run(f);
+// /// Invokes `polybench_run` but the parameter is not used.
+// pub fn private_computation(input: Vec<u8>, f: &dyn Fn() -> u64) -> Vec<u8> {
+//     let result = polybench_run(f);
 
-    format!("{:?}", result).as_bytes().to_vec()
-}
+//     format!("{:?}", result).as_bytes().to_vec()
+// }
 
 /// Dimension too large => Memory consumption large => Enclave crash...
 /// Performs the polybench and returns the grouped result.
 /// The detailed benchmarks can be generated using a timing function `f`.
-pub fn polybench_run(f: &dyn Fn() -> u64) -> BenchResult {
-    let mut res = BenchResult::new();
+// #[deprecated]
+// pub fn polybench_run(f: &dyn Fn() -> u64) -> BenchResult {
+//     let mut res = BenchResult::new();
 
-    // linear algebra.
-    res.inner.push((String::from("Linear Algebra"), Vec::new()));
-    res.inner[0].1.push((
-        String::from("kernels::2mm"),
-        _2mm::bench::<1000, 1000, 1000, 1000>(f),
-    ));
-    res.inner[0].1.push((
-        String::from("kernels::3mm"),
-        _3mm::bench::<200, 225, 250, 275, 300>(f),
-    ));
-    res.inner[0]
-        .1
-        .push((String::from("kernels::atax"), atax::bench::<100, 200>(f)));
-    res.inner[0]
-        .1
-        .push((String::from("kernels::bicg"), bicg::bench::<100, 200>(f)));
-    res.inner[0].1.push((
-        String::from("kernels::doitgen"),
-        doitgen::bench::<100, 100, 20>(f),
-    ));
+//     // linear algebra.
+//     res.inner.push((String::from("Linear Algebra"), Vec::new()));
+//     res.inner[0].1.push((
+//         String::from("kernels::2mm"),
+//         _2mm::bench::<1000, 1000, 1000, 1000>(f),
+//     ));
+//     res.inner[0].1.push((
+//         String::from("kernels::3mm"),
+//         _3mm::bench::<200, 225, 250, 275, 300>(f),
+//     ));
+//     res.inner[0]
+//         .1
+//         .push((String::from("kernels::atax"), atax::bench::<100, 200>(f)));
+//     res.inner[0]
+//         .1
+//         .push((String::from("kernels::bicg"), bicg::bench::<100, 200>(f)));
+//     res.inner[0].1.push((
+//         String::from("kernels::doitgen"),
+//         doitgen::bench::<100, 100, 20>(f),
+//     ));
 
-    // blas.
-    res.inner[0]
-        .1
-        .push((String::from("blas::gemm"), gemm::bench::<100, 100, 100>(f)));
-    res.inner[0]
-        .1
-        .push((String::from("blas::gemver"), gemver::bench::<100>(f)));
-    res.inner[0]
-        .1
-        .push((String::from("blas::gesummv"), gesummv::bench::<100>(f)));
-    res.inner[0]
-        .1
-        .push((String::from("blas::symm"), symm::bench::<100, 100>(f)));
-    res.inner[0]
-        .1
-        .push((String::from("blas::syr2k"), syr2k::bench::<100, 100>(f)));
-    res.inner[0]
-        .1
-        .push((String::from("blas::syrk"), syrk::bench::<100, 100>(f)));
-    res.inner[0]
-        .1
-        .push((String::from("blas::trmm"), trmm::bench::<100, 100>(f)));
+//     // blas.
+//     res.inner[0]
+//         .1
+//         .push((String::from("blas::gemm"), gemm::bench::<100, 100, 100>(f)));
+//     res.inner[0]
+//         .1
+//         .push((String::from("blas::gemver"), gemver::bench::<100>(f)));
+//     res.inner[0]
+//         .1
+//         .push((String::from("blas::gesummv"), gesummv::bench::<100>(f)));
+//     res.inner[0]
+//         .1
+//         .push((String::from("blas::symm"), symm::bench::<100, 100>(f)));
+//     res.inner[0]
+//         .1
+//         .push((String::from("blas::syr2k"), syr2k::bench::<100, 100>(f)));
+//     res.inner[0]
+//         .1
+//         .push((String::from("blas::syrk"), syrk::bench::<100, 100>(f)));
+//     res.inner[0]
+//         .1
+//         .push((String::from("blas::trmm"), trmm::bench::<100, 100>(f)));
 
-    // solvers.
-    res.inner[0]
-        .1
-        .push((String::from("solvers::cholesky"), cholesky::bench::<100>(f)));
-    res.inner[0]
-        .1
-        .push((String::from("solvers::durbin"), durbin::bench::<100>(f)));
-    res.inner[0].1.push((
-        String::from("solvers::gramschmidt"),
-        gramschmidt::bench::<100, 100>(f),
-    ));
-    res.inner[0]
-        .1
-        .push((String::from("solvers::lu"), lu::bench::<100>(f)));
-    res.inner[0]
-        .1
-        .push((String::from("solvers::ludcmp"), ludcmp::bench::<100>(f)));
-    res.inner[0]
-        .1
-        .push((String::from("solvers::trisolv"), trisolv::bench::<100>(f)));
+//     // solvers.
+//     res.inner[0]
+//         .1
+//         .push((String::from("solvers::cholesky"), cholesky::bench::<100>(f)));
+//     res.inner[0]
+//         .1
+//         .push((String::from("solvers::durbin"), durbin::bench::<100>(f)));
+//     res.inner[0].1.push((
+//         String::from("solvers::gramschmidt"),
+//         gramschmidt::bench::<100, 100>(f),
+//     ));
+//     res.inner[0]
+//         .1
+//         .push((String::from("solvers::lu"), lu::bench::<100>(f)));
+//     res.inner[0]
+//         .1
+//         .push((String::from("solvers::ludcmp"), ludcmp::bench::<100>(f)));
+//     res.inner[0]
+//         .1
+//         .push((String::from("solvers::trisolv"), trisolv::bench::<100>(f)));
 
-    // Data mining.
-    res.inner.push((String::from("Data mining"), Vec::new()));
-    res.inner[1].1.push((
-        String::from("correlation"),
-        correlation::bench::<100, 100>(f),
-    ));
-    res.inner[1]
-        .1
-        .push((String::from("covariance"), covariance::bench::<100, 100>(f)));
+//     // Data mining.
+//     res.inner.push((String::from("Data mining"), Vec::new()));
+//     res.inner[1].1.push((
+//         String::from("correlation"),
+//         correlation::bench::<100, 100>(f),
+//     ));
+//     res.inner[1]
+//         .1
+//         .push((String::from("covariance"), covariance::bench::<100, 100>(f)));
 
-    // medleys.
-    res.inner.push((String::from("Medleys"), Vec::new()));
+//     // medleys.
+//     res.inner.push((String::from("Medleys"), Vec::new()));
 
-    res.inner[2]
-        .1
-        .push((String::from("deriche"), deriche::bench::<100, 100>(f)));
-    res.inner[2].1.push((
-        String::from("floyd_warshall"),
-        floyd_warshall::bench::<100>(f),
-    ));
-    res.inner[2]
-        .1
-        .push((String::from("nussinov"), nussinov::bench::<100>(f)));
+//     res.inner[2]
+//         .1
+//         .push((String::from("deriche"), deriche::bench::<100, 100>(f)));
+//     res.inner[2].1.push((
+//         String::from("floyd_warshall"),
+//         floyd_warshall::bench::<100>(f),
+//     ));
+//     res.inner[2]
+//         .1
+//         .push((String::from("nussinov"), nussinov::bench::<100>(f)));
 
-    // stencils.
-    res.inner.push((String::from("Stencils"), Vec::new()));
-    res.inner[3]
-        .1
-        .push((String::from("adi"), adi::bench::<100, 100>(f)));
-    res.inner[3]
-        .1
-        .push((String::from("fdtd_2d"), fdtd_2d::bench::<100, 100, 100>(f)));
-    res.inner[3]
-        .1
-        .push((String::from("heat_3d"), heat_3d::bench::<20, 100>(f)));
-    res.inner[3]
-        .1
-        .push((String::from("jacobi_1d"), jacobi_1d::bench::<1000, 100>(f)));
-    res.inner[3]
-        .1
-        .push((String::from("jacobi_2d"), jacobi_2d::bench::<100, 100>(f)));
-    res.inner[3]
-        .1
-        .push((String::from("seidel_2d"), seidel_2d::bench::<100, 100>(f)));
+//     // stencils.
+//     res.inner.push((String::from("Stencils"), Vec::new()));
+//     res.inner[3]
+//         .1
+//         .push((String::from("adi"), adi::bench::<100, 100>(f)));
+//     res.inner[3]
+//         .1
+//         .push((String::from("fdtd_2d"), fdtd_2d::bench::<100, 100, 100>(f)));
+//     res.inner[3]
+//         .1
+//         .push((String::from("heat_3d"), heat_3d::bench::<20, 100>(f)));
+//     res.inner[3]
+//         .1
+//         .push((String::from("jacobi_1d"), jacobi_1d::bench::<1000, 100>(f)));
+//     res.inner[3]
+//         .1
+//         .push((String::from("jacobi_2d"), jacobi_2d::bench::<100, 100>(f)));
+//     res.inner[3]
+//         .1
+//         .push((String::from("seidel_2d"), seidel_2d::bench::<100, 100>(f)));
 
-    res
+//     res
+// }
+
+#[macro_export]
+macro_rules! fun_polybench {
+    ($name:ident, $($tup:expr, )*) => {
+        pub fn private_computation(input: Vec<u8>, f: &dyn Fn() -> u64) -> Vec<u8> {
+            use alloc::{string::String, format};
+            use polybench_rs::datamining::*;
+            use polybench_rs::linear_algebra::blas::*;
+            use polybench_rs::linear_algebra::kernels::*;
+            use polybench_rs::linear_algebra::solvers::*;
+            use polybench_rs::medley::*;
+            use polybench_rs::stencils::*;
+
+            let mut res = BenchResult::new();
+            res.inner.push((String::from("Polybench Subtask"), Vec::new()));
+            res.inner[0].1.push((
+            String::from(stringify!($name)),
+            $name::bench::<$($tup, )*>(f),
+            ));
+            format!("{:?}", res).as_bytes().to_vec()
+        }
+    };
 }
