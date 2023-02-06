@@ -125,6 +125,8 @@ pub fn handle_client(stream: TcpStream) -> Result<()> {
     println!("Read data.");
 
     let output = perform_task(input);
+    let mut vec = vec![0u8; 10000];
+    reader.read(&mut vec)?;
     writer.write(output.len().to_string().as_bytes())?;
     writer.write(b"\n")?;
     writer.flush()?;

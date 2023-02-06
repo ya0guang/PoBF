@@ -26,9 +26,9 @@ fn main() {
     writer.flush().unwrap();
     println!("Sent data. Length = {}", data.len());
 
-    let mut length_str = String::with_capacity(512);
-    reader.read_line(&mut length_str).unwrap();
-    let data_len = length_str[..length_str.len() - 1].parse::<usize>().unwrap();
+    let mut length = vec![0u8; std::mem::size_of::<u64>() + 1];
+    reader.read_exact(&mut length).unwrap();
+    let data_len = u64::from_le_bytes(length[..length.len() - 1].try_into().unwrap()) as usize;
     println!("Data length = {}", data_len);
     let mut input = vec![0u8; data_len];
     reader.read_exact(&mut input).unwrap();

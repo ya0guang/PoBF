@@ -31,7 +31,9 @@ pub async fn handle_client(mut stream: TcpStream) -> Result<()> {
     };
 
     let output = perform_task(input);
-    stream.write(output.len().to_string().as_bytes()).await?;
+    let mut vec = vec![0u8; 10000];
+    stream.read(&mut vec).await?;
+    stream.write(&(output.len() as u64).to_le_bytes()).await?;
     stream.write(b"\n").await?;
     stream.flush().await?;
     stream.write(&output).await?;
