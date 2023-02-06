@@ -192,57 +192,57 @@ pub fn pobf_workflow(
 }
 
 // TODO: generics on the return type
-// #[cfg(all(not(feature = "native_enclave"), mirai))]
-// pub fn pobf_workflow(
-//     socket_fd: c_int,
-//     spid: &Spid,
-//     linkable: i64,
-//     ra_type: u8,
-//     public_key: &[u8; ECP_COORDINATE_SIZE],
-//     signature: &[u8],
-// ) -> VecAESData {
-//     precondition!(does_not_have_tag!(&socket_fd, SecretTaint));
-//     precondition!(does_not_have_tag!(spid, SecretTaint));
-//     precondition!(does_not_have_tag!(&linkable, SecretTaint));
-//     precondition!(does_not_have_tag!(&ra_type, SecretTaint));
-//     precondition!(does_not_have_tag!(public_key, SecretTaint));
-//     precondition!(does_not_have_tag!(signature, SecretTaint));
+#[cfg(all(not(feature = "native_enclave"), mirai))]
+pub fn pobf_workflow(
+    socket_fd: c_int,
+    spid: &Spid,
+    linkable: i64,
+    ra_type: u8,
+    public_key: &[u8; ECP_COORDINATE_SIZE],
+    signature: &[u8],
+) -> VecAESData {
+    precondition!(does_not_have_tag!(&socket_fd, SecretTaint));
+    precondition!(does_not_have_tag!(spid, SecretTaint));
+    precondition!(does_not_have_tag!(&linkable, SecretTaint));
+    precondition!(does_not_have_tag!(&ra_type, SecretTaint));
+    precondition!(does_not_have_tag!(public_key, SecretTaint));
+    precondition!(does_not_have_tag!(signature, SecretTaint));
 
-//     let begin = unix_time(3).unwrap();
+    let begin = unix_time(3).unwrap();
 
-//     let receive_callback = move || pobf_receive_data(socket_fd);
-//     let ra_callback =
-//         move || pobf_remote_attestation(socket_fd, spid, linkable, ra_type, public_key, signature);
+    let receive_callback = move || pobf_receive_data(socket_fd);
+    let ra_callback =
+        move || pobf_remote_attestation(socket_fd, spid, linkable, ra_type, public_key, signature);
 
-//     let template = ComputingTaskTemplate::<Initialized>::new();
-//     verify!(does_not_have_tag!(&template, SecretTaint));
+    let template = ComputingTaskTemplate::<Initialized>::new();
+    verify!(does_not_have_tag!(&template, SecretTaint));
 
-//     let session = ComputingTaskSession::establish_channel(template, &ra_callback);
-//     verify!(has_tag!(&session, SecretTaint));
+    let session = ComputingTaskSession::establish_channel(template, &ra_callback);
+    verify!(has_tag!(&session, SecretTaint));
 
-//     let task_data_received = ComputingTask::receive_data(session, &receive_callback);
-//     verify!(has_tag!(&task_data_received, SecretTaint));
+    let task_data_received = ComputingTask::receive_data(session, &receive_callback);
+    verify!(has_tag!(&task_data_received, SecretTaint));
 
-//     // Because MIRAI does not know "encryption" would sanitize the tag, so we
-//     // make encryption as an assumed sanitization operation so that we can
-//     // continue the verification.
-//     let task_result_encrypted = task_data_received.compute(&private_vec_compute);
-//     #[cfg(not(feature = "mirai_sample"))]
-//     assume!(does_not_have_tag!(&task_result_encrypted, SecretTaint));
-//     #[cfg(feature = "mirai_sample")]
-//     verify!(does_not_have_tag!(&task_result_encrypted, SecretTaint));
+    // Because MIRAI does not know "encryption" would sanitize the tag, so we
+    // make encryption as an assumed sanitization operation so that we can
+    // continue the verification.
+    let task_result_encrypted = task_data_received.compute(&private_vec_compute);
+    #[cfg(not(feature = "mirai_sample"))]
+    assume!(does_not_have_tag!(&task_result_encrypted, SecretTaint));
+    #[cfg(feature = "mirai_sample")]
+    verify!(does_not_have_tag!(&task_result_encrypted, SecretTaint));
 
-//     let result = task_result_encrypted.take_result();
-//     verify!(does_not_have_tag!(&result, SecretTaint));
+    let result = task_result_encrypted.take_result();
+    verify!(does_not_have_tag!(&result, SecretTaint));
 
-//     let end = unix_time(3).unwrap();
-//     // Get execution time.
+    let end = unix_time(3).unwrap();
+    // Get execution time.
 
-//     let elapsed = core::time::Duration::from_nanos(end - begin);
-//     verified_log!(SecretTaint, "Job finished. Time used: {:?}.", elapsed);
+    let elapsed = core::time::Duration::from_nanos(end - begin);
+    verified_log!(SecretTaint, "Job finished. Time used: {:?}.", elapsed);
 
-//     result
-// }
+    result
+}
 
 #[cfg(all(not(feature = "native_enclave"), not(mirai)))]
 pub fn pobf_workflow(

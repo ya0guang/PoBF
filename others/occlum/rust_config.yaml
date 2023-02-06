@@ -4,9 +4,6 @@ targets:
   - target: /bin
     copy:
       - files:
-        - ./eval/server_task_sample
         - ./eval/server_task_tvm
         - ./eval/server_task_fasta
-        - ./eval/server_task_fann
-        - ./eval/server_task_polybench
         - ./eval/client

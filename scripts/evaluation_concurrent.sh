@@ -9,7 +9,7 @@ RED="\033[0;31m"
 YELLOW="\033[0;33m"
 NC="\033[0m"
 ADDRESS=127.0.0.1
-PORT=1235
+PORT=1245
 TIMES=10
 
 function build_tvm_wasm {
@@ -53,7 +53,7 @@ for task in "${tasks[@]}"; do
 done
 
 # Build data provider first.
-pushd data_provider > /dev/null
+pushd data_provider2 > /dev/null
 cargo build --release
 popd > /dev/null
 
@@ -295,7 +295,7 @@ if [[ $2 = "pobf" || $2 = "all" ]]; then
                     popd > /dev/null
                     
                     # Start the data provider.
-                    pushd ./data_provider/bin > /dev/null
+                    pushd ./data_provider2/bin > /dev/null
                     { time ./data_provider run ../../data/"$task"/manifest.json; } > ../../data/"$task"/"$subtask"/"$i"output_data_provider_pobf.txt 2>&1
                     cp ./output.txt ../../data/"$task"/"$subtask"/"$i"result_pobf.txt
                     popd > /dev/null
@@ -312,7 +312,7 @@ if [[ $2 = "pobf" || $2 = "all" ]]; then
                 popd > /dev/null
                 
                 # Start the data provider.
-                pushd ./data_provider/bin > /dev/null
+                pushd ./data_provider2/bin > /dev/null
                 { time ./data_provider run ../../data/"$task"/manifest.json; } > ../../data/"$task"/output_data_provider_pobf.txt 2>&1
                 cp ./output.txt ../../data/"$task"/"$subtask"/"$i"result_pobf.txt
                 popd > /dev/null
@@ -342,7 +342,7 @@ if [[ $2 = "native" || $2 = "all" ]]; then
                     popd > /dev/null
                     
                     # Start the data provider.
-                    pushd ./data_provider/bin > /dev/null
+                    pushd ./data_provider2/bin > /dev/null
                     { time ./data_provider run ../../data/"$task"/manifest.json; } > ../../data/"$task"/"$subtask"/"$i"output_data_provider_native.txt 2>&1
                     cp ./output.txt ../../data/"$task"/"$subtask"/"$i"result_native.txt
                     popd > /dev/null
@@ -359,7 +359,7 @@ if [[ $2 = "native" || $2 = "all" ]]; then
                 popd > /dev/null
                 
                 # Start the data provider.
-                pushd ./data_provider/bin > /dev/null
+                pushd ./data_provider2/bin > /dev/null
                 { time ./data_provider run ../../data/"$task"/manifest.json; } > ../../data/"$task"/output_data_provider_native.txt 2>&1
                 cp ./output.txt ../../data/"$task"/result_native.txt
                 popd > /dev/null

@@ -4,7 +4,7 @@ extern crate alloc;
 use alloc::vec::Vec;
 
 pub fn private_computation(input: Vec<u8>) -> Vec<u8> {
-    let step = 1;
+    // let step = 1;
 
     // this can be proven true by MIRAI
     #[cfg(feature = "leak_log")]
@@ -14,10 +14,10 @@ pub fn private_computation(input: Vec<u8>) -> Vec<u8> {
         println!("The step is {} in computation_enc", step);
     }
 
-    let mut output = Vec::new();
-    for i in input.iter() {
-        output.push(i + step);
-    }
+    // let mut output = Vec::new();
+    // for i in input.iter() {
+    //     output.push(i + step);
+    // }
 
     // however, MIRAI complians about this
     // leakage violation: cannot log the secret data
@@ -53,5 +53,6 @@ pub fn private_computation(input: Vec<u8>) -> Vec<u8> {
         file.write_all(&output).unwrap();
     }
 
-    output
+    // output
+    input
 }

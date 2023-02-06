@@ -10,7 +10,8 @@ YELLOW="\033[0;33m"
 NC="\033[0m"
 ADDRESS=127.0.0.1
 PORT=1234
-TIMES=10
+TIMES=1
+# DATASIZE=1gb
 
 function build_tvm_wasm {
     # Build wasm32-wasi targeted TVM model for ResNet152.
@@ -37,8 +38,7 @@ fi
 
 pushd .. > /dev/null
 # declare -a tasks=("task_tvm" "task_fann" "task_fasta" "task_polybench" "task_sample")
-declare -a tasks=("task_polybench" )
-# declare -a tasks=("task_fasta" )
+declare -a tasks=("task_tvm" "task_fasta")
 
 declare -a polybench_tasks=("_2mm" "_3mm" "atax" "bicg" "cholesky" "correlation" "covariance" "deriche" "doitgen" "durbin" "fdtd_2d" "floyd_warshall" "gemm" "gemver" "gesummv" "gramschmidt" "heat_3d" "jacobi_1d" "jacobi_2d" "lu" "ludcmp" "mvt" "nussinov" "seidel_2d" "symm" "syr2k" "syrk" "trisolv" "trmm" "adi")
 # declare -a polybench_tasks=("_2mm" "_3mm" "atax" "bicg" "cholesky")
@@ -193,88 +193,94 @@ fi
 
 # Doing evaluations on Rust programs.
 if [[ $2 = "rust" || $2 = "all" ]]; then
-    for task in "${tasks[@]}"; do
-        echo -e "$MAGENTA[-] Testing Rust program for $task...$NC"
-        
-        pushd eval/"$task"/rust > /dev/null
-        { time ./server; } > ../../../data/"$task"/output_enclave_rust.txt 2>&1 &
-        while true ; do
-            if grep -q "Server started" ../../../data/$task/output_enclave_rust.txt; then
-                break
-            fi
+    for i in $(seq 1 $TIMES); do
+        for task in "${tasks[@]}"; do
+            echo -e "$MAGENTA[-] Testing Rust program for $task...$NC"
             
-            sleep 1
+            pushd eval/"$task"/rust > /dev/null
+            { time ./server; } > ../../../data/"$task"/"$i"output_enclave_rust.txt 2>&1 &
+            while true ; do
+                if grep -q "Server started" ../../../data/$task/"$i"output_enclave_rust.txt; then
+                    break
+                fi
+                
+                sleep 1
+            done
+            
+            ./client ../../../data/"$task"/data.bin > ../../../data/"$task"/"$i"output_data_provider_rust.txt 2>&1
+            popd > /dev/null
+            
+            fuser -k 7788/tcp > /dev/null 2>&1
+            wait
+            
+            echo -e "$MAGENTA\t[+] Finished!$NC"
         done
-        
-        ./client ../../../data/"$task"/data.bin > ../../../data/"$task"/output_data_provider_rust.txt 2>&1
-        popd > /dev/null
-        
-        fuser -k 7788/tcp > /dev/null 2>&1
-        wait
-        
-        echo -e "$MAGENTA\t[+] Finished!$NC"
     done
 fi
 
 # Doing evaluations on Occlum.
 if [[ $2 = "occlum" || $2 = "all" ]]; then
-    pushd others/occlum > /dev/null
-    for task in "${tasks[@]}"; do
-        echo -e "$MAGENTA[-] Testing Occlum for $task...$NC"
-        { time occlum run /bin/server_$task; } > ../../data/$task/output_enclave_occlum.txt 2>&1 &
-        # Wait for the server.
-        while true ; do
-            if grep -q "Server started" ../../data/$task/output_enclave_occlum.txt; then
-                break
-            fi
+    for i in $(seq 1 $TIMES); do
+        pushd others/occlum > /dev/null
+        for task in "${tasks[@]}"; do
+            echo -e "$MAGENTA[-] Testing Occlum for $task...$NC"
+            { time occlum run /bin/server_$task; } > ../../data/$task/"$i"output_enclave_occlum.txt 2>&1 &
+            # Wait for the server.
+            while true ; do
+                if grep -q "Server started" ../../data/$task/"$i"output_enclave_occlum.txt; then
+                    break
+                fi
+                
+                sleep 1
+            done
             
-            sleep 1
+            ./eval/client ../../data/$task/data.bin > ../../data/$task/"$i"output_data_provider_occlum.txt 2>&1
+            fuser -k 7788/tcp > /dev/null 2>&1
+            wait
+            
+            echo -e "$MAGENTA\t[+] Finished!$NC"
         done
-        
-        ./eval/client ../../data/$task/data.bin > ../../data/$task/output_data_provider_occlum.txt 2>&1
-        fuser -k 7788/tcp > /dev/null 2>&1
-        wait
-        
-        echo -e "$MAGENTA\t[+] Finished!$NC"
+        popd > /dev/null
     done
-    popd > /dev/null
 fi
 
 # Doing evaluations on Gramine.
 if [[ $2 = "gramine" || $2 = "all" ]]; then
-    for task in "${tasks[@]}"; do
-        echo -e "$MAGENTA[-] Testing Gramine for $task...$NC"
-        
-        pushd eval/"$task"/gramine > /dev/null
-        
-        { time gramine-sgx ./server; } > ../../../data/"$task"/output_enclave_gramine.txt 2>&1 &
-        # Wait for the server.
-        while true ; do
-            if grep -q "Waiting for a remote connection" \
-            ../../../data/"$task"/output_enclave_gramine.txt; then
-                break
-            fi
+    for i in $(seq 1 $TIMES); do
+        for task in "${tasks[@]}"; do
+            echo -e "$MAGENTA[-] Testing Gramine for $task...$NC"
             
-            sleep 1
+            pushd eval/"$task"/gramine > /dev/null
+            
+            { time gramine-sgx ./server; } > ../../../data/"$task"/"$i"output_enclave_gramine.txt 2>&1 &
+            # Wait for the server.
+            while true ; do
+                if grep -q "Waiting for a remote connection" \
+                ../../../data/"$task"/"$i"output_enclave_gramine.txt; then
+                    break
+                fi
+                
+                sleep 1
+            done
+            
+            export RA_TLS_ALLOW_DEBUG_ENCLAVE_INSECURE=1
+            export RA_TLS_ALLOW_OUTDATED_TCB_INSECURE=1
+            export RA_TLS_MRENCLAVE=$(awk '/mr_enclave/ { print $2 }' ../../../data/$task/gramine_meta.txt | head -1)
+            export RA_TLS_MRSIGNER=$(awk '/mr_signer/ { print $2 }' ../../../data/$task/gramine_meta.txt | head -1)
+            export RA_TLS_ISV_PROD_ID=0
+            export RA_TLS_ISV_SVN=0
+            export DATA_PATH="../../../data/$task/data.bin"
+            ./client dcap > ../../../data/"$task"/"$i"output_data_provider_gramine.txt 2>&1
+            unset DATA_PATH
+            unset RA_TLS_MRENCLAVE
+            unset RA_TLS_MRSIGNER
+            
+            popd > /dev/null
+            
+            fuser -k 2333/tcp > /dev/null 2>&1
+            wait
+            echo -e "$MAGENTA\t[+] Finished!$NC"
         done
-        
-        export RA_TLS_ALLOW_DEBUG_ENCLAVE_INSECURE=1
-        export RA_TLS_ALLOW_OUTDATED_TCB_INSECURE=1
-        export RA_TLS_MRENCLAVE=$(awk '/mr_enclave/ { print $2 }' ../../../data/$task/gramine_meta.txt | head -1)
-        export RA_TLS_MRSIGNER=$(awk '/mr_signer/ { print $2 }' ../../../data/$task/gramine_meta.txt | head -1)
-        export RA_TLS_ISV_PROD_ID=0
-        export RA_TLS_ISV_SVN=0
-        export DATA_PATH="../../../data/$task/data.bin"
-        ./client dcap > ../../../data/"$task"/output_data_provider_gramine.txt 2>&1
-        unset DATA_PATH
-        unset RA_TLS_MRENCLAVE
-        unset RA_TLS_MRSIGNER
-        
-        popd > /dev/null
-        
-        fuser -k 2333/tcp > /dev/null 2>&1
-        wait
-        echo -e "$MAGENTA\t[+] Finished!$NC"
     done
 fi
 
@@ -307,14 +313,14 @@ if [[ $2 = "pobf" || $2 = "all" ]]; then
             else
                 # Start the enclave.
                 pushd eval/"$task"/pobf > /dev/null
-                { time ./app $ADDRESS $PORT; } > ../../../data/"$task"/output_enclave_pobf.txt 2>&1 &
+                { time ./app $ADDRESS $PORT; } > ../../../data/"$task"/"$i"output_enclave_pobf.txt 2>&1 &
                 sleep 1
                 popd > /dev/null
                 
                 # Start the data provider.
                 pushd ./data_provider/bin > /dev/null
-                { time ./data_provider run ../../data/"$task"/manifest.json; } > ../../data/"$task"/output_data_provider_pobf.txt 2>&1
-                cp ./output.txt ../../data/"$task"/"$subtask"/"$i"result_pobf.txt
+                { time ./data_provider run ../../data/"$task"/manifest.json; } > ../../data/"$task"/"$i"output_data_provider_pobf.txt 2>&1
+                cp ./output.txt ../../data/"$task"/"$i"result_pobf.txt
                 popd > /dev/null
 
             fi
@@ -354,14 +360,14 @@ if [[ $2 = "native" || $2 = "all" ]]; then
             else
                 # Start the enclave.
                 pushd eval/"$task"/native > /dev/null
-                { time ./app $ADDRESS $PORT; } > ../../../data/"$task"/output_enclave_native.txt 2>&1 &
+                { time ./app $ADDRESS $PORT; } > ../../../data/"$task"/"$i"output_enclave_native.txt 2>&1 &
                 sleep 1
                 popd > /dev/null
                 
                 # Start the data provider.
                 pushd ./data_provider/bin > /dev/null
-                { time ./data_provider run ../../data/"$task"/manifest.json; } > ../../data/"$task"/output_data_provider_native.txt 2>&1
-                cp ./output.txt ../../data/"$task"/result_native.txt
+                { time ./data_provider run ../../data/"$task"/manifest.json; } > ../../data/"$task"/"$i"output_data_provider_native.txt 2>&1
+                cp ./output.txt ../../data/"$task"/"$i"result_native.txt
                 popd > /dev/null
             fi
             
@@ -374,40 +380,42 @@ fi
 
 # Doing evaluations on the Enarx.
 if [[ $2 = "enarx" || $2 = "all" ]]; then
-    for task in "${tasks[@]}"; do
-        echo -e "$MAGENTA[-] Testing Enarx enclave for $task...$NC"
-        
-        backend=nil
-        if [[ ! -z $BACKEND ]]; then
-            backend=$BACKEND
-        fi
-        
-        # Start the enclave.
-        pushd eval/"$task"/enarx > /dev/null
-        { time enarx run --backend=$backend ./server.wasm --wasmcfgfile ./Enarx.toml; } > \
-        ../../../data/"$task"/output_enclave_enarx.txt 2>&1 &
-        sleep 1
-        # Wait for the server.
-        while true ; do
-            if grep -q "Server started" \
-            ../../../data/"$task"/output_enclave_enarx.txt; then
-                break
+    for i in $(seq 1 $TIMES); do
+        for task in "${tasks[@]}"; do
+            echo -e "$MAGENTA[-] Testing Enarx enclave for $task...$NC"
+            
+            backend=nil
+            if [[ ! -z $BACKEND ]]; then
+                backend=$BACKEND
             fi
             
+            # Start the enclave.
+            pushd eval/"$task"/enarx > /dev/null
+            { time enarx run --backend=$backend ./server.wasm --wasmcfgfile ./Enarx.toml; } > \
+            ../../../data/"$task"/"$i"output_enclave_enarx.txt 2>&1 &
             sleep 1
+            # Wait for the server.
+            while true ; do
+                if grep -q "Server started" \
+                ../../../data/"$task"/"$i"output_enclave_enarx.txt; then
+                    break
+                fi
+                
+                sleep 1
+            done
+            
+            # Start the client.
+            if [[ $task = "task_tvm" ]]; then
+                ./client ../../../data/"$task"/cat.png > ../../../data/"$task"/"$i"output_data_provider_enarx.txt 2>&1
+            else
+                ./client ../../../data/"$task"/data.bin > ../../../data/"$task"/"$i"output_data_provider_enarx.txt 2>&1
+            fi
+            popd > /dev/null
+            
+            pkill enarx > /dev/null 2>&1
+            wait
+            echo -e "$MAGENTA\t[+] Finished!$NC"
         done
-        
-        # Start the client.
-        if [[ $task = "task_tvm" ]]; then
-            ./client ../../../data/"$task"/cat.png > ../../../data/"$task"/output_data_provider_enarx.txt 2>&1
-        else
-            ./client ../../../data/"$task"/data.bin > ../../../data/"$task"/output_data_provider_enarx.txt 2>&1
-        fi
-        popd > /dev/null
-        
-        pkill enarx > /dev/null 2>&1
-        wait
-        echo -e "$MAGENTA\t[+] Finished!$NC"
     done
 fi
 
@@ -415,4 +423,4 @@ popd > /dev/null
 
 # Test multi-threading.
 echo -e "$MAGENTA[+] Testing multi-threading...$NC"
-# ./multi_threading.sh $1 $2
+./multi_threading.sh $1 $2

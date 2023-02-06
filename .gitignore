@@ -19,6 +19,7 @@ Enclave_t.*
 *.log
 *.txt
 *.wasm
+data_provider2/
 
 # MISC
 Cargo.lock
