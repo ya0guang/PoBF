@@ -13,7 +13,9 @@
 #include "mbedtls/build_info.h"
 
 #include <sstream>
+#include <iostream>
 #include <fstream>
+#include <chrono>
 
 #include <assert.h>
 #include <ctype.h>
@@ -335,7 +337,8 @@ int main(int argc, char** argv) {
       mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy, NULL, 0);
   if (ret != 0) {
     mbedtls_printf(" failed\n  ! mbedtls_ctr_drbg_seed returned %d\n", ret);
-    goto exit;
+    return -1;
+    ;
   }
 
   mbedtls_printf(" ok\n");
@@ -343,11 +346,13 @@ int main(int argc, char** argv) {
   mbedtls_printf("  . Connecting to tcp/%s/%s...", SERVER_NAME, SERVER_PORT);
   fflush(stdout);
 
+  auto begin = std::chrono::high_resolution_clock::now();
   ret = mbedtls_net_connect(&server_fd, SERVER_NAME, SERVER_PORT,
                             MBEDTLS_NET_PROTO_TCP);
   if (ret != 0) {
     mbedtls_printf(" failed\n  ! mbedtls_net_connect returned %d\n\n", ret);
-    goto exit;
+    return -1;
+    ;
   }
 
   mbedtls_printf(" ok\n");
@@ -361,7 +366,8 @@ int main(int argc, char** argv) {
   if (ret != 0) {
     mbedtls_printf(" failed\n  ! mbedtls_ssl_config_defaults returned %d\n\n",
                    ret);
-    goto exit;
+    return -1;
+    ;
   }
 
   mbedtls_printf(" ok\n");
@@ -373,7 +379,8 @@ int main(int argc, char** argv) {
   if (ret < 0) {
     mbedtls_printf(
         " failed\n  !  mbedtls_x509_crt_parse_file returned -0x%x\n\n", -ret);
-    goto exit;
+    return -1;
+    ;
   }
 
   mbedtls_ssl_conf_authmode(&conf, MBEDTLS_SSL_VERIFY_OPTIONAL);
@@ -393,14 +400,16 @@ int main(int argc, char** argv) {
   ret = mbedtls_ssl_setup(&ssl, &conf);
   if (ret != 0) {
     mbedtls_printf(" failed\n  ! mbedtls_ssl_setup returned %d\n\n", ret);
-    goto exit;
+    return -1;
+    ;
   }
 
   ret = mbedtls_ssl_set_hostname(&ssl, SERVER_NAME);
   if (ret != 0) {
     mbedtls_printf(" failed\n  ! mbedtls_ssl_set_hostname returned %d\n\n",
                    ret);
-    goto exit;
+    return -1;
+    ;
   }
 
   mbedtls_ssl_set_bio(&ssl, &server_fd, mbedtls_net_send, mbedtls_net_recv,
@@ -413,7 +422,8 @@ int main(int argc, char** argv) {
     if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
       mbedtls_printf(" failed\n  ! mbedtls_ssl_handshake returned -0x%x\n\n",
                      -ret);
-      goto exit;
+      return -1;
+      ;
     }
   }
 
@@ -429,7 +439,8 @@ int main(int argc, char** argv) {
     mbedtls_printf("%s\n", vrfy_buf);
 
     /* verification failed for whatever reason, fail loudly */
-    goto exit;
+    return -1;
+    ;
   } else {
     mbedtls_printf(" ok\n");
   }
@@ -441,7 +452,8 @@ int main(int argc, char** argv) {
                                   data_len.size())) <= 0) {
     if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
       mbedtls_printf(" failed\n  ! mbedtls_ssl_write returned %d\n\n", ret);
-      goto exit;
+      return -1;
+      ;
     }
   }
 
@@ -452,7 +464,8 @@ int main(int argc, char** argv) {
                                   data.size())) <= 0) {
     if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
       mbedtls_printf(" failed\n  ! mbedtls_ssl_write returned %d\n\n", ret);
-      goto exit;
+      return -1;
+      ;
     }
   }
 
@@ -489,7 +502,10 @@ int main(int argc, char** argv) {
 
   mbedtls_ssl_close_notify(&ssl);
   exit_code = MBEDTLS_EXIT_SUCCESS;
-exit:
+  auto end = std::chrono::high_resolution_clock::now();
+  auto time =
+      std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin).count();
+  std::cerr << "Elapsed: " << time << "ns" << std::endl;
 
   if (ra_tls_verify_lib) {
     dlclose(ra_tls_verify_lib);

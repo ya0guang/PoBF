@@ -17,6 +17,7 @@ fn main() {
     println!("Reading {}", data_path);
 
     // Send to the server.
+    let now = std::time::Instant::now();
     writer.write(&data.len().to_le_bytes()).unwrap();
     writer.write(b"\n").unwrap();
     writer.flush().unwrap();
@@ -32,5 +33,5 @@ fn main() {
     let mut input = vec![0u8; data_len];
     reader.read_exact(&mut input).unwrap();
     println!("Read data.");
-    println!("Finished");
+    println!("Finished. Elaped time = {:?}", now.elapsed());
 }
