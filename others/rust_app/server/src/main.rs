@@ -14,8 +14,6 @@ const ENCLAVE_TCS_NUM: usize = 10;
 const ADDRESS: &str = "127.0.0.1:7788";
 
 fn main() {
-    #[cfg(feature = "occlum")]
-    dcap::dcap_demo();
     // Start listening to the port.
     let listener = match TcpListener::bind(ADDRESS) {
         Ok(res) => res,

@@ -87,6 +87,7 @@ fn main() {
             let mut reader = BufReader::new(socket);
             let mut writer = BufWriter::new(socket_clone);
 
+            let now = std::time::Instant::now();
             let data = match dp_information.ra_type {
                 0 => exec_epid_workflow(&mut reader, &mut writer, &mut key_pair, &dp_information)
                     .expect("[-] Failed to execute EPID workflow!"),
@@ -101,6 +102,7 @@ fn main() {
             };
 
             debug!("[+] Received result: {:?}", data);
+            info!("Elapsed time: {:?}", now.elapsed());
 
             use std::fs::File;
             use std::io::prelude::*;

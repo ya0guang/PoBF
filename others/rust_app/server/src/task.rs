@@ -57,7 +57,8 @@ impl ThreadPool {
         self.sender
             .as_ref()
             .unwrap()
-            .send(job).map_err(|_| Error::from(ErrorKind::Other))
+            .send(job)
+            .map_err(|_| Error::from(ErrorKind::Other))
     }
 }
 
@@ -112,6 +113,9 @@ impl Worker {
 }
 
 pub fn handle_client(stream: TcpStream) -> Result<()> {
+    #[cfg(feature = "occlum")]
+    dcap::dcap_demo();
+
     let socket_clone = stream.try_clone().unwrap();
     let mut reader = BufReader::new(stream);
     let mut writer = BufWriter::new(socket_clone);
