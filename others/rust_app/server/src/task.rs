@@ -114,7 +114,7 @@ impl Worker {
 
 pub fn handle_client(stream: TcpStream) -> Result<()> {
     #[cfg(feature = "occlum")]
-    dcap::dcap_demo();
+    crate::dcap::dcap_demo();
 
     let socket_clone = stream.try_clone().unwrap();
     let mut reader = BufReader::new(stream);
@@ -124,13 +124,12 @@ pub fn handle_client(stream: TcpStream) -> Result<()> {
     reader.read_line(&mut length_str)?;
     let data_len = length_str[..length_str.len() - 1].parse::<usize>().unwrap();
     println!("Data length = {}", data_len);
-    let mut input = vec![0u8; data_len];
+    let mut input = vec![0u8; data_len + 1];
     reader.read_exact(&mut input)?;
+    input.truncate(data_len);
     println!("Read data.");
 
     let output = perform_task(input);
-    let mut vec = vec![0u8; 10000];
-    reader.read(&mut vec)?;
     writer.write(output.len().to_string().as_bytes())?;
     writer.write(b"\n")?;
     writer.flush()?;
@@ -155,7 +154,7 @@ fn perform_task(input: Vec<u8>) -> Vec<u8> {
         });
         println!("{}", String::from_utf8(res.clone()).unwrap());
         let elapsed = now.elapsed();
-        println!("Elapsed: {:.2?}", elapsed);
+        println!("Elapsed: {:?}", elapsed);
         res
     }
 
@@ -163,7 +162,7 @@ fn perform_task(input: Vec<u8>) -> Vec<u8> {
     {
         let res = private_computation(input);
         let elapsed = now.elapsed();
-        println!("Elapsed: {:.2?}", elapsed);
+        println!("Elapsed: {:?}", elapsed);
 
         res
     }

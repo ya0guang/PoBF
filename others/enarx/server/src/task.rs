@@ -24,15 +24,13 @@ pub async fn handle_client(mut stream: TcpStream) -> Result<()> {
     stream.read_exact(&mut length).await?;
     let data_len = u64::from_le_bytes(length.try_into().unwrap()) as usize;
     let input = {
-        let mut input = vec![0u8; data_len + 1];
+        let mut input = vec![0u8; data_len + 2];
         stream.read_exact(&mut input).await?;
         println!("Read data.");
-        input[1..].to_vec()
+        input[1..data_len].to_vec()
     };
 
     let output = perform_task(input);
-    let mut vec = vec![0u8; 10000];
-    stream.read(&mut vec).await?;
     stream.write(&(output.len() as u64).to_le_bytes()).await?;
     stream.write(b"\n").await?;
     stream.flush().await?;
@@ -57,7 +55,7 @@ fn perform_task(input: Vec<u8>) -> Vec<u8> {
         });
         println!("{}", String::from_utf8(res.clone()).unwrap());
         let elapsed = now.elapsed();
-        println!("Elapsed: {:.2?}", elapsed);
+        println!("Elapsed: {:?}", elapsed);
         res
     }
 
@@ -65,7 +63,7 @@ fn perform_task(input: Vec<u8>) -> Vec<u8> {
     {
         let res = private_computation(input);
         let elapsed = now.elapsed();
-        println!("Elapsed: {:.2?}", elapsed);
+        println!("Elapsed: {:?}", elapsed);
 
         res
     }
