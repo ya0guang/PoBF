@@ -10,7 +10,7 @@ YELLOW="\033[0;33m"
 NC="\033[0m"
 ADDRESS=127.0.0.1
 PORT=1234
-TIMES=1
+TIMES=2
 # DATASIZE=1gb
 
 function build_tvm_wasm {

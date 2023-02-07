@@ -28,7 +28,7 @@ if ! command -v parallel &> /dev/null; then
 fi
 
 # declare -a tasks=("task_tvm" "task_fann" "task_fasta" "task_polybench" "task_sample")
-declare -a tasks=("task_tvm" "task_fasta")
+declare -a tasks=("task_fasta")
 
 pushd .. > /dev/null
 
@@ -40,6 +40,8 @@ if [[ $2 = "rust" || $2 = "all" ]]; then
             
             pushd eval/"$task"/rust > /dev/null
             { time ./server; } > ../../../data/"$task"/"$i"mt_output_enclave_rust.txt 2>&1 &
+            # Bench starting time.
+            start_time="$(date -u +%s.%N)"
             while true ; do
                 if grep -q "Server started" ../../../data/$task/"$i"mt_output_enclave_rust.txt; then
                     break
@@ -47,12 +49,15 @@ if [[ $2 = "rust" || $2 = "all" ]]; then
                 
                 sleep 1
             done
+            end_time="$(date -u +%s.%N)"
+            init_time="$(bc <<<"$end_time-$start_time")"
             
             { time eval 'parallel -j0 -N0 ./client ../../../data/'$task'/data.bin ::: '{1..$1}''; } \
             > ../../../data/$task/"$i"mt_output_data_provider_rust.txt 2>&1
             fuser -k 7788/tcp > /dev/null 2>&1
             wait
             echo -e "$MAGENTA\t\t[+] Finished!$NC"
+            echo "initialization takes ${init_time}s" >> ../../../data/"$task"/"$i"mt_output_enclave_rust.txt
             popd > /dev/null
         done
     done
@@ -66,6 +71,7 @@ if [[ $2 = "occlum" || $2 = "all" ]]; then
             echo -e "$MAGENTA\t[-] Testing multi-threading on Occlum for $task...$NC"
             { time occlum run /bin/server_$task; } > ../../data/$task/"$i"mt_output_enclave_occlum.txt 2>&1 &
             # Wait for the server.
+            start_time="$(date -u +%s.%N)"
             while true ; do
                 if grep -q "Server started" ../../data/$task/"$i"mt_output_enclave_occlum.txt; then
                     break
@@ -74,11 +80,15 @@ if [[ $2 = "occlum" || $2 = "all" ]]; then
                 sleep 1
             done
             
+            end_time="$(date -u +%s.%N)"
+            init_time="$(bc <<<"$end_time-$start_time")"
+            
             { time eval 'parallel -j0 -N0 ./eval/client ../../data/'$task'/data.bin ::: '{1..$1}''; } \
             > ../../data/$task/"$i"mt_output_data_provider_occlum.txt 2>&1
             fuser -k 7788/tcp > /dev/null 2>&1
             wait
             echo -e "$MAGENTA\t\t[+] Finished!$NC"
+            echo "initialization takes ${init_time}s" >> ../../data/"$task"/"$i"mt_output_enclave_occlum.txt
         done
         popd > /dev/null
     done
@@ -94,6 +104,7 @@ if [[ $2 = "gramine" || $2 = "all" ]]; then
             
             { time gramine-sgx ./server; } > ../../../data/$task/"$i"mt_output_enclave_gramine.txt 2>&1 &
             # Wait for the server.
+            start_time="$(date -u +%s.%N)"
             while true ; do
                 if grep -q "Waiting for a remote connection" \
                 ../../../data/$task/"$i"mt_output_enclave_gramine.txt; then
@@ -102,6 +113,8 @@ if [[ $2 = "gramine" || $2 = "all" ]]; then
                 
                 sleep 1
             done
+            end_time="$(date -u +%s.%N)"
+            init_time="$(bc <<<"$end_time-$start_time")"
             
             export RA_TLS_ALLOW_DEBUG_ENCLAVE_INSECURE=1
             export RA_TLS_ALLOW_OUTDATED_TCB_INSECURE=1
@@ -119,7 +132,7 @@ if [[ $2 = "gramine" || $2 = "all" ]]; then
             
             fuser -k 2333/tcp > /dev/null 2>&1
             wait
-            
+            echo "initialization takes ${init_time}s" >> ../../../data/"$task"/"$i"mt_output_enclave_gramine.txt
             popd > /dev/null
             
             echo -e "$MAGENTA\t\t[+] Finished!$NC"

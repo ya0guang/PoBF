@@ -192,6 +192,7 @@ fn main() {
     };
 
     info!("[+] Initializing the enclave. May take a while...");
+    let now = std::time::Instant::now();
     let enclave = match SgxEnclave::create(ENCLAVE_FILE, false) {
         Ok(r) => {
             info!("[+] Init Enclave Successful, eid: {}!", r.eid());
@@ -204,7 +205,7 @@ fn main() {
     };
 
     let enclave = Arc::new(enclave);
-
+    info!("[+] Initialization takes {:?}.", now.elapsed());
     server_run(listener, enclave).unwrap();
 }
 
