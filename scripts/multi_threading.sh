@@ -156,7 +156,7 @@ if [[ $2 = "native" || $2 = "all" ]]; then
         for task in "${tasks[@]}"; do
             echo -e "$MAGENTA\t[+] Testing multi-threading on native enclave for $task...$NC"
             
-            pushd eval/$task/native_enclave > /dev/null
+            pushd eval/$task/native > /dev/null
             { time ./app $ADDRESS $PORT; } > ../../../data/$task/"$i"mt_output_enclave_native.txt 2>&1 &
             sleep 1
             popd > /dev/null
