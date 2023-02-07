@@ -207,7 +207,7 @@ pub fn exec_dcap_workflow(
     writer: &mut BufWriter<TcpStream>,
     key_pair: &mut KeyPair,
     dp_information: &DpInformation,
-) -> Result<Vec<u8>> {
+) -> Result<(Vec<u8>, std::time::Duration)> {
     let public_key = &key_pair.pub_k;
     let pubkey_signature = &key_pair.signature;
 
@@ -231,13 +231,14 @@ pub fn exec_dcap_workflow(
 
     info!("[+] Waiting for public key of the enclave.");
     let enclave_pubkey = handle_enclave_pubkey(reader)
-        .map_err(|_| {
-            error!("[-] Failed to parse enclave public key.");
-            return Error::from(ErrorKind::InvalidData);
-        })
-        .unwrap();
+    .map_err(|_| {
+      error!("[-] Failed to parse enclave public key.");
+      return Error::from(ErrorKind::InvalidData);
+    })
+    .unwrap();
     info!("[+] Succeeded.");
-
+    
+    let now = std::time::Instant::now();
     info!("[+] Computing ephemeral session key.");
     key_pair
         .compute_shared_key(&enclave_pubkey, KDF_MAGIC_STR.as_bytes())
@@ -251,15 +252,15 @@ pub fn exec_dcap_workflow(
 
     // Send initial encrypted data. Trivial data 1,2,3 are just for test.
     info!("[+] Sending encrypted vector data.");
-    send_vecaes_data(writer, &dp_information.data_path, &key_pair)?;
+    let extra_pre = send_vecaes_data(writer, &dp_information.data_path, &key_pair)?;
     info!("[+] Succeeded.");
 
     // Receive the computed result.
     info!("[+] Receiving the data.");
-    let data = receive_vecaes_data(reader, &key_pair)?;
+    let (data, extra_dec) = receive_vecaes_data(reader, &key_pair)?;
     info!("[+] Succeeded.");
 
-    Ok(data)
+    Ok((data, now.elapsed() - extra_dec - extra_pre))
 }
 
 /// The relying party verifies the quote. It fetches the attestation collateral associated with the quote from the data center
@@ -475,7 +476,7 @@ pub fn exec_epid_workflow(
     writer: &mut BufWriter<TcpStream>,
     key_pair: &mut KeyPair,
     dp_information: &DpInformation,
-) -> Result<Vec<u8>> {
+) -> Result<(Vec<u8>, std::time::Duration)> {
     // Send Spid and public key to the application enclave.
     info!("[+] Sending initial messages including SPID and public key.");
     send_initial_messages(
@@ -526,10 +527,11 @@ pub fn exec_epid_workflow(
 
     // Receive the computed result.
     info!("[+] Receiving the data.");
-    let data = receive_vecaes_data(reader, &key_pair)?;
+    let (data, _) = receive_vecaes_data(reader, &key_pair)?;
     info!("[+] Succeeded.");
 
-    Ok(data)
+    let duration = std::time::Duration::from_secs(0);
+    Ok((data, duration))
 }
 
 pub fn handle_epid(reader: &mut BufReader<TcpStream>, ias_key: &String) -> Result<Vec<u8>> {
@@ -613,7 +615,8 @@ pub fn send_vecaes_data(
     writer: &mut BufWriter<TcpStream>,
     path: &String,
     key: &KeyPair,
-) -> Result<()> {
+) -> Result<std::time::Duration> {
+    let now = std::time::Instant::now();
     // Read from the given path.
     let data = fs::read(path)?;
     debug!("{:?}", data);
@@ -626,6 +629,7 @@ pub fn send_vecaes_data(
     debug!("[+] The encrypted data is {:?}", encrypted_input);
 
     let batch_num = (encrypted_input.len() as f64 / DEFAULT_BUFFER_LEN as f64).ceil() as usize;
+    let elapsed = now.elapsed();
 
     writer
         .write(encrypted_input.len().to_string().as_bytes())
@@ -653,10 +657,13 @@ pub fn send_vecaes_data(
         writer.flush().unwrap();
     }
 
-    Ok(())
+    Ok(elapsed)
 }
 
-pub fn receive_vecaes_data(reader: &mut BufReader<TcpStream>, key: &KeyPair) -> Result<Vec<u8>> {
+pub fn receive_vecaes_data(
+    reader: &mut BufReader<TcpStream>,
+    key: &KeyPair,
+) -> Result<(Vec<u8>, std::time::Duration)> {
     let mut len = String::with_capacity(DEFAULT_BUFFER_LEN);
     reader.read_line(&mut len)?;
     let data_size = len[..len.len() - 1].parse::<usize>().or_else(|_| {
@@ -668,10 +675,11 @@ pub fn receive_vecaes_data(reader: &mut BufReader<TcpStream>, key: &KeyPair) -> 
     reader.read_exact(&mut data)?;
 
     // Decrypt the data.
+    let now = std::time::Instant::now();
     let decrypted_data = key.decrypt_with_smk(&data).or_else(|_| {
         error!("[-] Decryption failed");
         Err(Error::from(ErrorKind::InvalidData))
     })?;
 
-    Ok(decrypted_data)
+    Ok((decrypted_data, now.elapsed()))
 }
