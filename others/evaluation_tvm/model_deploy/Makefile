@@ -53,9 +53,15 @@ LIB_COMMON := $(OUT_DIR)/libcommon.a
 LIB_MEMORY := $(OUT_DIR)/libmemory.a
 LIB_GRAPH_EXECUTOR := $(OUT_DIR)/libgraph_executor.a
 
-.phony: all clean
+.phony: all clean crt_libs
 
 all: $(OUT_DIR) $(MODEL_ENTRY)
+
+# The build logic of microTVM has changed. The old Makefile was removed.
+crt_libs: $(CRT_SRCS)
+	@printf "$(MAGENTA)+ Building TVM CRT static library$(NC)\n"
+	@cd $(CRT_ROOT) && mkdir -p build && cd build && cmake -DCRT_CONFIG_PATH=$(abspath .) -DCMAKE_C_FLAGS="${PKG_COMPILE_OPTS}" .. && make -j`nproc`
+	@printf "$(MAGENTA)+ Finished! \n"
 
 $(OUT_DIR):
 	@mkdir -p $@
@@ -68,22 +74,14 @@ $(PYTHON_MODEL): $(MODEL_TAR)
 	@tar -xvf $^ -C $(OUT_DIR) > /dev/null 2>&1
 	@printf "$(MAGENTA)+ Finished! \n"
 
-$(LIB_MEMORY): $(CRT_SRCS)
-	@printf "$(MAGENTA)+ Building TVM CRT static library libmemory.a:$(NC)\n"
-	@cd $(CRT_ROOT) && make BUILD_DIR=$(abspath $(OUT_DIR))/crt CRT_CONFIG=$(abspath ./crt_config.h) "EXTRA_CFLAGS=$(PKG_COMPILE_OPTS)" memory
-	@cp $(OUT_DIR)/crt/libmemory.a $(OUT_DIR)
+$(LIB_MEMORY): crt_libs
+	@cp $(CRT_ROOT)/build/libmemory.a $@
 
-$(LIB_GRAPH_EXECUTOR): $(CRT_SRCS)
-	@printf "$(MAGENTA)+ Building TVM CRT static library libgraph_executor.a:$(NC)\n"
-	@cd $(CRT_ROOT) && make BUILD_DIR=$(abspath $(OUT_DIR))/crt CRT_CONFIG=$(abspath ./crt_config.h) "EXTRA_CFLAGS=$(PKG_COMPILE_OPTS)" graph_executor
-	@cp $(OUT_DIR)/crt/libgraph_executor.a $(OUT_DIR)
-	@printf "$(MAGENTA)+ Finished! \n"
+$(LIB_GRAPH_EXECUTOR): crt_libs
+	@cp $(CRT_ROOT)/build/libgraph_executor.a $@
 
-$(LIB_COMMON): $(CRT_SRCS)
-	@printf "$(MAGENTA)+ Building TVM CRT static library libcommon.a:$(NC)\n"
-	@cd $(CRT_ROOT) && make BUILD_DIR=$(abspath $(OUT_DIR))/crt CRT_CONFIG=$(abspath ./crt_config.h) "EXTRA_CFLAGS=$(PKG_COMPILE_OPTS)" common
-	@cp $(OUT_DIR)/crt/libcommon.a $(OUT_DIR)
-	@printf "$(MAGENTA)+ Finished! \n"
+$(LIB_COMMON): crt_libs
+	@cp $(CRT_ROOT)/build/libcommon.a $@
 
 $(BUNDLE): bundle.c
 	@gcc -c -o $(OUT_DIR)/bundle.o $^ $(PKG_CFLAGS) $(PKG_LDFLAGS)
