@@ -22,7 +22,7 @@ using json = nlohmann::json;
 std::string default_attestation_url =
     "https://sharedeus2.eus2.attest.azure.net/";
 
-extern "C" int do_attest() {
+extern "C" int get_attestation_report(unsigned char* buf, const size_t len) {
   std::string attestation_url;
   std::string nonce;
   std::string output_type;
@@ -76,30 +76,19 @@ extern "C" int do_attest() {
       exit(1);
     }
 
-    json attestation_claims = json::parse(base64_decode(tokens[1]));
-    try {
-      std::string attestation_type =
-          attestation_claims["x-ms-isolation-tee"]["x-ms-attestation-type"]
-              .get<std::string>();
-      std::string compliance_status =
-          attestation_claims["x-ms-isolation-tee"]["x-ms-compliance-status"]
-              .get<std::string>();
-      if (boost::iequals(attestation_type, "sevsnpvm") &&
-          boost::iequals(compliance_status, "azure-compliant-cvm")) {
-        is_cvm = true;
-      }
-    } catch (...) {
-    }  // sevsnp claim does not exist in the token
-  }
+    std::string jwt_response = base64_decode(tokens[1]);
+    Uninitialize();
 
-  if (boost::iequals(output_type, OUTPUT_TYPE_JWT)) {
-    printf("%s",
-           attestation_success ? jwt_str.c_str() : result.description_.c_str());
+    // Copy back to Rust.
+    if (jwt_response.size() >= len) {
+      printf("the given buffer is too small!");
+      return -1;
+    }
+
+    memcpy(buf, jwt_response.c_str(), jwt_response.size());
+    return 0;
   } else {
-    printf("%s", is_cvm ? "true" : "false");
+    Uninitialize();
+    return -1;
   }
-
-  Uninitialize();
-
-  return 0;
 }
