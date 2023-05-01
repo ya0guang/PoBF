@@ -7,7 +7,9 @@ edition = "2021"
 [dependencies]
 aes-gcm = { version = "0.10.1", features = ["zeroize"] }
 anyhow = "1.0.71"
-clear_on_drop = { git = "https://github.com/hiroki-chen/clear_on_drop.git" }
+clear_on_drop = { git = "https://github.com/hiroki-chen/clear_on_drop.git", features = [
+  "nightly",
+] }
 env_logger = "0.10.0"
 json = "0.12.4"
 log = "0.4.17"

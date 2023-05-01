@@ -83,6 +83,9 @@ fn pobf_remote_attestation(
         writer.write_all(report.as_bytes()).unwrap();
         writer.flush();
 
+        // Extract the TPM key from the json report for the decryption of the AES key transmitted by
+        // the data provider.
+
         todo!()
     }
 }
@@ -106,16 +109,12 @@ fn pobf_receive_data(reader: &mut BufReader<TcpStream>) -> VecAESData {
 pub fn pobf_workflow() -> Result<()> {
     let (mut reader, mut writer) = get_reader_and_writer(ADDRESS, PORT)?;
 
-    let session = {
-        // To avoid multiple mutable borrows.
-        let ra_callback = || pobf_remote_attestation(&mut reader, &mut writer);
-
-        // Start the PoBF workflow.
-        let f = || ComputingTaskTemplate::<Initialized>::new();
-        let template = clear_stack_and_regs_on_return(DEFAULT_PAGE_SIZE_LEAF, f);
-        let f = || ComputingTaskSession::establish_channel(template, ra_callback);
-        clear_stack_and_regs_on_return(DEFAULT_PAGE_SIZE_LEAF, f)
-    };
+    // Start the PoBF workflow.
+    let ra_callback = || pobf_remote_attestation(&mut reader, &mut writer);
+    let f = || ComputingTaskTemplate::<Initialized>::new();
+    let template = clear_stack_and_regs_on_return(DEFAULT_PAGE_SIZE_LEAF, f);
+    let f = || ComputingTaskSession::establish_channel(template, ra_callback);
+    let session = clear_stack_and_regs_on_return(DEFAULT_PAGE_SIZE_LEAF, f);
 
     let receive_callback = || pobf_receive_data(&mut reader);
     let f = || ComputingTask::receive_data(session, receive_callback);

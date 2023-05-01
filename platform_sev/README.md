@@ -9,3 +9,7 @@ sudo apt install -y libcurl4-openssl-dev libjsoncpp-dev libboost-all-dev nlohman
 wget https://packages.microsoft.com/repos/azurecore/pool/main/a/azguestattestation1/azguestattestation1_1.0.5_amd64.deb
 sudo dpkg -i ./azguestattestation1_1.0.5_amd64.deb
 ```
+
+## Some Minor Issues
+
+* Using an old nightly Rust toolchain will cause the program to panic due to `segmentation fault` in `clear_on_drop`.
