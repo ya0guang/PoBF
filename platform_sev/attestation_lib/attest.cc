@@ -22,18 +22,17 @@ using json = nlohmann::json;
 std::string default_attestation_url =
     "https://sharedeus2.eus2.attest.azure.net/";
 
-extern "C" int get_attestation_report(unsigned char* buf, const size_t len) {
+extern "C" int get_attestation_report(unsigned char* p_buf, size_t buf_len,
+                                      const char* p_nonce, size_t nonce_len) {
   std::string attestation_url;
   std::string nonce;
-  std::string output_type;
   if (attestation_url.empty()) {
     // use the default attestation url
     attestation_url.assign(default_attestation_url);
   }
 
-  if (output_type.empty()) {
-    // set the default output type to boolean
-    output_type = OUTPUT_TYPE_BOOL;
+  if (p_nonce != nullptr) {
+    nonce = std::string(p_nonce, nonce_len);
   }
 
   AttestationClient* attestation_client = nullptr;
@@ -80,12 +79,12 @@ extern "C" int get_attestation_report(unsigned char* buf, const size_t len) {
     Uninitialize();
 
     // Copy back to Rust.
-    if (jwt_response.size() >= len) {
+    if (jwt_response.size() >= buf_len) {
       printf("the given buffer is too small!");
       return -1;
     }
 
-    memcpy(buf, jwt_response.c_str(), jwt_response.size());
+    memcpy(p_buf, jwt_response.c_str(), jwt_response.size());
     return 0;
   } else {
     Uninitialize();

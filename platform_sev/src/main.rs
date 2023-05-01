@@ -1,18 +1,24 @@
-extern "C" {
-    fn get_attestation_report(buf: *mut u8, len: usize) -> i64;
+#![allow(unused)]
+
+use crate::pobf::pobf_workflow;
+
+mod pobf;
+mod vecaes;
+
+fn init_logger() {
+    if std::env::var("RUST_LOG").is_err() {
+        std::env::set_var("RUST_LOG", "info");
+    }
+    env_logger::init();
 }
 
 fn main() {
-    println!("Hello, world!");
-    println!("trying to test attestation!!!");
+    init_logger();
 
-    let mut vec = vec![0u8; 4096];
-    let attestation_result = unsafe { get_attestation_report(vec.as_mut_ptr(), vec.len()) };
+    log::info!("Performing PoBF workflow on AMD-SEV...");
 
-    if attestation_result != 0 {
-        println!("attestation failed with {attestation_result:#x}");
-    } else {
-        println!("attestation passed.");
-        println!("json response is {}", std::str::from_utf8(&vec).unwrap());
+    match pobf_workflow() {
+        Ok(()) => log::info!("finished with success"),
+        Err(err) => log::error!("PoBF workflow returned {err}"),
     }
 }
