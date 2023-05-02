@@ -4,10 +4,7 @@ use std::{
 };
 
 use log::info;
-use ring::{
-    agreement::{agree_ephemeral, EphemeralPrivateKey, PublicKey, UnparsedPublicKey, X25519},
-    rand,
-};
+use pobf_crypto::{handle_sev_pubkey, init_keypair, KeyPair};
 
 fn init_logger() {
     if std::env::var("RUST_LOG").is_err() {
@@ -24,11 +21,7 @@ fn main() {
     let mut reader = BufReader::new(socket);
     let mut writer = BufWriter::new(socket_clone);
 
-    let rng = rand::SystemRandom::new();
-    let prv_key = EphemeralPrivateKey::generate(&X25519, &rng).unwrap();
-    let pub_key = prv_key.compute_public_key().unwrap();
-
-    let key_pair = (prv_key, pub_key);
+    let key_pair = init_keypair().unwrap();
     exec_sev_workflow(&mut reader, &mut writer, key_pair)
         .expect("[-] failed to execute SEV workflow");
 }
@@ -48,9 +41,9 @@ pub fn connect(address: &str, port: u16) -> Result<TcpStream> {
 pub fn exec_sev_workflow(
     reader: &mut BufReader<TcpStream>,
     writer: &mut BufWriter<TcpStream>,
-    key_pair: (EphemeralPrivateKey, PublicKey),
+    mut key_pair: KeyPair,
 ) -> Result<Vec<u8>> {
-    let public_key = &key_pair.1;
+    let public_key = &key_pair.pub_k;
     info!("[+] Receiving the attestation report");
     let mut len = String::with_capacity(128);
     reader.read_line(&mut len)?;
@@ -67,13 +60,10 @@ pub fn exec_sev_workflow(
     info!("[+] Receiving peer public key");
     let mut peer_pub_key = vec![0u8; 0x20];
     reader.read_exact(&mut peer_pub_key)?;
-    let peer_pub_key = UnparsedPublicKey::new(&X25519, peer_pub_key);
+    let peer_pub_key = handle_sev_pubkey(reader).unwrap();
 
-    let session_key = agree_ephemeral(key_pair.0, &peer_pub_key, ring::error::Unspecified, |key| {
-        // No derivation algorithm for simplicity.
-        Ok(key.to_vec())
-    })
-    .unwrap();
+    key_pair.compute_shared_key(&peer_pub_key, b"").unwrap();
+    let session_key = &key_pair.session_key;
     info!("key is {session_key:02x?}");
 
     info!("[+] Sending data...");

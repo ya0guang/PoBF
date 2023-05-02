@@ -1,9 +1,9 @@
-use crate::dh::{handle_enclave_pubkey, KeyPair, KDF_MAGIC_STR};
 use crate::{sgx_tvl_verify_qve_report_and_identity, utils::*, ENCLAVE_FILE};
 use crate::{IAS_CONTENT_TYPE_HEADER, IAS_KEY_HEADER};
 
 use curl::easy::{Easy, List};
 use log::{debug, error, info, warn};
+use pobf_crypto::{KeyPair, handle_enclave_pubkey, KDF_MAGIC_STR};
 use sgx_types::types::{QlQeReportInfo, QlQvResult};
 use sgx_urts::enclave::SgxEnclave;
 
