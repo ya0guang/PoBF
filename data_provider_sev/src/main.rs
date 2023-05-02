@@ -58,8 +58,6 @@ pub fn exec_sev_workflow(
     writer.flush()?;
 
     info!("[+] Receiving peer public key");
-    let mut peer_pub_key = vec![0u8; 0x20];
-    reader.read_exact(&mut peer_pub_key)?;
     let peer_pub_key = handle_sev_pubkey(reader).unwrap();
 
     key_pair.compute_shared_key(&peer_pub_key, b"").unwrap();
