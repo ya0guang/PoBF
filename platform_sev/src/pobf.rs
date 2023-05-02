@@ -1,4 +1,5 @@
 use std::{
+    ffi::CStr,
     io::{BufRead, BufReader, BufWriter, Read, Write},
     net::{TcpListener, TcpStream},
 };
@@ -7,17 +8,18 @@ use anyhow::{anyhow, Result};
 use clear_on_drop::clear_stack_and_regs_on_return;
 use log::{error, info};
 use pobf_state::task::{ComputingTask, ComputingTaskSession, ComputingTaskTemplate, Initialized};
+use ring::agreement::{agree_ephemeral, UnparsedPublicKey, X25519};
 
-use crate::vecaes::{AES128Key, VecAESData};
+use crate::{
+    ffi::get_attestation_report,
+    key::get_keypair,
+    vecaes::{AES128Key, VecAESData},
+};
 
 const ADDRESS: &str = "127.0.0.1";
 const PORT: u16 = 2333;
 const NONCE: &str = "hurricane";
-const DEFAULT_PAGE_SIZE_LEAF: usize = 0x20;
-
-extern "C" {
-    fn get_attestation_report(buf: *mut u8, len: usize, nonce: *const u8, nonce_len: usize) -> i64;
-}
+const DEFAULT_PAGE_SIZE_LEAF: usize = 0x1;
 
 fn private_vec_compute<T>(input: T) -> T
 where
@@ -74,19 +76,39 @@ fn pobf_remote_attestation(
     if attestation_result != 0 {
         panic!("attestation failed with {attestation_result:#x}");
     } else {
-        info!("attestation passed.");
+        info!("[+] attestation passed.");
         // Convert raw byte array into a string.
-        let report = String::from_utf8(vec).unwrap();
-        // Parse the report as a json object.
-        let json_report = json::parse(&report).unwrap();
+        let report = CStr::from_bytes_until_nul(vec.as_slice())
+            .unwrap_or_default()
+            .to_str()
+            .unwrap_or_default();
+
         // Return this report to the data provider.
-        writer.write_all(report.as_bytes()).unwrap();
+        writer.write(report.len().to_string().as_bytes());
+        writer.write(b"\n");
+        writer.flush();
+        writer.write(report.as_bytes()).unwrap();
         writer.flush();
 
-        // Extract the TPM key from the json report for the decryption of the AES key transmitted by
-        // the data provider.
+        // Generate two key pairs.
+        info!("[+] Sampling key pairs");
+        let (prv_key, pub_key) = get_keypair();
+        // Receive the peer public key.
+        let mut peer_pub_key = vec![0u8; 0x20];
+        reader.read_exact(&mut peer_pub_key).unwrap();
+        let peer_pub_key = UnparsedPublicKey::new(&X25519, peer_pub_key);
+        // Compute the session key and send its public key to the peer.
+        let session_key =
+            agree_ephemeral(prv_key, &peer_pub_key, ring::error::Unspecified, |key| {
+                // No derivation algorithm for simplicity.
+                Ok(key.to_vec())
+            })
+            .unwrap();
+        writer.write_all(pub_key.as_ref());
+        writer.flush();
+        info!("[+] Key aggrement OK {session_key:02x?}");
 
-        todo!()
+        AES128Key::from(session_key)
     }
 }
 
@@ -94,9 +116,9 @@ fn pobf_receive_data(reader: &mut BufReader<TcpStream>) -> VecAESData {
     log::info!("[+] Receiving data from data provider...");
 
     // Get length of the data.
-    let mut len = String::new();
+    let mut len = String::with_capacity(128);
     reader.read_line(&mut len).unwrap();
-    let len = len.parse::<usize>().unwrap();
+    let len = len[..len.len() - 1].parse::<usize>().unwrap();
 
     // Prepare the buffer.
     let mut buf = vec![0u8; len];

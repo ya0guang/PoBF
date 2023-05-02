@@ -2,6 +2,8 @@
 
 use crate::pobf::pobf_workflow;
 
+mod ffi;
+mod key;
 mod pobf;
 mod vecaes;
 

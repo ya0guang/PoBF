@@ -11,9 +11,9 @@ clear_on_drop = { git = "https://github.com/hiroki-chen/clear_on_drop.git", feat
   "nightly",
 ] }
 env_logger = "0.10.0"
-json = "0.12.4"
 log = "0.4.17"
 pobf_state = { path = "../pobf_state" }
 rand = "0.8.5"
 rand_core = "0.6.4"
+ring = "0.16.20"
 zeroize = "1.6.0"
