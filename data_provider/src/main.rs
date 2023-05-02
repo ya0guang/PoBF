@@ -1,30 +1,15 @@
-extern crate aes;
-extern crate aes_gcm;
-extern crate base64;
-extern crate clap;
-extern crate cmac;
-extern crate curl;
-extern crate env_logger;
-extern crate log;
-extern crate pem;
-extern crate rand;
-extern crate ring;
-extern crate serde_json;
-extern crate sgx_types;
-extern crate sgx_urts;
-
-mod dh;
 mod handlers;
 mod utils;
 
 use clap::{Parser, Subcommand};
 use handlers::*;
 use log::{debug, error, info};
+use pobf_crypto::init_keypair;
 use sgx_types::{error::Quote3Error, types::*};
 
 use std::io::*;
 
-use crate::{dh::init_keypair, utils::*};
+use crate::utils::*;
 
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]

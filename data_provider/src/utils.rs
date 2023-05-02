@@ -8,6 +8,8 @@ use std::env;
 use std::fs::*;
 use std::io::*;
 
+use base64::prelude::BASE64_STANDARD_NO_PAD;
+use base64::Engine;
 use log::error;
 use serde::{Deserialize, Serialize};
 
@@ -53,7 +55,9 @@ pub fn parse_sigrl(sigrl: &Vec<u8>) -> Result<Vec<u8>> {
     if sigrl.is_empty() {
         Ok(Vec::new())
     } else {
-        Ok(base64::decode(std::str::from_utf8(sigrl).unwrap()).unwrap())
+        Ok(BASE64_STANDARD_NO_PAD
+            .decode(std::str::from_utf8(sigrl).unwrap())
+            .unwrap())
     }
 }
 
