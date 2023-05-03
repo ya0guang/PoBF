@@ -2,8 +2,8 @@
 
 extern crate alloc;
 
+use alloc::string::String;
 use alloc::vec::Vec;
-use alloc::{format, string::String};
 use core::time::Duration;
 
 pub struct BenchResult {
@@ -171,6 +171,8 @@ macro_rules! fun_polybench {
             use polybench_rs::linear_algebra::solvers::*;
             use polybench_rs::medley::*;
             use polybench_rs::stencils::*;
+            #[cfg(not(std))]
+            use alloc::{format, string::String};
 
             let mut res = BenchResult::new();
             res.inner.push((String::from("Polybench Subtask"), Vec::new()));
