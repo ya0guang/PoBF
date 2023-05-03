@@ -63,7 +63,7 @@ pobf_state = { path = "../pobf_state" }
 pobf_thread_pool = { path = "../pobf_thread_pool" }
 polybench = { path = "../cctasks/polybench", optional = true, features = [
   "std",
-] }
+], default-features = false }
 polybench-rs = { git = "https://github.com/hiroki-chen/polybench-rs.git", optional = true }
 rand = "0.8.5"
 rand_core = "0.6.4"
