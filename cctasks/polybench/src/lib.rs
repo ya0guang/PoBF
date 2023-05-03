@@ -1,9 +1,10 @@
 #![cfg_attr(any(feature = "sgx", not(feature = "std")), no_std)]
 
+#[cfg(not(std))]
 extern crate alloc;
 
-use alloc::string::String;
-use alloc::vec::Vec;
+#[cfg(not(std))]
+use alloc::{string::String, vec::Vec};
 use core::time::Duration;
 
 pub struct BenchResult {
@@ -161,6 +162,7 @@ impl core::fmt::Debug for BenchResult {
 //     res
 // }
 
+#[cfg(all(not(feature = "sgx"), feature = "std"))]
 #[macro_export]
 macro_rules! fun_polybench {
     ($name:ident, $($tup:expr, )*) => {
@@ -171,7 +173,30 @@ macro_rules! fun_polybench {
             use polybench_rs::linear_algebra::solvers::*;
             use polybench_rs::medley::*;
             use polybench_rs::stencils::*;
-            #[cfg(not(feature = "std"))]
+
+            let mut res = BenchResult::new();
+            res.inner.push((String::from("Polybench Subtask"), Vec::new()));
+            res.inner[0].1.push((
+            String::from(stringify!($name)),
+            $name::bench::<$($tup, )*>(f),
+            ));
+            format!("{:?}", res).as_bytes().to_vec()
+        }
+    };
+}
+
+#[cfg(all(not(feature = "std"), feature = "sgx"))]
+#[macro_export]
+macro_rules! fun_polybench {
+    ($name:ident, $($tup:expr, )*) => {
+        pub fn private_computation(input: Vec<u8>, f: &dyn Fn() -> u64) -> Vec<u8> {
+            use polybench_rs::datamining::*;
+            use polybench_rs::linear_algebra::blas::*;
+            use polybench_rs::linear_algebra::kernels::*;
+            use polybench_rs::linear_algebra::solvers::*;
+            use polybench_rs::medley::*;
+            use polybench_rs::stencils::*;
+
             use alloc::{format, string::String};
 
             let mut res = BenchResult::new();
