@@ -2,8 +2,8 @@
 
 extern crate alloc;
 
-use alloc::string::String;
 use alloc::vec::Vec;
+use alloc::{format, string::String};
 use core::time::Duration;
 
 pub struct BenchResult {
@@ -165,7 +165,6 @@ impl core::fmt::Debug for BenchResult {
 macro_rules! fun_polybench {
     ($name:ident, $($tup:expr, )*) => {
         pub fn private_computation(input: Vec<u8>, f: &dyn Fn() -> u64) -> Vec<u8> {
-            use alloc::{string::String, format};
             use polybench_rs::datamining::*;
             use polybench_rs::linear_algebra::blas::*;
             use polybench_rs::linear_algebra::kernels::*;

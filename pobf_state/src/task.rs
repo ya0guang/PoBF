@@ -511,9 +511,9 @@ where
     K: Zeroize + Default,
 {
     #[cfg(not(feature = "prusti"))]
-    pub fn establish_channel(
+    pub fn establish_channel<F: FnMut() -> K>(
         _template: ComputingTaskTemplate<Initialized>,
-        attestation_callback: &dyn Fn() -> K,
+        mut attestation_callback: F,
     ) -> Self {
         let key = attestation_callback();
 
@@ -599,9 +599,9 @@ where
     D: EncDec<K>,
 {
     #[cfg(not(feature = "prusti"))]
-    pub fn receive_data(
+    pub fn receive_data<F: FnMut() -> D>(
         session: ComputingTaskSession<ChannelEstablished, K>,
-        receive_callback: &dyn Fn() -> D,
+        mut receive_callback: F,
     ) -> Self {
         let data = receive_callback();
         ComputingTask {

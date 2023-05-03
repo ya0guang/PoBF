@@ -2,6 +2,7 @@
 #![allow(private_in_public)]
 #![cfg_attr(feature = "sgx", no_std)]
 #![feature(unsized_locals, unsized_fn_params)]
+#![feature(error_in_core)]
 #![forbid(unsafe_code)]
 
 extern crate alloc;
@@ -18,7 +19,7 @@ use zeroize::Zeroize;
 #[cfg(feature = "sgx")]
 use sgx_types::error::SgxResult as Result;
 #[cfg(not(feature = "sgx"))]
-type Result<T> = core::result::Result<T, ()>;
+pub type Result<T> = core::result::Result<T, ()>;
 
 pub trait Decryption<K>
 where

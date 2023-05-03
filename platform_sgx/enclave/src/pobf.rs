@@ -261,9 +261,9 @@ pub fn pobf_workflow(
 
     let f = || ComputingTaskTemplate::<Initialized>::new();
     let template = clear_stack_and_regs_on_return(DEFAULT_PAGE_SIZE_LEAF, f);
-    let f = || ComputingTaskSession::establish_channel(template, &ra_callback);
+    let f = || ComputingTaskSession::establish_channel(template, ra_callback);
     let session = clear_stack_and_regs_on_return(DEFAULT_PAGE_SIZE_LEAF, f);
-    let f = || ComputingTask::receive_data(session, &receive_callback);
+    let f = || ComputingTask::receive_data(session, receive_callback);
     let task_data_received = clear_stack_and_regs_on_return(DEFAULT_PAGE_SIZE_LEAF, f);
     let f = || task_data_received.compute(&private_vec_compute);
     let task_result_encrypted = clear_stack_and_regs_on_return(DEFAULT_PAGE_SIZE_LEAF, f);
