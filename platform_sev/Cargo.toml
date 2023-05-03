@@ -5,7 +5,6 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["task_sample"]
 task_fann = ["fann"]
 task_fasta = ["fasta"]
 task_polybench = ["polybench", "polybench-rs"]
@@ -62,7 +61,9 @@ fasta = { path = "../cctasks/fasta", optional = true }
 log = "0.4.17"
 pobf_state = { path = "../pobf_state" }
 pobf_thread_pool = { path = "../pobf_thread_pool" }
-polybench = { path = "../cctasks/polybench", optional = true }
+polybench = { path = "../cctasks/polybench", optional = true, features = [
+  "std",
+] }
 polybench-rs = { git = "https://github.com/hiroki-chen/polybench-rs.git", optional = true }
 rand = "0.8.5"
 rand_core = "0.6.4"

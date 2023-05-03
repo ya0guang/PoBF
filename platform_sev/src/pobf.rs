@@ -139,8 +139,9 @@ where
                 std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap()
+                    .as_nanos() as u64
             };
-            let output_vec =  private_computation(input_vec, &timing_function);
+            let output_vec = private_computation(input_vec, &timing_function);
 
         } else {
             let output_vec = private_computation(input_vec);
