@@ -4,16 +4,68 @@ version = "0.1.0"
 edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+default = ["task_sample"]
+task_fann = ["fann"]
+task_fasta = ["fasta"]
+task_polybench = ["polybench", "polybench-rs"]
+# computing tasks
+# The tasks are enabled by `cfg_if`.
+task_sample = ["sample_add"]
+task_tvm = ["evaluation_tvm"]
+
+nussinov = []
+_2mm = []
+_3mm = []
+gemm = []
+gemver = []
+gesummv = []
+symm = []
+syrk = []
+syr2k = []
+trmm = []
+mvt = []
+
+durbin = []
+gramschmidt = []
+cholesky = []
+lu = []
+ludcmp = []
+trisolv = []
+covariance = []
+deriche = []
+floyd_warshall = []
+adi = []
+fdtd_2d = []
+heat_3d = []
+jacobi_1d = []
+jacobi_2d = []
+seidel_2d = []
+
+atax = []
+bicg = []
+doitgen = []
+correlation = []
+
 [dependencies]
 aes-gcm = { version = "0.10.1", features = ["zeroize"] }
 anyhow = "1.0.71"
+cfg-if = "1.0.0"
+clap = { version = "4.2.7", features = ["derive"] }
 clear_on_drop = { git = "https://github.com/hiroki-chen/clear_on_drop.git", features = [
   "nightly",
 ] }
 env_logger = "0.10.0"
+evaluation_tvm = { path = "../cctasks/evaluation_tvm", optional = true }
+fann = { path = "../cctasks/fann", optional = true }
+fasta = { path = "../cctasks/fasta", optional = true }
 log = "0.4.17"
 pobf_state = { path = "../pobf_state" }
+pobf_thread_pool = { path = "../pobf_thread_pool" }
+polybench = { path = "../cctasks/polybench", optional = true }
+polybench-rs = { git = "https://github.com/hiroki-chen/polybench-rs.git", optional = true }
 rand = "0.8.5"
 rand_core = "0.6.4"
 ring = "0.16.20"
+sample_add = { path = "../cctasks/sample_add", optional = true }
 zeroize = "1.6.0"

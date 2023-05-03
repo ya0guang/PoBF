@@ -1,33 +1,21 @@
-extern crate base16;
-extern crate base64;
-extern crate clap;
-extern crate env_logger;
-extern crate hex;
-extern crate serde;
-extern crate serde_json;
-extern crate sgx_types;
-extern crate sgx_urts;
-
 mod ocall;
 
 use clap::Parser;
 use log::{debug, error, info};
-use sgx_types::error::*;
-use sgx_types::types::*;
+use pobf_thread_pool::{ThreadPool, TCS_NUM};
+use sgx_types::{error::*, types::*};
 use sgx_urts::enclave::SgxEnclave;
-use std::io::prelude::*;
-use std::io::*;
-use std::net::{SocketAddr, TcpListener, TcpStream};
-use std::os::unix::prelude::AsRawFd;
-use std::sync::{mpsc, Arc, Mutex};
-use std::thread;
+use std::{
+    io::{prelude::*, *},
+    net::{SocketAddr, TcpListener, TcpStream},
+    os::unix::prelude::AsRawFd,
+    sync::Arc,
+};
 
 static ENCLAVE_FILE: &'static str = "enclave.signed.so";
 static SGX_PLATFORM_HEADER_SIZE: usize = 0x4;
 const DEFAULT_DATA_SIZE: usize = 0x1000;
 const DEFAULT_LARGE_DATA_SIZE: usize = 0x1000000;
-const ENCLAVE_TCS_NUM: usize = 10;
-const ENCFLAVE_THREAD_STACK_SIZE: usize = 0x8000000;
 
 #[derive(Default)]
 struct RaMessage {
@@ -36,96 +24,6 @@ struct RaMessage {
     public_key: Vec<u8>,
     signature: Vec<u8>,
     ra_type: u8,
-}
-
-struct ThreadPool {
-    workers: Vec<Worker>,
-    sender: Option<mpsc::Sender<Job>>,
-}
-
-type Job = Box<dyn FnOnce() + Send + 'static>;
-
-impl ThreadPool {
-    pub fn new(size: usize) -> ThreadPool {
-        assert!(size > 0);
-        let (sender, receiver) = mpsc::channel();
-
-        let receiver = Arc::new(Mutex::new(receiver));
-
-        let mut workers = Vec::with_capacity(size);
-
-        for id in 0..size {
-            workers.push(Worker::new(id, Arc::clone(&receiver)));
-        }
-
-        ThreadPool {
-            workers,
-            sender: Some(sender),
-        }
-    }
-
-    pub fn execute<F>(&self, f: F) -> Result<()>
-    where
-        F: FnOnce() + Send + 'static,
-    {
-        let job = Box::new(f);
-
-        self.sender
-            .as_ref()
-            .unwrap()
-            .send(job)
-            .or_else(|_| Err(Error::from(ErrorKind::Other)))
-    }
-}
-
-impl Drop for ThreadPool {
-    fn drop(&mut self) {
-        drop(self.sender.take());
-
-        for worker in &mut self.workers {
-            println!("Shutting down worker {}", worker.id);
-
-            if let Some(thread) = worker.thread.take() {
-                thread.join().unwrap();
-            }
-        }
-    }
-}
-
-struct Worker {
-    id: usize,
-    thread: Option<thread::JoinHandle<()>>,
-}
-
-impl Worker {
-    fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Job>>>) -> Worker {
-        let builder = thread::Builder::new()
-            .name(format!("worker-{}", id))
-            .stack_size(ENCFLAVE_THREAD_STACK_SIZE);
-
-        let thread = builder
-            .spawn(move || loop {
-                let message = receiver.lock().unwrap().recv();
-
-                match message {
-                    Ok(job) => {
-                        println!("Worker {id} got a job; executing.");
-
-                        job();
-                    }
-                    Err(_) => {
-                        println!("Worker {id} disconnected; shutting down.");
-                        break;
-                    }
-                }
-            })
-            .unwrap();
-
-        Worker {
-            id,
-            thread: Some(thread),
-        }
-    }
 }
 
 extern "C" {
@@ -212,7 +110,7 @@ fn main() {
 fn server_run(listener: TcpListener, enclave: Arc<SgxEnclave>) -> Result<()> {
     // incoming() is an iterator that returns an infinite sequence of streams.
 
-    let pool = ThreadPool::new(ENCLAVE_TCS_NUM);
+    let pool = ThreadPool::new(TCS_NUM);
     loop {
         match listener.accept() {
             Ok((stream, addr)) => {

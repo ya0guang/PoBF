@@ -1,11 +1,23 @@
 #![allow(unused)]
 
-use crate::pobf::pobf_workflow;
+use clap::{Arg, Parser};
+
+use crate::pobf::entry;
 
 mod ffi;
 mod key;
 mod pobf;
 mod vecaes;
+
+#[derive(Parser)]
+#[clap(author, version, about, long_about = None)]
+#[clap(propagate_version = true)]
+struct Args {
+    #[clap(value_parser)]
+    address: String,
+    #[clap(value_parser)]
+    port: u16,
+}
 
 fn init_logger() {
     if std::env::var("RUST_LOG").is_err() {
@@ -19,8 +31,9 @@ fn main() {
 
     log::info!("Performing PoBF workflow on AMD-SEV...");
 
-    match pobf_workflow() {
-        Ok(()) => log::info!("finished with success"),
-        Err(err) => log::error!("PoBF workflow returned {err}"),
+    let args = Args::parse();
+    match entry(&args.address, args.port) {
+        Ok(_) => log::info!("[+] Finished with success"),
+        Err(err) => log::error!("[-] PoBF workflow returned {err}"),
     }
 }

@@ -8,6 +8,7 @@ use anyhow::{anyhow, Result};
 use clear_on_drop::clear_stack_and_regs_on_return;
 use log::{error, info};
 use pobf_state::task::{ComputingTask, ComputingTaskSession, ComputingTaskTemplate, Initialized};
+use pobf_thread_pool::{ThreadPool, TCS_NUM};
 use ring::agreement::{agree_ephemeral, UnparsedPublicKey, X25519};
 
 use crate::{
@@ -21,17 +22,135 @@ const PORT: u16 = 2333;
 const NONCE: &str = "hurricane";
 const DEFAULT_PAGE_SIZE_LEAF: usize = 0x1;
 
+// Settings for private computation functions.
+cfg_if::cfg_if! {
+   if #[cfg(feature = "task_tvm")] {
+        use evaluation_tvm::private_computation;
+  } else if #[cfg(feature = "task_fann")] {
+        use fann::private_computation;
+  } else if #[cfg(feature = "task_fasta")] {
+        use fasta::private_computation;
+  } else if #[cfg(feature = "task_polybench")] {
+        use polybench::*;
+
+        #[cfg(feature = "nussinov")]
+        fun_polybench!(nussinov, 500, );
+
+        #[cfg(feature = "floyd_warshall")]
+        fun_polybench!(floyd_warshall, 500, );
+
+        #[cfg(feature = "deriche")]
+        fun_polybench!(deriche, 1024, 540, );
+
+        #[cfg(feature = "adi")]
+        fun_polybench!(adi, 250, 125, );
+
+        #[cfg(feature = "fdtd_2d")]
+        fun_polybench!(fdtd_2d, 250, 300, 125, );
+
+        #[cfg(feature = "heat_3d")]
+        fun_polybench!(heat_3d, 30, 125, );
+
+        #[cfg(feature = "jacobi_1d")]
+        fun_polybench!(jacobi_1d, 5000, 125, );
+
+        #[cfg(feature = "jacobi_2d")]
+        fun_polybench!(jacobi_2d, 325, 125, );
+
+        #[cfg(feature = "seidel_2d")]
+        fun_polybench!(seidel_2d, 500, 125, );
+
+        #[cfg(feature = "correlation")]
+        fun_polybench!(correlation, 300, 350, );
+
+        #[cfg(feature = "covariance")]
+        fun_polybench!(covariance, 300, 350, );
+
+        #[cfg(feature = "gramschmidt")]
+        fun_polybench!(gramschmidt, 250, 300, );
+
+        #[cfg(feature = "lu")]
+        fun_polybench!(lu, 500, );
+
+        #[cfg(feature = "ludcmp")]
+        fun_polybench!(ludcmp, 500, );
+
+        #[cfg(feature = "trisolv")]
+        fun_polybench!(trisolv, 500, );
+
+        #[cfg(feature = "cholesky")]
+        fun_polybench!(cholesky, 500, );
+
+        #[cfg(feature = "durbin")]
+        fun_polybench!(durbin, 500, );
+
+        #[cfg(feature = "_2mm")]
+        fun_polybench!(_2mm, 200, 225, 250, 275, );
+
+        #[cfg(feature = "_3mm")]
+        fun_polybench!(_3mm, 200, 225, 250, 275, 300, );
+
+        #[cfg(feature = "atax")]
+        fun_polybench!(atax, 475, 525, );
+
+        #[cfg(feature = "bicg")]
+        fun_polybench!(bicg, 475, 525, );
+
+        #[cfg(feature = "doitgen")]
+        fun_polybench!(doitgen, 35, 37, 40, );
+
+        #[cfg(feature = "gemm")]
+        fun_polybench!(gemm, 250, 275, 300, );
+
+        #[cfg(feature = "gemver")]
+        fun_polybench!(gemver, 5000, );
+
+        #[cfg(feature = "gesummv")]
+        fun_polybench!(gesummv, 5000, );
+
+        #[cfg(feature = "mvt")]
+        fun_polybench!(mvt, 1000, );
+
+        #[cfg(feature = "symm")]
+        fun_polybench!(symm, 250, 300, );
+
+        #[cfg(feature = "syr2k")]
+        fun_polybench!(syr2k, 250, 300, );
+
+        #[cfg(feature = "syrk")]
+        fun_polybench!(syrk, 250, 300, );
+
+        #[cfg(feature = "trmm")]
+        fun_polybench!(trmm, 250, 300, );
+  } else if #[cfg(feature = "sample_add")] {
+         use sample_add::private_computation;
+  }
+}
+
 fn private_vec_compute<T>(input: T) -> T
 where
     T: From<Vec<u8>> + Into<Vec<u8>>,
 {
-    input
+    let input_vec: Vec<u8> = input.into();
+
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "task_polybench")] {
+            let timing_function = || {
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+            };
+            let output_vec =  private_computation(input_vec, &timing_function);
+
+        } else {
+            let output_vec = private_computation(input_vec);
+        }
+    }
+
+    T::from(output_vec)
 }
 
-fn get_reader_and_writer(
-    address: &str,
-    port: u16,
-) -> Result<(BufReader<TcpStream>, BufWriter<TcpStream>)> {
+pub fn entry(address: &str, port: u16) -> Result<()> {
     let full_address = format!("{address}:{port}");
 
     let listener = match TcpListener::bind(&full_address) {
@@ -45,11 +164,27 @@ fn get_reader_and_writer(
         }
     };
 
-    // Add thread pool here if there is any need to do so.
-    let socket = listener.accept()?.0;
-    let socket_clone = socket.try_clone()?;
+    let pool = ThreadPool::new(TCS_NUM);
+    loop {
+        match listener.accept() {
+            Ok((socket, addr)) => {
+                if pool
+                    .execute(move || {
+                        let socket_clone = socket.try_clone().unwrap();
+                        let reader = BufReader::new(socket);
+                        let writer = BufWriter::new(socket_clone);
+                        pobf_workflow(reader, writer).unwrap();
+                    })
+                    .is_err()
+                {
+                    return Err(anyhow!("[-] Job execution failed."));
+                }
+            }
+            Err(e) => return Err(e.into()),
+        }
+    }
 
-    Ok((BufReader::new(socket), BufWriter::new(socket_clone)))
+    Ok(())
 }
 
 /// Performs the remote attestation step and returns a JWT report from Azure to the data provider.
@@ -113,7 +248,7 @@ fn pobf_remote_attestation(
 }
 
 fn pobf_receive_data(reader: &mut BufReader<TcpStream>) -> VecAESData {
-    log::info!("[+] Receiving data from data provider...");
+    info!("[+] Receiving data from data provider...");
 
     // Get length of the data.
     let mut len = String::with_capacity(128);
@@ -128,9 +263,10 @@ fn pobf_receive_data(reader: &mut BufReader<TcpStream>) -> VecAESData {
 }
 
 /// The main entry of the PoBF workflow for AMD-SEV.
-pub fn pobf_workflow() -> Result<()> {
-    let (mut reader, mut writer) = get_reader_and_writer(ADDRESS, PORT)?;
-
+pub fn pobf_workflow(
+    mut reader: BufReader<TcpStream>,
+    mut writer: BufWriter<TcpStream>,
+) -> Result<()> {
     // Start the PoBF workflow.
     let ra_callback = || pobf_remote_attestation(&mut reader, &mut writer);
     let f = || ComputingTaskTemplate::<Initialized>::new();
@@ -145,6 +281,16 @@ pub fn pobf_workflow() -> Result<()> {
     let task_result_encrypted = clear_stack_and_regs_on_return(DEFAULT_PAGE_SIZE_LEAF, f);
     let f = || task_result_encrypted.take_result();
     let result = clear_stack_and_regs_on_return(DEFAULT_PAGE_SIZE_LEAF, f);
+
+    // Send it back.
+    info!("[+] Computation finished");
+    let data: Vec<u8> = result.into();
+    writer.write_all(data.len().to_string().as_bytes())?;
+    writer.write_all(b"\n")?;
+    writer.write_all(&data)?;
+    writer.flush()?;
+
+    info!("[+] OK");
 
     Ok(())
 }

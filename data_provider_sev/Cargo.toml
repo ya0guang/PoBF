@@ -6,8 +6,11 @@ edition = "2021"
 
 [dependencies]
 aes-gcm = "0.10.1"
+clap = { version = "4.2.7", features = ["derive"] }
 env_logger = "0.10.0"
 log = "0.4.17"
 pobf_crypto = { path = "../pobf_crypto", features = [
   "sev",
 ], default-features = false }
+serde = { version = "1.0.160", features = ["serde_derive"] }
+serde_json = "1.0.96"
