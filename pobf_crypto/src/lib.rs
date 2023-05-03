@@ -83,6 +83,10 @@ impl KeyPair {
         })
         .unwrap();
 
+        #[cfg(feature = "sev")]
+        // Truncate the session key.
+        self.session_key.truncate(0x10);
+
         // Set the current timestamp.
         self.timestamp = time::SystemTime::now()
             .duration_since(time::UNIX_EPOCH)
@@ -98,7 +102,7 @@ impl KeyPair {
         Ok(())
     }
 
-    pub fn encrypt_with_smk(&self, input: &Vec<u8>) -> PobfCryptoResult<Vec<u8>> {
+    pub fn encrypt_with_smk(&self, input: &[u8]) -> PobfCryptoResult<Vec<u8>> {
         let aesctx = Aes128Gcm::new_from_slice(&self.session_key)
             .map_err(|e| {
                 error!("[-] Failed to create AES context due to {:?}", e);
@@ -107,7 +111,7 @@ impl KeyPair {
             .unwrap();
         let nonce = Nonce::from_slice(&[0u8; 12]);
 
-        match aesctx.encrypt(&nonce, input.as_slice()) {
+        match aesctx.encrypt(&nonce, input) {
             Ok(ciphertext) => Ok(ciphertext),
             Err(_) => {
                 error!("[-] Failed to encrypt the data!");
@@ -116,7 +120,7 @@ impl KeyPair {
         }
     }
 
-    pub fn decrypt_with_smk(&self, input: &Vec<u8>) -> PobfCryptoResult<Vec<u8>> {
+    pub fn decrypt_with_smk(&self, input: &[u8]) -> PobfCryptoResult<Vec<u8>> {
         let aesctx = Aes128Gcm::new_from_slice(&self.session_key)
             .map_err(|e| {
                 error!("[-] Failed to create AES context due to {:?}", e);
@@ -125,7 +129,7 @@ impl KeyPair {
             .unwrap();
         let nonce = Nonce::from_slice(&[0u8; 12]);
 
-        match aesctx.decrypt(&nonce, input.as_slice()) {
+        match aesctx.decrypt(&nonce, input) {
             Ok(plaintext) => Ok(plaintext),
             Err(_) => {
                 error!("[-] Failed to decrypt the data!");
