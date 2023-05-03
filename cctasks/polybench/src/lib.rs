@@ -171,7 +171,7 @@ macro_rules! fun_polybench {
             use polybench_rs::linear_algebra::solvers::*;
             use polybench_rs::medley::*;
             use polybench_rs::stencils::*;
-            #[cfg(not(std))]
+            #[cfg(not(feature = "std"))]
             use alloc::{format, string::String};
 
             let mut res = BenchResult::new();
