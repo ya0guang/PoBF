@@ -6,12 +6,25 @@ use core::marker::PhantomData;
 use prusti_contracts::*;
 use zeroize::Zeroize;
 
+#[cfg(feature = "time_breakdown")]
+use alloc::{collections::BTreeMap, string::String};
+#[cfg(feature = "time_breakdown")]
+use lazy_static::lazy_static;
+#[cfg(feature = "time_breakdown")]
+use spin::RwLock;
+
 #[cfg(feature = "prusti")]
 use crate::bogus::*;
 #[cfg(feature = "sgx")]
 use sgx_types::error::SgxResult as Result;
 #[cfg(not(feature = "sgx"))]
 type Result<T> = core::result::Result<T, ()>;
+
+#[cfg(feature = "time_breakdown")]
+lazy_static! {
+    /// A data structure that records the ticks obtained from `rdtsc` for each step of the PoBF computation workflow.
+    pub static ref TIME_SUMMARY: RwLock<BTreeMap<String, f64>> = RwLock::new(BTreeMap::new());
+}
 
 pub trait TaskState {
     #[pure]
@@ -490,6 +503,9 @@ where
 impl ComputingTaskTemplate<Initialized> {
     #[ensures((&result)._state.is_initialized())]
     pub fn new() -> Self {
+        #[cfg(feature = "time_breakdown")]
+        TIME_SUMMARY.write().clear();
+
         Self {
             _state: Initialized,
         }
@@ -515,6 +531,17 @@ where
         _template: ComputingTaskTemplate<Initialized>,
         mut attestation_callback: F,
     ) -> Self {
+        #[cfg(feature = "time_breakdown")]
+        let key = {
+            let (duration, key) = tsc_timer::Duration::span(attestation_callback);
+            TIME_SUMMARY
+                .write()
+                .insert("establish_channel".into(), duration.cycles() as _);
+
+            key
+        };
+
+        #[cfg(not(feature = "time_breakdown"))]
         let key = attestation_callback();
 
         ComputingTaskSession {
@@ -603,6 +630,16 @@ where
         session: ComputingTaskSession<ChannelEstablished, K>,
         mut receive_callback: F,
     ) -> Self {
+        #[cfg(feature = "time_breakdown")]
+        let data = {
+            let (duration, data) = tsc_timer::Duration::span(receive_callback);
+            TIME_SUMMARY
+                .write()
+                .insert("receive_data".into(), duration.cycles() as _);
+            data
+        };
+
+        #[cfg(not(feature = "time_breakdown"))]
         let data = receive_callback();
         ComputingTask {
             key: session.key,
@@ -617,6 +654,18 @@ where
 
     #[cfg(not(feature = "prusti"))]
     fn decrypt_data(self) -> Result<ComputingTask<DataDecrypted, K, D>> {
+        #[cfg(feature = "time_breakdown")]
+        let data = {
+            let (duration, data) =
+                tsc_timer::Duration::span(|| self.data.raw.decrypt(&self.key.raw));
+            TIME_SUMMARY
+                .write()
+                .insert("decrypt_data".into(), duration.cycles() as _);
+
+            data
+        }?;
+
+        #[cfg(not(feature = "time_breakdown"))]
         let data = self.data.raw.decrypt(&self.key.raw)?;
         Ok(ComputingTask {
             key: self.key.once(),
@@ -704,10 +753,23 @@ where
 {
     #[cfg(not(feature = "prusti"))]
     fn do_compute(self, task: &dyn Fn(D) -> D) -> Result<ComputingTask<ResultDecrypted, K, D>> {
+        #[cfg(feature = "time_breakdown")]
+        let raw = {
+            let (duration, raw) = tsc_timer::Duration::span(|| task(self.data.raw));
+            TIME_SUMMARY
+                .write()
+                .insert("do_compute".into(), duration.cycles() as _);
+
+            raw
+        };
+
+        #[cfg(not(feature = "time_breakdown"))]
+        let raw = task(self.data.raw);
+
         Ok(ComputingTask {
             key: self.key,
             data: Data {
-                raw: task(self.data.raw),
+                raw,
                 _state: DecryptedOutput,
                 _key_type: PhantomData,
             },
@@ -723,6 +785,18 @@ where
 {
     #[cfg(not(feature = "prusti"))]
     fn encrypt_result(self) -> Result<ComputingTask<ResultEncrypted, K, D>> {
+        #[cfg(feature = "time_breakdown")]
+        let data = {
+            let (duration, data) =
+                tsc_timer::Duration::span(|| self.data.raw.encrypt(&self.key.raw));
+            TIME_SUMMARY
+                .write()
+                .insert("encrypt_result".into(), duration.cycles() as _);
+
+            data
+        }?;
+
+        #[cfg(not(feature = "time_breakdown"))]
         let data = self.data.raw.encrypt(&self.key.raw)?;
 
         Ok(ComputingTask {
