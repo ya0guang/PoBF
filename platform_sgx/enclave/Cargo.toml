@@ -74,7 +74,7 @@ doitgen = []
 correlation = []
 
 [dependencies]
-base64 = { version = "0.13.0", default-features = false, features = [ "alloc" ] }
+base64 = { version = "0.13.0", default-features = false, features = ["alloc"] }
 cfg-if = "1.0.0"
 clear_on_drop = { git = "https://github.com/hiroki-chen/clear_on_drop.git", branch = "master" }
 # Evaluations.
@@ -82,7 +82,7 @@ evaluation_tvm = { path = "../../cctasks/evaluation_tvm", optional = true }
 fann = { path = "../../cctasks/fann", optional = true }
 fasta = { path = "../../cctasks/fasta", optional = true }
 polybench = { path = "../../cctasks/polybench", optional = true }
-polybench-rs = { git = "https://github.com/hiroki-chen/polybench-rs.git", optional = true}
+polybench-rs = { git = "https://github.com/hiroki-chen/polybench-rs.git", optional = true }
 sample_add = { path = "../../cctasks/sample_add", optional = true }
 
 # Patched version.
@@ -97,11 +97,11 @@ sgx_trts = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk.git", b
 sgx_tse = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk.git", branch = "v2.0.0-preview", package = "sgx_tse" }
 sgx_tseal = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk.git", branch = "v2.0.0-preview", package = "sgx_tseal", optional = true }
 sgx_types = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk.git", branch = "v2.0.0-preview", package = "sgx_types" }
-webpki = { version = "0.22.0", features = [ "alloc" ] }
+webpki = { version = "0.22.0", features = ["alloc"] }
 
 # External dependencies: SGX compatible (or) crates.
 mirai-annotations = { git = "https://github.com/hiroki-chen/MIRAI.git", branch = "main", package = "mirai-annotations" }
-pobf_state = { path = "../../pobf_state", features = ["sgx"] }
+pobf_state = { path = "../../pobf_state", features = ["sgx", "time_breakdown"] }
 percent-encoding = { git = "https://github.com/mesalock-linux/rust-url-sgx" }
 zeroize = "1.5.7"
 

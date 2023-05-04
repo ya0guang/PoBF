@@ -7,7 +7,10 @@ use std::{
 use anyhow::{anyhow, Result};
 use clear_on_drop::clear_stack_and_regs_on_return;
 use log::{error, info};
-use pobf_state::task::{ComputingTask, ComputingTaskSession, ComputingTaskTemplate, Initialized};
+use pobf_state::{
+    get_time_summary,
+    task::{ComputingTask, ComputingTaskSession, ComputingTaskTemplate, Initialized},
+};
 use pobf_thread_pool::{ThreadPool, TCS_NUM};
 use ring::agreement::{agree_ephemeral, UnparsedPublicKey, X25519};
 
@@ -291,7 +294,10 @@ pub fn pobf_workflow(
     writer.write_all(&data)?;
     writer.flush()?;
 
-    info!("[+] OK");
+    info!(
+        "[+] OK. The time breakdown is given by {}",
+        get_time_summary(2445.432) // Set the cpu frequency here.
+    );
 
     Ok(())
 }

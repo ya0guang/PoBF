@@ -47,3 +47,16 @@ where
     Self: Sized + Decryption<K> + Encryption<K>,
 {
 }
+
+/// Gets the detailed time latency of each step in our PoBF workflow. The caller must specify the CPU frequency to
+/// an accurate measurement of the latency. Note that the unit is MHz (tick per microsecond), and the result is thus
+/// in **microsecond**!
+#[cfg(feature = "time_breakdown")]
+pub fn get_time_summary(cpu_frequency: f64) -> alloc::string::String {
+    use crate::task::TIME_SUMMARY;
+
+    let mut lock = TIME_SUMMARY.write();
+    lock.values_mut().for_each(|tick| *tick /= cpu_frequency);
+
+    alloc::format!("{:?}", lock)
+}
