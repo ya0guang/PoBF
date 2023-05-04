@@ -55,7 +55,7 @@ clear_on_drop = { git = "https://github.com/hiroki-chen/clear_on_drop.git", feat
   "nightly",
 ] }
 env_logger = "0.10.0"
-evaluation_tvm = { path = "../cctasks/evaluation_tvm", optional = true }
+evaluation_tvm = { path = "../others/evaluation_tvm", optional = true }
 fann = { path = "../cctasks/fann", optional = true }
 fasta = { path = "../cctasks/fasta", optional = true }
 log = "0.4.17"

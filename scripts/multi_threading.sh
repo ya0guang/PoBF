@@ -65,7 +65,7 @@ if [[ $2 = "occlum" || $2 = "all" ]]; then
             if grep -q "Server started" ../../data/$task/mt_output_enclave_occlum.txt; then
                 break
             fi
-            
+
             sleep 1
         done
         
@@ -135,6 +135,31 @@ if [[ $2 = "pobf" || $2 = "all" ]]; then
         popd > /dev/null
         
         fuser -k $PORT/tcp > /dev/null 2>&1
+        wait
+        echo -e "$MAGENTA\t\t[+] Finished!$NC"
+    done
+fi
+
+
+# Test multi-threading for PoBF program.
+if [[ $2 = "sev" || $2 = "all" ]]; then
+    export LD_LIBRARY_PATH=$(realpath eval)
+
+    for task in "${tasks[@]}"; do
+        echo -e "$MAGENTA\t[+] Testing multi-threading on SEV for $task...$NC"
+        
+        pushd eval/$task/sev > /dev/null
+        sudo LD_LIBRARY_PATH=$LD_LIBRARY_PATH ADDRESS=$ADDRESS PORT=$PORT \
+                        sh -c 'time ./app $ADDRESS $PORT;' > ../../../data/$task/mt_output_enclave_sev.txt 2>&1 &
+        sleep 1
+        popd > /dev/null
+
+        pushd ./data_provider_sev > /dev/null
+        { time eval 'parallel -j0 -N0 ./target/release/data_provider_sev run ../data/$task/manifest_sev.json ::: '{1..$1}''; } \
+        > ../../data/$task/mt_output_data_provider_sev.txt 2>&1
+        popd > /dev/null
+        
+        sudo fuser -k $PORT/tcp > /dev/null 2>&1
         wait
         echo -e "$MAGENTA\t\t[+] Finished!$NC"
     done

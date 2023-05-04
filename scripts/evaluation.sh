@@ -31,14 +31,13 @@ function build_tvm_wasm {
 
 if [ ! $# -eq 2 ]; then
     echo -e "${RED}Error: Argument number mismatch! Got $#.$NC"
-    echo -e "  Usage: ./evaluation.sh ${YELLOW}[thread_num] [rust|native|pobf|occlum|gramine|enarx|all|none]$NC"
+    echo -e "  Usage: ./evaluation.sh ${YELLOW}[thread_num] [rust|native|pobf|occlum|gramine|enarx|sev|all|none]$NC"
     exit 1
 fi
 
 pushd .. > /dev/null
 # declare -a tasks=("task_tvm" "task_fann" "task_fasta" "task_polybench" "task_sample")
-declare -a tasks=("task_polybench" )
-# declare -a tasks=("task_fasta" )
+declare -a tasks=("task_fasta" )
 
 declare -a polybench_tasks=("_2mm" "_3mm" "atax" "bicg" "cholesky" "correlation" "covariance" "deriche" "doitgen" "durbin" "fdtd_2d" "floyd_warshall" "gemm" "gemver" "gesummv" "gramschmidt" "heat_3d" "jacobi_1d" "jacobi_2d" "lu" "ludcmp" "mvt" "nussinov" "seidel_2d" "symm" "syr2k" "syrk" "trisolv" "trmm" "adi")
 # declare -a polybench_tasks=("_2mm" "_3mm" "atax" "bicg" "cholesky")
@@ -50,16 +49,56 @@ for task in "${tasks[@]}"; do
     mkdir -p eval/"$task"/rust
     mkdir -p eval/"$task"/gramine
     mkdir -p eval/"$task"/enarx
+    mkdir -p eval/"$task"/sev
 done
 
 # Build data provider first.
-pushd data_provider > /dev/null
-cargo build --release
-popd > /dev/null
+if [[ $2 = "sev" ]]; then
+    pushd data_provider_sev > /dev/null
+    cargo build --release
+    popd > /dev/null
+    # Build the shared library.
+    pushd platform_sev/attestation_lib > /dev/null
+    make -j && cp ./libsev_attestation.so ../../eval
+    popd > /dev/null
+else
+    pushd data_provider > /dev/null
+    cargo build --release
+    popd > /dev/null
+fi 
 
 echo -e "$MAGENTA[+] Building TVM runtime for PoBF and others...$NC"
 make -C others/evaluation_tvm/model_deploy -j
-make -C cctasks/evaluation_tvm/model_deploy -j
+
+if [[ $2 != "sev" ]]; then
+    make -C cctasks/evaluation_tvm/model_deploy -j
+fi
+
+# Build different SEV enclaves for different tasks.
+if [[ $2 = "sev" || $2 = "all" ]]; then
+    for task in "${tasks[@]}"; do
+        if [[ ! -f eval/$task/sev/app ]]; then
+            echo -e "$MAGENTA[-] Building SEV program for $task...$NC"
+            if [[ $task = "task_polybench" ]]; then
+                for subtask in "${polybench_tasks[@]}"; do
+                    mkdir -p eval/$task/sev/$subtask
+                    pushd ./platform_sev > /dev/null
+                    cargo build --features=$task,$subtask
+                    cp target/debug/platform_sev ../eval/$task/sev/$subtask/app
+                    popd > /dev/null
+                done
+            else
+                pushd ./platform_sev > /dev/null
+                cargo build --features=$task
+                cp target/debug/platform_sev ../eval/$task/sev/app
+                popd > /dev/null
+            fi
+            echo -e "$MAGENTA\t[+] Finished!$NC"
+        else
+            echo -e "$MAGENTA\t[+] File exists. Skipped!$NC"
+        fi
+    done
+fi
 
 # Build different Rust programs for different tasks.
 if [[ $2 = "rust" || $2 = "all" ]]; then
@@ -71,7 +110,7 @@ if [[ $2 = "rust" || $2 = "all" ]]; then
             cp target/release/server ../../eval/"$task"/rust/server
             cp target/release/client ../../eval/"$task"/rust/client
             popd > /dev/null
-            
+
             echo -e "$MAGENTA\t[+] Finished!$NC"
         else
             echo -e "$MAGENTA\t[+] File exists. Skipped!$NC"
@@ -188,6 +227,57 @@ if [[ $2 = "pobf" || $2 = "all" ]]; then
         else
             echo -e "$MAGENTA\t[+] File exists. Skipped!$NC"
         fi
+    done
+fi
+
+
+# Doing evaluations on SEV.
+if [[ $2 = "sev" || $2 = "all" ]]; then
+    export LD_LIBRARY_PATH=$(realpath eval)
+    for i in $(seq 1 $TIMES); do
+        for task in "${tasks[@]}"; do
+            echo -e "$MAGENTA[-] Testing SEV for $task...$NC"
+
+            if [[ $task = "task_polybench" ]]; then
+                for subtask in "${polybench_tasks[@]}"; do
+                    echo -e "$MAGENTA\t[-] Testing SEV for $task/$subtask...$NC"
+                    # Start the enclave.
+                    pushd eval/"$task"/sev/"$subtask" > /dev/null
+                    mkdir -p ../../../../data/"$task"/"$subtask"
+                    sudo LD_LIBRARY_PATH=$LD_LIBRARY_PATH ADDRESS=$ADDRESS PORT=$PORT \
+                        sh -c 'time ./app $ADDRESS $PORT;' > ../../../../data/"$task"/"$subtask"/"$i"output_enclave_sev.txt 2>&1 &
+                    sleep 1
+                    popd > /dev/null
+
+                    # Start the data provider.
+                    pushd ./data_provider_sev > /dev/null
+                    { time cargo run -r -- run ../data/"$task"/manifest_sev.json; } > ../data/"$task"/"$subtask"/"$i"output_data_provider_sev.txt 2>&1
+                    cp ./output.txt ../data/"$task"/"$subtask"/"$i"result_sev.txt
+                    popd > /dev/null
+
+                    sudo fuser -k $PORT/tcp > /dev/null 2>&1
+                    wait
+                    echo -e "$MAGENT\t[+] Finished!$NC"
+                done
+            else
+                # Start the program.
+                pushd eval/"$task"/sev > /dev/null
+                sudo LD_LIBRARY_PATH=$LD_LIBRARY_PATH ADDRESS=$ADDRESS PORT=$PORT \
+                        sh -c 'time ./app $ADDRESS $PORT;' > ../../../data/"$task"/"$i"output_enclave_sev.txt 2>&1 &
+                sleep 1
+                popd > /dev/null
+
+                # Start the data provider.
+                pushd ./data_provider_sev > /dev/null
+                { time cargo run -r -- run ../data/"$task"/manifest_sev.json; } > ../data/"$task"/output_data_provider_sev.txt 2>&1
+                cp ./output.txt ../data/"$task"/"$subtask"/"$i"result_sev.txt
+                popd > /dev/null
+
+            fi
+            sudo fuser -k $PORT/tcp > /dev/null 2>&1
+            wait
+            echo -e "$MAGENT\t[+] Finished!$NC"
+        done
     done
 fi
 
