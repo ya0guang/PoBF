@@ -29,9 +29,12 @@ fn init_logger() {
 fn main() {
     init_logger();
 
-    log::info!("Performing PoBF workflow on AMD-SEV...");
-
     let args = Args::parse();
+    log::info!(
+        "Performing PoBF workflow on AMD-SEV... Address is {}:{}",
+        args.address,
+        args.port
+    );
     match entry(&args.address, args.port) {
         Ok(_) => log::info!("[+] Finished with success"),
         Err(err) => log::error!("[-] PoBF workflow returned {err}"),

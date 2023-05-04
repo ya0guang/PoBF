@@ -255,11 +255,11 @@ fn pobf_receive_data(reader: &mut BufReader<TcpStream>) -> VecAESData {
     let mut len = String::with_capacity(128);
     reader.read_line(&mut len).unwrap();
     let len = len[..len.len() - 1].parse::<usize>().unwrap();
-
     // Prepare the buffer.
     let mut buf = vec![0u8; len];
     reader.read_exact(&mut buf).unwrap();
 
+    info!("[+] Received data from data provider...");
     buf.into()
 }
 
