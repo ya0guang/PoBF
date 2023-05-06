@@ -181,7 +181,8 @@ pub fn entry(address: &str, port: u16) -> Result<()> {
                     })
                     .is_err()
                 {
-                    return Err(anyhow!("[-] Job execution failed."));
+                    error!("[-] Job execution failed.");
+                    break;
                 }
             }
             Err(e) => return Err(e.into()),

@@ -26,7 +26,8 @@ if ! command -v parallel &> /dev/null; then
     install_package "parallel"
 fi
 
-declare -a tasks=("task_tvm" "task_fann" "task_fasta" "task_polybench" "task_sample")
+# declare -a tasks=("task_tvm" "task_fann" "task_fasta" "task_polybench" "task_sample")
+tasks=$3
 
 pushd .. > /dev/null
 
@@ -147,7 +148,7 @@ if [[ $2 = "sev" || $2 = "all" ]]; then
 
     for task in "${tasks[@]}"; do
         echo -e "$MAGENTA\t[+] Testing multi-threading on SEV for $task...$NC"
-        
+
         pushd eval/$task/sev > /dev/null
         sudo LD_LIBRARY_PATH=$LD_LIBRARY_PATH ADDRESS=$ADDRESS PORT=$PORT \
                         sh -c 'time ./app $ADDRESS $PORT;' > ../../../data/$task/mt_output_enclave_sev.txt 2>&1 &
@@ -156,9 +157,9 @@ if [[ $2 = "sev" || $2 = "all" ]]; then
 
         pushd ./data_provider_sev > /dev/null
         { time eval 'parallel -j0 -N0 ./target/release/data_provider_sev run ../data/$task/manifest_sev.json ::: '{1..$1}''; } \
-        > ../../data/$task/mt_output_data_provider_sev.txt 2>&1
+        > ../data/$task/mt_output_data_provider_sev.txt 2>&1
         popd > /dev/null
-        
+
         sudo fuser -k $PORT/tcp > /dev/null 2>&1
         wait
         echo -e "$MAGENTA\t\t[+] Finished!$NC"

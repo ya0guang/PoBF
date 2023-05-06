@@ -10,7 +10,7 @@ YELLOW="\033[0;33m"
 NC="\033[0m"
 ADDRESS=127.0.0.1
 PORT=1234
-TIMES=10
+TIMES=1
 
 function build_tvm_wasm {
     # Build wasm32-wasi targeted TVM model for ResNet152.
@@ -37,7 +37,7 @@ fi
 
 pushd .. > /dev/null
 # declare -a tasks=("task_tvm" "task_fann" "task_fasta" "task_polybench" "task_sample")
-declare -a tasks=("task_fasta" )
+declare -a tasks=("task_sample" )
 
 declare -a polybench_tasks=("_2mm" "_3mm" "atax" "bicg" "cholesky" "correlation" "covariance" "deriche" "doitgen" "durbin" "fdtd_2d" "floyd_warshall" "gemm" "gemver" "gesummv" "gramschmidt" "heat_3d" "jacobi_1d" "jacobi_2d" "lu" "ludcmp" "mvt" "nussinov" "seidel_2d" "symm" "syr2k" "syrk" "trisolv" "trmm" "adi")
 # declare -a polybench_tasks=("_2mm" "_3mm" "atax" "bicg" "cholesky")
@@ -505,4 +505,4 @@ popd > /dev/null
 
 # Test multi-threading.
 echo -e "$MAGENTA[+] Testing multi-threading...$NC"
-# ./multi_threading.sh $1 $2
+./multi_threading.sh $1 $2 $tasks
