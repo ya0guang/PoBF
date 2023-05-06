@@ -2,7 +2,7 @@
 
 use clap::{Arg, Parser};
 
-use crate::pobf::entry;
+use crate::{ffi::uninitialize, pobf::entry};
 
 mod ffi;
 mod key;
@@ -38,5 +38,9 @@ fn main() {
     match entry(&args.address, args.port) {
         Ok(_) => log::info!("[+] Finished with success"),
         Err(err) => log::error!("[-] PoBF workflow returned {err}"),
+    }
+
+    unsafe {
+        uninitialize();
     }
 }

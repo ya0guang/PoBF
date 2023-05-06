@@ -22,6 +22,9 @@ using json = nlohmann::json;
 std::string default_attestation_url =
     "https://sharedeus2.eus2.attest.azure.net/";
 
+// Do not call this function multiple times unless the whole program exits.
+extern "C" void uninitialize() { Uninitialize(); }
+
 extern "C" int get_attestation_report(unsigned char* p_buf, size_t buf_len,
                                       const char* p_nonce, size_t nonce_len) {
   std::string attestation_url;
@@ -76,7 +79,6 @@ extern "C" int get_attestation_report(unsigned char* p_buf, size_t buf_len,
     }
 
     std::string jwt_response = base64_decode(tokens[1]);
-    Uninitialize();
 
     // Copy back to Rust.
     if (jwt_response.size() >= buf_len) {
@@ -87,7 +89,6 @@ extern "C" int get_attestation_report(unsigned char* p_buf, size_t buf_len,
     memcpy(p_buf, jwt_response.c_str(), jwt_response.size());
     return 0;
   } else {
-    Uninitialize();
     return -1;
   }
 }

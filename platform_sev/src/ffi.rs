@@ -50,4 +50,7 @@ extern "C" {
         rsa_wrap_alg_id: RsaScheme,
         rsa_hash_alg_id: RsaHashAlg,
     ) -> i64;
+
+    /// Should be called if remote attestation finishes.
+    pub fn uninitialize();
 }
