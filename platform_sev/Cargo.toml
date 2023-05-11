@@ -5,6 +5,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
+default = ["task_none"]
 task_fann = ["fann"]
 task_fasta = ["fasta"]
 task_polybench = ["polybench", "polybench-rs"]
@@ -12,6 +13,7 @@ task_polybench = ["polybench", "polybench-rs"]
 # The tasks are enabled by `cfg_if`.
 task_sample = ["sample_add"]
 task_tvm = ["evaluation_tvm"]
+task_none = []
 
 nussinov = []
 _2mm = []

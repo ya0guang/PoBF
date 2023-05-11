@@ -15,13 +15,13 @@ use sgx_types::types::{c_int, Spid};
 // Settings for private computation functions.
 cfg_if::cfg_if! {
    if #[cfg(feature = "task_tvm")] {
-      use evaluation_tvm::private_computation;
-  } else if #[cfg(feature = "task_fann")] {
-      use fann::private_computation;
-  } else if #[cfg(feature = "task_fasta")] {
-      use fasta::private_computation;
-  } else if #[cfg(feature = "task_polybench")] {
-      use polybench::*;
+        use evaluation_tvm::private_computation;
+    } else if #[cfg(feature = "task_fann")] {
+        use fann::private_computation;
+    } else if #[cfg(feature = "task_fasta")] {
+        use fasta::private_computation;
+    } else if #[cfg(feature = "task_polybench")] {
+        use polybench::*;
 
         #[cfg(feature = "nussinov")]
         fun_polybench!(nussinov, 500, );
@@ -112,9 +112,14 @@ cfg_if::cfg_if! {
 
         #[cfg(feature = "trmm")]
         fun_polybench!(trmm, 250, 300, );
-  } else if #[cfg(feature = "sample_add")] {
-      use sample_add::private_computation;
-  }
+    } else if #[cfg(feature = "sample_add")] {
+        use sample_add::private_computation;
+    } else {
+        /// Identity task.
+        pub fn private_computation(input: Vec<u8>) -> Vec<u8> {
+            input
+        }
+    }
 }
 
 // Task.
