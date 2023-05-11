@@ -29,11 +29,11 @@ const DEFAULT_PAGE_SIZE_LEAF: usize = 0x1;
 cfg_if::cfg_if! {
    if #[cfg(feature = "task_tvm")] {
         use evaluation_tvm::private_computation;
-  } else if #[cfg(feature = "task_fann")] {
+    } else if #[cfg(feature = "task_fann")] {
         use fann::private_computation;
-  } else if #[cfg(feature = "task_fasta")] {
+    } else if #[cfg(feature = "task_fasta")] {
         use fasta::private_computation;
-  } else if #[cfg(feature = "task_polybench")] {
+    } else if #[cfg(feature = "task_polybench")] {
         use polybench::*;
 
         #[cfg(feature = "nussinov")]
@@ -125,9 +125,14 @@ cfg_if::cfg_if! {
 
         #[cfg(feature = "trmm")]
         fun_polybench!(trmm, 250, 300, );
-  } else if #[cfg(feature = "sample_add")] {
-         use sample_add::private_computation;
-  }
+    } else if #[cfg(feature = "sample_add")] {
+        use sample_add::private_computation;
+    } else {
+        /// Identity task.
+        pub fn private_computation(input: Vec<u8>) -> Vec<u8> {
+            input
+        }
+    }
 }
 
 fn private_vec_compute<T>(input: T) -> T
