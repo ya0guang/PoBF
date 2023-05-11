@@ -112,7 +112,7 @@ cfg_if::cfg_if! {
 
         #[cfg(feature = "trmm")]
         fun_polybench!(trmm, 250, 300, );
-    } else if #[cfg(feature = "sample_add")] {
+    } else if #[cfg(feature = "task_sample")] {
         use sample_add::private_computation;
     } else {
         /// Identity task.

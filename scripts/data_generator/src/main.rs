@@ -1,6 +1,6 @@
 use clap::Parser;
-use std::io::Write;
 use std::fs::File;
+use std::io::Write;
 
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
@@ -21,8 +21,10 @@ fn main() {
     let output_path = args.output_path;
 
     // Open the file.
+    print!("writing dummy data with length {len} to {output_path}...");
     let mut file = File::create(&output_path).unwrap();
     let foo = vec![0u8; len];
     // Write `foo` as u8 array into file.
     file.write_all(&foo).unwrap();
+    println!("\t\tok");
 }

@@ -9,7 +9,7 @@ crate-type = ["lib", "staticlib"]
 
 [features]
 # turn on mirai when veirifying towards mirai
-default = ["leak_log", "task_none"]
+default = ["leak_log"]
 sgx = ["sgx_no_tstd", "sgx_trts", "sgx_tseal"]
 rand = ["sgx_rand"]
 # potential violations
@@ -38,7 +38,7 @@ task_tvm = ["evaluation_tvm"]
 task_polybench = ["polybench", "polybench-rs"]
 task_fann = ["fann"]
 task_fasta = ["fasta"]
-task_nome = []
+task_none = []
 mirai_sample = []
 
 nussinov = []

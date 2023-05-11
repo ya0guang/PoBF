@@ -9,8 +9,6 @@ use zeroize::Zeroize;
 #[cfg(feature = "time_breakdown")]
 use alloc::{collections::BTreeMap, string::String};
 #[cfg(feature = "time_breakdown")]
-use lazy_static::lazy_static;
-#[cfg(feature = "time_breakdown")]
 use spin::RwLock;
 
 #[cfg(feature = "prusti")]
@@ -21,10 +19,8 @@ use sgx_types::error::SgxResult as Result;
 type Result<T> = core::result::Result<T, ()>;
 
 #[cfg(feature = "time_breakdown")]
-lazy_static! {
-    /// A data structure that records the ticks obtained from `rdtsc` for each step of the PoBF computation workflow.
-    pub static ref TIME_SUMMARY: RwLock<BTreeMap<String, f64>> = RwLock::new(BTreeMap::new());
-}
+/// A data structure that records the ticks obtained from `rdtsc` for each step of the PoBF computation workflow.
+pub static TIME_SUMMARY: RwLock<BTreeMap<String, f64>> = RwLock::new(BTreeMap::new());
 
 pub trait TaskState {
     #[pure]
