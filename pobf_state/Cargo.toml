@@ -7,9 +7,10 @@ edition = "2021"
 [features]
 sgx = ["sgx_types"]
 prusti = []
-time_breakdown = ["spin", "tsc-timer"]
+time_breakdown = ["lazy_static", "spin", "tsc-timer"]
 
 [dependencies]
+lazy_static = { version = "1.4.0", optional = true, features = ["spin_no_std"] }
 prusti-contracts = { git = "https://github.com/viperproject/prusti-dev.git", rev = "734426e" }
 sgx_types = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk.git", branch = "v2.0.0-preview", package = "sgx_types", optional = true }
 spin = { version = "0.9.8", optional = true, default-features = false, features = [

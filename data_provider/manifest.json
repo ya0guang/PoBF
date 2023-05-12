@@ -4,6 +4,6 @@
   "spid": "",
   "ias_key": "",
   "linkable": true,
-  "data_path": "../../data/task_sample/data.bin",
+  "data_path": "../../eval/identity_data/output_100000000.bin",
   "ra_type": 1
 }

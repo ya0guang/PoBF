@@ -19,8 +19,10 @@ use sgx_types::error::SgxResult as Result;
 type Result<T> = core::result::Result<T, ()>;
 
 #[cfg(feature = "time_breakdown")]
-/// A data structure that records the ticks obtained from `rdtsc` for each step of the PoBF computation workflow.
-pub static TIME_SUMMARY: RwLock<BTreeMap<String, f64>> = RwLock::new(BTreeMap::new());
+lazy_static::lazy_static! {
+    /// A data structure that records the ticks obtained from `rdtsc` for each step of the PoBF computation workflow.
+    pub static ref TIME_SUMMARY: RwLock<BTreeMap<String, f64>> = RwLock::new(BTreeMap::new());
+}
 
 pub trait TaskState {
     #[pure]
