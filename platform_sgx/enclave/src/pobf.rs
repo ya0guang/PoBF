@@ -277,9 +277,16 @@ pub fn pobf_workflow(
 
     let end = unix_time(3).unwrap();
     // Get execution time.
+    let output = pobf_state::get_time_summary(2100.0);
+    // verified_log!("[+] Cost breakup: {output}");
 
     let elapsed = core::time::Duration::from_nanos(end - begin);
-    verified_log!(SecretTaint, "Job finished. Time used: {:?}.", elapsed);
+    verified_log!(
+        SecretTaint,
+        "Job finished. Time used: {:?}; breakup {}",
+        elapsed,
+        output
+    );
 
     result
 }
