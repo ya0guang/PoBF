@@ -1,4 +1,5 @@
 #![allow(unused)]
+#![feature(cstr_from_bytes_until_nul)]
 
 use clap::{Arg, Parser};
 
@@ -17,6 +18,8 @@ struct Args {
     address: String,
     #[clap(value_parser)]
     port: u16,
+    #[clap(value_parser, default_value_t = 0x20)]
+    stack_size: u16,
 }
 
 fn init_logger() {
@@ -35,7 +38,8 @@ fn main() {
         args.address,
         args.port
     );
-    match entry(&args.address, args.port) {
+
+    match entry(&args.address, args.port, args.stack_size) {
         Ok(_) => log::info!("[+] Finished with success"),
         Err(err) => log::error!("[-] PoBF workflow returned {err}"),
     }
