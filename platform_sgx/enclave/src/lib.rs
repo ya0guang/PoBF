@@ -56,7 +56,10 @@ pub extern "C" fn private_computing_entry(
     encrypted_output_buffer_ptr: *mut u8,
     encrypted_output_buffer_size: u32,
     encrypted_output_size: *mut u32,
+    stack: u16,
 ) -> SgxStatus {
+    // Test if edmm works.
+
     verified_log!("[+] private_computing_entry");
     cfg_if::cfg_if! {
         if #[cfg(feature = "native_enclave")] {
@@ -74,7 +77,9 @@ pub extern "C" fn private_computing_entry(
             .unwrap();
     let signature = unsafe { slice::from_raw_parts(signature_ptr, signature_len as usize) };
 
-    let mut result = pobf_workflow(socket_fd, spid, linkable, ra_type, public_key, signature);
+    let mut result = pobf_workflow(
+        socket_fd, spid, linkable, ra_type, public_key, signature, stack,
+    );
 
     let output_size = result.as_ref().len() as u32;
     let rv = if output_size <= encrypted_output_buffer_size {
@@ -124,3 +129,8 @@ pub extern "C" fn start_remote_attestation(
 
     SgxStatus::Success
 }
+
+/// Built with debug mode.
+#[cfg(debug_assertions)]
+#[no_mangle]
+pub fn __assert_fail() {}
