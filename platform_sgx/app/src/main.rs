@@ -41,6 +41,7 @@ extern "C" {
         encrypted_output_buffer_ptr: *mut u8,
         encrypted_BATCH_SIZE: u32,
         encrypted_output_size: *mut u32,
+        stack: u16,
     ) -> SgxStatus;
 
     /// Legacy function.
@@ -66,6 +67,8 @@ struct Args {
     address: String,
     #[clap(value_parser)]
     port: u16,
+    #[clap(value_parser, default_value_t = 0x20)]
+    stack_size: u16,
 }
 
 fn main() {
@@ -103,11 +106,11 @@ fn main() {
 
     let enclave = Arc::new(enclave);
 
-    server_run(listener, enclave).unwrap();
+    server_run(listener, enclave, args.stack_size).unwrap();
 }
 
 // May need a mutex on enclave
-fn server_run(listener: TcpListener, enclave: Arc<SgxEnclave>) -> Result<()> {
+fn server_run(listener: TcpListener, enclave: Arc<SgxEnclave>, stack: u16) -> Result<()> {
     // incoming() is an iterator that returns an infinite sequence of streams.
 
     let pool = ThreadPool::new(TCS_NUM);
@@ -117,7 +120,7 @@ fn server_run(listener: TcpListener, enclave: Arc<SgxEnclave>) -> Result<()> {
                 let encalve_cp = enclave.clone();
 
                 if pool
-                    .execute(move || handle_client(stream, addr, &encalve_cp).unwrap())
+                    .execute(move || handle_client(stream, addr, &encalve_cp, stack).unwrap())
                     .is_err()
                 {
                     error!("[-] Job execution failed.");
@@ -131,7 +134,12 @@ fn server_run(listener: TcpListener, enclave: Arc<SgxEnclave>) -> Result<()> {
     Ok(())
 }
 
-fn handle_client(stream: TcpStream, addr: SocketAddr, enclave: &SgxEnclave) -> Result<()> {
+fn handle_client(
+    stream: TcpStream,
+    addr: SocketAddr,
+    enclave: &SgxEnclave,
+    stack: u16,
+) -> Result<()> {
     info!("[+] Got connection from {:?}", addr);
     // Expose the raw socket fd.
     let socket_fd = stream.as_raw_fd();
@@ -141,7 +149,7 @@ fn handle_client(stream: TcpStream, addr: SocketAddr, enclave: &SgxEnclave) -> R
     let message = receive_ra_message(&mut reader)?;
 
     // Execute the PoBF private computing entry.
-    let result = exec_private_computing(&enclave, socket_fd, &message);
+    let result = exec_private_computing(&enclave, socket_fd, &message, stack);
 
     //Send the data back.
     info!("[+] Send the data back to the data provider...");
@@ -230,6 +238,7 @@ fn exec_private_computing(
     enclave: &SgxEnclave,
     socket_fd: c_int,
     ra_message: &RaMessage,
+    stack: u16,
 ) -> Vec<u8> {
     let mut retval = SgxStatus::Success;
     let mut encrypted_output: Vec<u8> = vec![0u8; DEFAULT_LARGE_DATA_SIZE];
@@ -250,6 +259,7 @@ fn exec_private_computing(
             encrypted_output.as_mut_ptr(),
             DEFAULT_LARGE_DATA_SIZE as _,
             &mut encrypted_output_size as _,
+            stack,
         )
     };
     match res {

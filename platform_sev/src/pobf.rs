@@ -23,7 +23,6 @@ use crate::{
 const ADDRESS: &str = "127.0.0.1";
 const PORT: u16 = 2333;
 const NONCE: &str = "hurricane";
-const DEFAULT_PAGE_SIZE_LEAF: usize = 0x1;
 
 // Settings for private computation functions.
 cfg_if::cfg_if! {
@@ -159,7 +158,7 @@ where
     T::from(output_vec)
 }
 
-pub fn entry(address: &str, port: u16) -> Result<()> {
+pub fn entry(address: &str, port: u16, stack: u16) -> Result<()> {
     let full_address = format!("{address}:{port}");
 
     let listener = match TcpListener::bind(&full_address) {
@@ -179,10 +178,10 @@ pub fn entry(address: &str, port: u16) -> Result<()> {
             Ok((socket, addr)) => {
                 if pool
                     .execute(move || {
-                        let socket_clone = socket.try_clone().unwrap();
-                        let reader = BufReader::new(socket);
-                        let writer = BufWriter::new(socket_clone);
-                        pobf_workflow(reader, writer).unwrap();
+                        let reader = BufReader::new(socket.try_clone().unwrap());
+                        let writer = BufWriter::new(socket.try_clone().unwrap());
+                        let reader2 = BufReader::new(socket);
+                        pobf_workflow(reader, reader2, writer, stack).unwrap();
                     })
                     .is_err()
                 {
@@ -251,7 +250,6 @@ fn pobf_remote_attestation(
             .unwrap();
         writer.write_all(pub_key.as_ref());
         writer.flush();
-        info!("[+] Key aggrement OK {session_key:02x?}");
 
         AES128Key::from(session_key)
     }
@@ -268,32 +266,34 @@ fn pobf_receive_data(reader: &mut BufReader<TcpStream>) -> VecAESData {
     let mut buf = vec![0u8; len];
     reader.read_exact(&mut buf).unwrap();
 
-    info!("[+] Received data from data provider...");
     buf.into()
 }
 
+#[cfg(not(feature = "native"))]
 /// The main entry of the PoBF workflow for AMD-SEV.
 pub fn pobf_workflow(
     mut reader: BufReader<TcpStream>,
+    mut reader2: BufReader<TcpStream>,
     mut writer: BufWriter<TcpStream>,
+    stack: u16,
 ) -> Result<()> {
+    let now = std::time::Instant::now();
     // Start the PoBF workflow.
     let ra_callback = || pobf_remote_attestation(&mut reader, &mut writer);
-    let f = || ComputingTaskTemplate::<Initialized>::new();
-    let template = clear_stack_and_regs_on_return(DEFAULT_PAGE_SIZE_LEAF, f);
-    let f = || ComputingTaskSession::establish_channel(template, ra_callback);
-    let session = clear_stack_and_regs_on_return(DEFAULT_PAGE_SIZE_LEAF, f);
+    let receive_callback = || pobf_receive_data(&mut reader2);
 
-    let receive_callback = || pobf_receive_data(&mut reader);
+    let f = || ComputingTaskTemplate::<Initialized>::new();
+    let template = clear_stack_and_regs_on_return(stack as _, f);
+    let f = || ComputingTaskSession::establish_channel(template, ra_callback);
+    let session = clear_stack_and_regs_on_return(stack as _, f);
     let f = || ComputingTask::receive_data(session, receive_callback);
-    let task_data_received = clear_stack_and_regs_on_return(DEFAULT_PAGE_SIZE_LEAF, f);
+    let task_data_received = clear_stack_and_regs_on_return(stack as _, f);
     let f = || task_data_received.compute(&private_vec_compute);
-    let task_result_encrypted = clear_stack_and_regs_on_return(DEFAULT_PAGE_SIZE_LEAF, f);
+    let task_result_encrypted = clear_stack_and_regs_on_return(stack as _, f);
     let f = || task_result_encrypted.take_result();
-    let result = clear_stack_and_regs_on_return(DEFAULT_PAGE_SIZE_LEAF, f);
+    let result = clear_stack_and_regs_on_return(stack as _, f);
 
     // Send it back.
-    info!("[+] Computation finished");
     let data: Vec<u8> = result.into();
     writer.write_all(data.len().to_string().as_bytes())?;
     writer.write_all(b"\n")?;
@@ -301,8 +301,45 @@ pub fn pobf_workflow(
     writer.flush()?;
 
     info!(
+        "[+] Computation finished. Time used is {}",
+        now.elapsed().as_micros()
+    );
+    info!(
         "[+] OK. The time breakdown is given by {}",
         get_time_summary(2445.432) // Set the cpu frequency here.
+    );
+
+    Ok(())
+}
+
+#[cfg(feature = "native")]
+/// The main entry of the PoBF workflow for AMD-SEV.
+pub fn pobf_workflow(
+    mut reader: BufReader<TcpStream>,
+    mut _reader2: BufReader<TcpStream>,
+    mut writer: BufWriter<TcpStream>,
+    _stack: u16,
+) -> Result<()> {
+    use pobf_state::{Decryption, Encryption};
+    let now = std::time::Instant::now();
+
+    // Start the PoBF workflow.
+    let key = pobf_remote_attestation(&mut reader, &mut writer);
+    let data = pobf_receive_data(&mut reader);
+    let decrypted_data = data.decrypt(&key).unwrap();
+    let output = private_vec_compute(decrypted_data);
+    let result = output.encrypt(&key).unwrap();
+
+    // Send it back.
+    let data: Vec<u8> = result.into();
+    writer.write_all(data.len().to_string().as_bytes())?;
+    writer.write_all(b"\n")?;
+    writer.write_all(&data)?;
+    writer.flush()?;
+
+    info!(
+        "[+] Computation finished. Time used is {} ms",
+        now.elapsed().as_micros()
     );
 
     Ok(())

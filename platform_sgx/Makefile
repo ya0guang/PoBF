@@ -17,9 +17,10 @@
 
 ######## SGX SDK Settings ########
 
-SGX_SDK ?= /opt/intel/sgxsdk
-SGX_MODE ?= HW
-SGX_ARCH ?= x64
+SGX_SDK		?= /opt/intel/sgxsdk
+SGX_MODE	?= HW
+SGX_ARCH	?= x64
+SGX_EDMM	?= 0
 
 # TOP_DIR := ./incubator-teaclave-sgx-sdk
 include ../buildenv.mk
@@ -31,58 +32,58 @@ else ifeq ($(findstring -m32, $(CXXFLAGS)), -m32)
 endif
 
 ifeq ($(SGX_ARCH), x86)
-	SGX_COMMON_CFLAGS := -m32
-	SGX_LIBRARY_PATH := $(SGX_SDK)/lib
-	SGX_BIN_PATH := $(SGX_SDK)/bin/x86
+	SGX_COMMON_CFLAGS 	:= -m32
+	SGX_LIBRARY_PATH 	:= $(SGX_SDK)/lib
+	SGX_BIN_PATH 		:= $(SGX_SDK)/bin/x86
 else
-	SGX_COMMON_CFLAGS := -m64
-	SGX_LIBRARY_PATH := $(SGX_SDK)/lib64
-	SGX_BIN_PATH := $(SGX_SDK)/bin/x64
+	SGX_COMMON_CFLAGS 	:= -m64
+	SGX_LIBRARY_PATH	:= $(SGX_SDK)/lib64
+	SGX_BIN_PATH 		:= $(SGX_SDK)/bin/x64
 endif
 
-SGX_EDGER8R := $(SGX_BIN_PATH)/sgx_edger8r
+SGX_EDGER8R			:= $(SGX_BIN_PATH)/sgx_edger8r
 ifneq ($(SGX_MODE), HYPER)
-	SGX_ENCLAVE_SIGNER := $(SGX_BIN_PATH)/sgx_sign
+	SGX_ENCLAVE_SIGNER	:= $(SGX_BIN_PATH)/sgx_sign
 else
-	SGX_ENCLAVE_SIGNER := $(SGX_BIN_PATH)/sgx_sign_hyper
-	SGX_EDGER8R_MODE := --sgx-mode $(SGX_MODE)
+	SGX_ENCLAVE_SIGNER	:= $(SGX_BIN_PATH)/sgx_sign_hyper
+	SGX_EDGER8R_MODE	:= --sgx-mode $(SGX_MODE)
 endif
 
 ######## CUSTOM Settings ########
 
-CUSTOM_LIBRARY_PATH := ./lib
-CUSTOM_BIN_PATH := ./bin
-CUSTOM_SYSROOT_PATH := ./sysroot
-CUSTOM_EDL_PATH := $(SGX_SDK)/include
-CUSTOM_COMMON_PATH := $(SGX_SDK)
+CUSTOM_LIBRARY_PATH	:= ./lib
+CUSTOM_BIN_PATH		:= ./bin
+CUSTOM_SYSROOT_PATH	:= ./sysroot
+CUSTOM_EDL_PATH		:= $(SGX_SDK)/include
+CUSTOM_COMMON_PATH	:= $(SGX_SDK)
 
 ######## EDL Settings ########
 
-Enclave_EDL_Files := enclave/enclave_t.c enclave/enclave_t.h app/enclave_u.c app/enclave_u.h
+Enclave_EDL_Files	:= enclave/enclave_t.c enclave/enclave_t.h app/enclave_u.c app/enclave_u.h
 
 ######## APP Settings ########
 
-App_Rust_Flags := --release
-App_Src_Files := $(shell find app/ -type f -name '*.rs') $(shell find app/ -type f -name 'Cargo.toml')
-App_Include_Paths := -I ./app -I$(SGX_SDK)/include -I$(CUSTOM_EDL_PATH)
-App_C_Flags := $(CFLAGS) -fPIC -Wno-attributes $(App_Include_Paths)
+App_Rust_Flags 		:= --release
+App_Src_Files 		:= $(shell find app/ -type f -name '*.rs') $(shell find app/ -type f -name 'Cargo.toml')
+App_Include_Paths 	:= -I ./app -I$(SGX_SDK)/include -I$(CUSTOM_EDL_PATH)
+App_C_Flags 		:= $(CFLAGS) -fPIC -Wno-attributes $(App_Include_Paths)
 
-App_Rust_Path := ./app/target/release
-App_Enclave_u_Object := $(CUSTOM_LIBRARY_PATH)/libenclave_u.a
-App_Name := $(CUSTOM_BIN_PATH)/app
+App_Rust_Path 		:= ./app/target/release
+App_Enclave_u_Object 	:= $(CUSTOM_LIBRARY_PATH)/libenclave_u.a
+App_Name 		:= $(CUSTOM_BIN_PATH)/app
 
 ######## Enclave Settings ########
 
 # BUILD_STD=no       use no_std
 # BUILD_STD=cargo    use cargo-std-aware
 # BUILD_STD=xargo    use xargo
-BUILD_STD ?= no
+BUILD_STD		?= no
 
-Rust_Build_Target := x86_64-unknown-linux-sgx
-Rust_Target_Path := $(ROOT_DIR)/rustlib
+Rust_Build_Target	:= x86_64-unknown-linux-sgx
+Rust_Target_Path	:= $(ROOT_DIR)/rustlib
 
 ifeq ($(BUILD_STD), cargo)
-	Rust_Build_Std := --release -Z build-std=core,alloc
+	Rust_Build_Std	:= --release -Z build-std=core,alloc
 	Rust_Std_Features :=
 	Rust_Target_Flags := --target $(Rust_Target_Path)/$(Rust_Build_Target).json
 	Rust_Sysroot_Path := $(CURDIR)/sysroot
@@ -97,9 +98,12 @@ RustEnclave_Link_Libs := -L$(CUSTOM_LIBRARY_PATH) -lenclave
 RustEnclave_Compile_Flags := $(ENCLAVE_CFLAGS) $(RustEnclave_Include_Paths)
 RustEnclave_Link_Flags := -Wl,--no-undefined -nostdlib -nodefaultlibs -nostartfiles \
 	-Wl,--start-group -L$(SGX_LIBRARY_PATH) $(RustEnclave_Link_Libs)  -Wl,--end-group \
-	-Wl,--start-group -L$(CUSTOM_LIBRARY_PATH) -lmodel_entry -lm  -Wl,--end-group \
 	-Wl,--version-script=enclave/enclave.lds \
 	$(ENCLAVE_LDFLAGS)
+
+ifeq ($(TASK), task_tvm)
+	RustEnclave_Link_Flags += -Wl,--start-group -L$(CUSTOM_LIBRARY_PATH) -lmodel_entry -lm  -Wl,--end-group
+endif
 
 ifeq ($(BUILD_STD), cargo)
 	RustEnclave_Out_Path := ./enclave/target/$(Rust_Build_Target)/release
@@ -160,12 +164,16 @@ app:
 	@cd app && SGX_SDK=$(SGX_SDK) cargo build $(App_Rust_Flags)
 
 ######## Build Enclave ########
-TASK ?= task_tvm
-NATIVE_ENCLAVE ?= 0
+TASK		?= task_tvm
+NATIVE_ENCLAVE	?= 0
 
 FEATURES = sgx,$(TASK)
 ifeq ($(NATIVE_ENCLAVE), 1)
-		FEATURES += ,native_enclave
+	FEATURES += ,native_enclave
+endif
+
+ifeq ($(SGX_EDMM), 1)
+	FEATURES += ,edmm
 endif
 
 .PHONY: enclave
