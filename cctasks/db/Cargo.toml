@@ -6,6 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+bincode = "1.3.3"
 hashbrown = { version = "0.13.2", features = ["bumpalo", "serde"] }
 lazy_static = "1.4.0"
 serde = { version = "1.0.163", default-features = false, features = ["alloc"] }
@@ -17,6 +18,3 @@ spin = { version = "0.9.8", default-features = false, features = [
 
 [lib]
 doctest = false
-
-[dev-dependencies]
-bincode = "1.3.3"

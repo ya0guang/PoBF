@@ -38,6 +38,7 @@ task_tvm = ["evaluation_tvm"]
 task_polybench = ["polybench", "polybench-rs"]
 task_fann = ["fann"]
 task_fasta = ["fasta"]
+task_db = ["db"]
 task_none = []
 mirai_sample = []
 
@@ -85,6 +86,7 @@ fasta = { path = "../../cctasks/fasta", optional = true }
 polybench = { path = "../../cctasks/polybench", optional = true }
 polybench-rs = { git = "https://github.com/hiroki-chen/polybench-rs.git", optional = true }
 sample_add = { path = "../../cctasks/sample_add", optional = true }
+db = { path = "../../cctasks/db", optional = true }
 
 # Patched version.
 sgx_alloc = { git = "https://github.com/hiroki-chen/incubator-teaclave-sgx-sdk.git", branch = "v2.0.0-preview", package = "sgx_alloc" }

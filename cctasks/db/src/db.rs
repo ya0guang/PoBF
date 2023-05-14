@@ -1,23 +1,27 @@
-use alloc::{boxed::Box, format, string::String, vec::Vec};
+use alloc::{boxed::Box, format, string::String, sync::Arc, vec::Vec};
 use core::{
     error::Error,
     fmt::{Debug, Display},
     hash::Hash,
+    sync::atomic::{AtomicBool, Ordering},
 };
 use hashbrown::HashMap;
 use lazy_static::lazy_static;
-use serde::{Deserialize, Serialize};
+use serde::{ser::SerializeMap, Deserialize, Serialize, Serializer};
 use spin::RwLock;
 
 pub type DbResult<T> = core::result::Result<T, DbError>;
-pub type DumperType<K, V> = Box<dyn Persistent<K, V>>;
+pub type PersistentType<K, V> = Box<dyn Persistent<K, V>>;
 
 pub const MINIMUM_OPERATION_LEN: usize = 2;
 
 lazy_static! {
     /// A global singleton instance of the database.
-    pub static ref SIMPLE_DATABASE: RwLock<Database<String, String>> =
-        RwLock::new(Database::new_empty());
+    pub static ref SIMPLE_DATABASE: Arc<Database<String, String>> =
+        Arc::new(Database::new_empty());
+
+    /// A global file lock.
+    pub static ref DB_FILELOCK: RwLock<()> = RwLock::new(());
 }
 
 pub enum DbError {
@@ -60,20 +64,19 @@ impl Display for DbError {
     }
 }
 
-/// A trait that represents all disk managers that deals with the disk operations. Making this
-/// a generic trait has the following benefits:
+/// A trait that represents all disk managers that deals with the disk operations.
 ///
-/// * The codebase of the in-memory database will be decreased.
-/// * The implementation of the persistent can be platform-specific.
+/// This trait is designed to be `no_std` compatible and can reduce the codebase of
+/// the kernel of our simple database.
 pub trait Persistent<K, V>: Send + Sync
 where
-    K: Clone + Hash + Serialize + for<'a> Deserialize<'a>,
-    V: Clone + Serialize + for<'a> Deserialize<'a>,
+    K: Serialize + for<'a> Deserialize<'a>,
+    V: Serialize + for<'a> Deserialize<'a>,
 {
-    /// Dumps the database onto the disk.
-    fn dump(&self, db: &Database<K, V>, path: &str) -> DbResult<()>;
-    /// Loads teh database from the disk.
-    fn load(&self, path: &str) -> DbResult<HashMap<String, HashMap<K, V>>>;
+    /// Dumps the raw database to the disk.
+    fn write_disk(&self, path: &str, buf: &[u8]) -> DbResult<()>;
+    /// Loads the raw database from the disk.
+    fn read_disk(&self, path: &str) -> DbResult<Vec<u8>>;
 }
 
 pub trait AsBytes {
@@ -117,9 +120,65 @@ where
 }
 
 pub struct Database<K, V> {
-    /// An index.
-    inner: HashMap<String, HashMap<K, V>>,
-    ready: bool,
+    /// An index: there is a lock on the database and another lock on the collection, but the
+    /// granularity is not refined yet. This should be enough for our use case, though.
+    /// The outer lock can be acquired easily using `read()`.
+    inner: RwLock<HashMap<String, RwLock<HashMap<K, V>>>>,
+    /// Indicates whether the database is ready for manipulation. The DBA must ensure that
+    /// this field is properly initialized to `true`, or the database will wait forever using
+    /// [`core::hint::spin_loop()`].
+    ready: AtomicBool,
+}
+
+impl<K, V> Debug for Database<K, V>
+where
+    K: Debug,
+    V: Debug,
+{
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Database")
+            .field("inner", &self.inner.read())
+            .field("ready", &self.ready)
+            .finish()
+    }
+}
+
+impl<K, V> Serialize for Database<K, V>
+where
+    K: Hash + Eq + Serialize,
+    V: Serialize,
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let table = self.inner.read();
+        let mut map = serializer.serialize_map(Some(table.len()))?;
+
+        for (key, value) in table.iter() {
+            // We need to use `&*` to explicitly tell serde that we are accessing the inner type, not
+            // the `RwLockReadGuard`, which is treated as a smart pointer. The hashbrown::HashMap is
+            // serializable, so we do not need to implement serialization.
+            map.serialize_entry(key, &*value.read())?;
+        }
+
+        map.end()
+    }
+}
+
+impl<K, V> Database<K, V> {
+    /// Creates an empty database.
+    pub fn new_empty() -> Self {
+        Self {
+            inner: RwLock::new(HashMap::new()),
+            ready: AtomicBool::new(false),
+        }
+    }
+
+    /// Explicitly makes the database to be ready for manipulations.
+    pub fn make_ready(&self) {
+        self.ready.store(true, Ordering::Release);
+    }
 }
 
 impl<K, V> Database<K, V>
@@ -127,62 +186,63 @@ where
     K: Clone + Hash + PartialEq + PartialOrd + Ord + Eq + Debug,
     V: Clone,
 {
-    /// Creates an empty database.
-    pub fn new_empty() -> Self {
-        Self {
-            inner: HashMap::new(),
-            ready: false,
-        }
-    }
-
-    /// Reveals the inner content.
-    pub fn get_inner(&self) -> &HashMap<String, HashMap<K, V>> {
-        &self.inner
+    pub fn replace(&self, other: Self) {
+        let mut lock = self.inner.write();
+        lock.clear();
+        // Consumes the other one.
+        *lock = other.inner.into_inner();
+        self.ready
+            .store(other.ready.into_inner(), Ordering::Release);
     }
 
     /// Creates a new schema for this database. If the collection already exists, we overwrite it.
-    pub fn make_schema(&mut self, schemas: &Vec<String>) -> DbResult<()> {
+    pub fn make_schema(&self, schemas: &Vec<String>) -> DbResult<()> {
         schemas.iter().for_each(|collection| {
-            self.inner.insert(collection.clone(), HashMap::new());
+            self.inner
+                .write()
+                .insert(collection.clone(), RwLock::new(HashMap::new()));
         });
 
         Ok(())
     }
 
-    /// Explicitly makes the database to be ready for manipulations.
-    pub fn make_ready(&mut self) {
-        self.ready = true;
-    }
-
     /// Inserts a new key-value pair into the database; if this pair exists, returns false.
-    pub fn insert(&mut self, collection: &str, key: K, value: V) -> DbResult<()> {
-        if !self.ready {
-            return Err(DbError::DbNotReady);
+    pub fn insert(&self, collection: &str, key: K, value: V) -> DbResult<()> {
+        if !self.ready.load(Ordering::Relaxed) {
+            // Wait until the database is ok.
+            core::hint::spin_loop();
         }
 
-        match self.inner.get_mut(collection) {
-            Some(table) => match table.contains_key(&key) {
-                false => {
-                    table.insert(key, value);
-                    Ok(())
+        match self.inner.read().get(collection) {
+            Some(table) => {
+                let mut lock = table.write();
+
+                match lock.contains_key(&key) {
+                    false => {
+                        lock.insert(key, value);
+                        Ok(())
+                    }
+                    true => Err(DbError::KeyRepeat(format!("{key:?}"))),
                 }
-                true => Err(DbError::KeyRepeat(format!("{key:?}"))),
-            },
+            }
 
             None => Err(DbError::CollectionNotFound(collection.into())),
         }
     }
 
     /// Updates a key-value pair.
-    pub fn update(&mut self, collection: &str, key: &K, value: V) -> DbResult<()> {
-        if !self.ready {
-            return Err(DbError::DbNotReady);
+    pub fn update(&self, collection: &str, key: &K, value: V) -> DbResult<()> {
+        if !self.ready.load(Ordering::Relaxed) {
+            // Wait until the database is ok.
+            core::hint::spin_loop();
         }
 
-        let v = self
-            .inner
-            .get_mut(collection)
+        let table = self.inner.read();
+        let mut lock = table
+            .get(collection)
             .ok_or(DbError::CollectionNotFound(collection.into()))?
+            .write();
+        let v = lock
             .get_mut(key)
             .ok_or(DbError::KeyNotFound(format!("{key:?}")))?;
         *v = value;
@@ -191,27 +251,33 @@ where
 
     /// Gets the key-value pair.
     pub fn get(&self, collection: &str, key: &K) -> DbResult<V> {
-        if !self.ready {
-            return Err(DbError::DbNotReady);
+        if !self.ready.load(Ordering::Relaxed) {
+            // Wait until the database is ok.
+            core::hint::spin_loop();
         }
 
         self.inner
+            .read()
             .get(collection)
             .ok_or(DbError::CollectionNotFound(collection.into()))?
+            .read()
             .get(key)
             .cloned()
             .ok_or(DbError::KeyNotFound(format!("{:?}", key)))
     }
 
     /// Deletes a given key-pair from the database.
-    pub fn delete(&mut self, collection: &str, key: &K) -> DbResult<V> {
-        if !self.ready {
-            return Err(DbError::DbNotReady);
+    pub fn delete(&self, collection: &str, key: &K) -> DbResult<V> {
+        if !self.ready.load(Ordering::Relaxed) {
+            // Wait until the database is ok.
+            core::hint::spin_loop();
         }
 
         self.inner
-            .get_mut(collection)
+            .read()
+            .get(collection)
             .ok_or(DbError::CollectionNotFound(collection.into()))?
+            .write()
             .remove(key)
             .ok_or(DbError::KeyNotFound(format!("{key:?}")))
     }
@@ -219,23 +285,40 @@ where
 
 impl<K, V> Database<K, V>
 where
-    K: Clone + Hash + PartialEq + PartialOrd + Ord + Eq + Serialize + for<'a> Deserialize<'a>,
-    V: Clone + Serialize + for<'a> Deserialize<'a>,
+    K: Hash + Eq + Serialize + for<'a> Deserialize<'a>,
+    V: Serialize + for<'a> Deserialize<'a>,
 {
     /// Dumps the content of the database to a given path using a persistent.
-    pub fn dump(&self, path: &str, persistent: &DumperType<K, V>) -> DbResult<()> {
-        if !self.ready {
-            return Err(DbError::DbNotReady);
+    pub fn dump(&self, path: &str, persistent: &PersistentType<K, V>) -> DbResult<()> {
+        if !self.ready.load(Ordering::Relaxed) {
+            // Wait until the database is ok.
+            core::hint::spin_loop();
         }
 
-        persistent.dump(self, path)
+        let contents = bincode::serialize(self).map_err(|_| DbError::SerializeError)?;
+        DB_FILELOCK.write();
+        persistent.write_disk(path, &contents)
     }
 
     /// Restores the database content from the disk.
-    pub fn new_from_disk(path: &str, persistent: &DumperType<K, V>) -> DbResult<Self> {
-        let inner = persistent.load(path)?;
+    pub fn new_from_disk(path: &str, persistent: &PersistentType<K, V>) -> DbResult<Self> {
+        let lock = DB_FILELOCK.read();
+        let contents = persistent.read_disk(path)?;
+        let hashmap = bincode::deserialize::<HashMap<String, HashMap<K, V>>>(contents.as_slice())
+            .map_err(|_| DbError::SerializeError)?;
+        drop(lock);
 
-        Ok(Self { inner, ready: true })
+        let db = Self::new_empty();
+        db.make_ready();
+
+        // Load the contents.
+        let mut lock = db.inner.write();
+        for (k, v) in hashmap.into_iter() {
+            lock.insert(k, RwLock::new(v));
+        }
+        drop(lock);
+
+        Ok(db)
     }
 }
 

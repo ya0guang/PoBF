@@ -16,7 +16,7 @@ extern crate alloc;
 extern crate std;
 
 use alloc::{format, string::String, vec::Vec};
-use db::{parse_requests, Database, DumperType};
+use db::{parse_requests, Database, PersistentType};
 use spin::Once;
 
 use crate::db::{DatabaseOperationType, SIMPLE_DATABASE};
@@ -24,7 +24,7 @@ use crate::db::{DatabaseOperationType, SIMPLE_DATABASE};
 pub mod db;
 
 /// The PoCF platform should call `call_once` before the database can be used.
-pub static DUMPER: Once<DumperType<String, String>> = Once::new();
+pub static DUMPER: Once<PersistentType<String, String>> = Once::new();
 
 /// Takes a batch of database operations and outputs the corresponding result.
 ///
@@ -52,7 +52,7 @@ pub fn private_computation(input: Vec<u8>) -> Vec<u8> {
     for request in requests {
         match request.operation {
             DatabaseOperationType::Insert(ref collection, key, value) => {
-                match SIMPLE_DATABASE.write().insert(collection, key, value) {
+                match SIMPLE_DATABASE.insert(collection, key, value) {
                     Ok(_) => response.push(format!("#{:#<04x}: Insert OK", request.id)),
                     Err(err) => response.push(format!(
                         "#{:#<04x}: Insert failed because {}",
@@ -61,7 +61,7 @@ pub fn private_computation(input: Vec<u8>) -> Vec<u8> {
                 }
             }
             DatabaseOperationType::Read(ref collection, ref key) => {
-                match SIMPLE_DATABASE.read().get(collection, key) {
+                match SIMPLE_DATABASE.get(collection, key) {
                     Ok(value) => response.push(format!(
                         "#{:#<04x}: Read OK, value is `{}`",
                         request.id, value
@@ -73,7 +73,7 @@ pub fn private_computation(input: Vec<u8>) -> Vec<u8> {
                 }
             }
             DatabaseOperationType::Update(ref collection, ref key, value) => {
-                match SIMPLE_DATABASE.write().update(collection, key, value) {
+                match SIMPLE_DATABASE.update(collection, key, value) {
                     Ok(_) => response.push(format!("#{:#<04x}: Update OK", request.id)),
                     Err(err) => response.push(format!(
                         "#{:#<04x}: Update failed because {}",
@@ -95,7 +95,7 @@ pub fn private_computation(input: Vec<u8>) -> Vec<u8> {
                     Ok(db) => db,
                 };
 
-                *SIMPLE_DATABASE.write() = db;
+                SIMPLE_DATABASE.replace(db);
                 response.push(format!("#{:#<04x}: Load OK", request.id));
             }
             DatabaseOperationType::Dump(ref path) => {
@@ -106,7 +106,7 @@ pub fn private_computation(input: Vec<u8>) -> Vec<u8> {
                     ))
                 }
 
-                match SIMPLE_DATABASE.write().dump(path, DUMPER.get().unwrap()) {
+                match SIMPLE_DATABASE.dump(path, DUMPER.get().unwrap()) {
                     Ok(_) => response.push(format!("#{:#<04x}: Dump OK", request.id)),
                     Err(err) => response.push(format!(
                         "#{:#<04x}: Dump failed because {}",
@@ -130,7 +130,6 @@ pub fn private_computation(input: Vec<u8>) -> Vec<u8> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use hashbrown::HashMap;
 
     struct PersistentLayer;
 
@@ -138,15 +137,12 @@ mod test {
     unsafe impl Send for PersistentLayer {}
 
     impl db::Persistent<String, String> for PersistentLayer {
-        fn dump(&self, db: &db::Database<String, String>, path: &str) -> db::DbResult<()> {
-            let contents =
-                bincode::serialize(db.get_inner()).map_err(|_| db::DbError::SerializeError)?;
-            std::fs::write(path, contents).map_err(|_| db::DbError::PathNotFound("dir".into()))
+        fn write_disk(&self, path: &str, buf: &[u8]) -> db::DbResult<()> {
+            std::fs::write(path, buf).map_err(|_| db::DbError::PathNotFound("dir".into()))
         }
 
-        fn load(&self, path: &str) -> db::DbResult<HashMap<String, HashMap<String, String>>> {
-            let bytes = std::fs::read(path).map_err(|_| db::DbError::PathNotFound(path.into()))?;
-            bincode::deserialize(bytes.as_slice()).map_err(|_| db::DbError::SerializeError)
+        fn read_disk(&self, path: &str) -> db::DbResult<Vec<u8>> {
+            std::fs::read(path).map_err(|_| db::DbError::PathNotFound(path.into()))
         }
     }
 
@@ -172,10 +168,8 @@ mod test {
         let requests =
             "[0, insert, field0, foo, bar]; [1, read, field0, foo]; [2, update, field0, foo, baz]";
 
-        let mut lock = SIMPLE_DATABASE.write();
-        lock.make_schema(&schemas).unwrap();
-        lock.make_ready();
-        drop(lock);
+        SIMPLE_DATABASE.make_schema(&schemas).unwrap();
+        SIMPLE_DATABASE.make_ready();
 
         let response = private_computation(requests.as_bytes().to_vec());
         println!("{}", String::from_utf8(response).unwrap());
@@ -187,15 +181,12 @@ mod test {
         let requests =
             "[0, insert, field0, foo, bar]; [1, read, field0, foo]; [2, update, field0, foo, baz]";
 
-        let mut lock = SIMPLE_DATABASE.write();
-        lock.make_schema(&schemas).unwrap();
-        lock.make_ready();
-        drop(lock);
+        SIMPLE_DATABASE.make_schema(&schemas).unwrap();
+        SIMPLE_DATABASE.make_ready();
 
         private_computation(requests.as_bytes().to_vec());
         let persistent_layer: Box<dyn db::Persistent<String, String>> = Box::new(PersistentLayer);
         SIMPLE_DATABASE
-            .read()
             .dump("./dump.bin", &persistent_layer)
             .unwrap();
     }
@@ -205,6 +196,6 @@ mod test {
         let persistent_layer: Box<dyn db::Persistent<String, String>> = Box::new(PersistentLayer);
         let db = db::Database::new_from_disk("./dump.bin", &persistent_layer).unwrap();
 
-        println!("{:#?}", db.get_inner());
+        println!("{db:#?}");
     }
 }
