@@ -127,6 +127,7 @@ pub fn private_computation(input: Vec<u8>) -> Vec<u8> {
         .collect()
 }
 
+#[cfg(test)]
 mod test {
     use super::*;
     use hashbrown::HashMap;
