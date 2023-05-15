@@ -16,6 +16,8 @@ use sgx_types::types::{c_int, Spid};
 cfg_if::cfg_if! {
    if #[cfg(feature = "task_tvm")] {
         use evaluation_tvm::private_computation;
+    } else if #[cfg(feature = "task_db")] {
+        use db::private_computation;
     } else if #[cfg(feature = "task_fann")] {
         use fann::private_computation;
     } else if #[cfg(feature = "task_fasta")] {
