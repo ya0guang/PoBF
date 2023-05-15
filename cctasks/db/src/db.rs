@@ -152,7 +152,6 @@ where
     K: Hash + Eq + Serialize,
     V: Serialize,
 {
-
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -300,7 +299,6 @@ where
             core::hint::spin_loop();
         }
 
-
         let contents = bincode::serde::encode_to_vec(self, bincode::config::standard())
             .map_err(|_| DbError::SerializeError)?;
         DB_FILELOCK.write();
@@ -325,15 +323,13 @@ where
         // Load the contents.
         let mut lock = db.inner.write();
         for (k, v) in hashmap.0.into_iter() {
-        for (k, v) in hashmap.into_iter() {
             lock.insert(k, RwLock::new(v));
         }
+        
         drop(lock);
-
         Ok(db)
     }
 }
-
 /// Given a byte array that represents the utf8 encoded string to a vector of database requests. The result
 /// can then be used to perform the corresponding operation via `private_computation`.
 pub fn parse_requests<K, V>(requests: Vec<u8>) -> DbResult<Vec<DatabaseOperation<K, V>>>
