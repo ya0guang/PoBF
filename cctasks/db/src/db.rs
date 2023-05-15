@@ -33,6 +33,7 @@ pub enum DbError {
     PathNotFound(String),
     DbNotReady,
     SerializeError,
+    EmptySchema,
     Unknown,
 }
 
@@ -53,6 +54,7 @@ impl Debug for DbError {
             Self::PathNotFound(path) => write!(f, "{path} does not exist"),
             Self::DbNotReady => write!(f, "Database not ready"),
             Self::SerializeError => write!(f, "Cannot serialize or deserialize the database"),
+            Self::EmptySchema => write!(f, "The provided schema is empty"),
             Self::Unknown => write!(f, "Unknown error"),
         }
     }
@@ -117,6 +119,8 @@ where
     Load(String),
     /// Dumps the database.
     Dump(String),
+    /// Makes the schema.
+    MakeSchema(Vec<String>),
 }
 
 pub struct Database<K, V> {
@@ -148,6 +152,7 @@ where
     K: Hash + Eq + Serialize,
     V: Serialize,
 {
+
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -295,7 +300,9 @@ where
             core::hint::spin_loop();
         }
 
-        let contents = bincode::serialize(self).map_err(|_| DbError::SerializeError)?;
+
+        let contents = bincode::serde::encode_to_vec(self, bincode::config::standard())
+            .map_err(|_| DbError::SerializeError)?;
         DB_FILELOCK.write();
         persistent.write_disk(path, &contents)
     }
@@ -304,8 +311,12 @@ where
     pub fn new_from_disk(path: &str, persistent: &PersistentType<K, V>) -> DbResult<Self> {
         let lock = DB_FILELOCK.read();
         let contents = persistent.read_disk(path)?;
-        let hashmap = bincode::deserialize::<HashMap<String, HashMap<K, V>>>(contents.as_slice())
-            .map_err(|_| DbError::SerializeError)?;
+        let hashmap = bincode::serde::decode_from_slice::<HashMap<String, HashMap<K, V>>, _>(
+            contents.as_slice(),
+            bincode::config::standard(),
+        )
+        .map_err(|_| DbError::SerializeError)?;
+
         drop(lock);
 
         let db = Self::new_empty();
@@ -313,6 +324,7 @@ where
 
         // Load the contents.
         let mut lock = db.inner.write();
+        for (k, v) in hashmap.0.into_iter() {
         for (k, v) in hashmap.into_iter() {
             lock.insert(k, RwLock::new(v));
         }
@@ -322,7 +334,7 @@ where
     }
 }
 
-/// Given a byte array that represents the ut8 encoded string to a vector of database requests. The result
+/// Given a byte array that represents the utf8 encoded string to a vector of database requests. The result
 /// can then be used to perform the corresponding operation via `private_computation`.
 pub fn parse_requests<K, V>(requests: Vec<u8>) -> DbResult<Vec<DatabaseOperation<K, V>>>
 where
@@ -336,6 +348,10 @@ where
 
     let mut parsed_requests = Vec::new();
     for item in requests.split(";") {
+        if item.len() <= 2 {
+            continue;
+        }
+
         let inner_items = item[1..item.len() - 1].split(",").collect::<Vec<_>>();
 
         // The request is mal-formed.
@@ -403,8 +419,6 @@ where
                     ),
                 })
             }
-
-            "init" => todo!(),
             "load" => {
                 if inner_items.len() != 3 {
                     return Err(DbError::ParseError);
@@ -423,6 +437,18 @@ where
                 parsed_requests.push(DatabaseOperation {
                     id,
                     operation: DatabaseOperationType::Dump(inner_items[2].into()),
+                })
+            }
+            "make_schema" => {
+                if inner_items.len() == 2 {
+                    return Err(DbError::EmptySchema);
+                }
+
+                parsed_requests.push(DatabaseOperation {
+                    id,
+                    operation: DatabaseOperationType::MakeSchema(
+                        inner_items[2..].into_iter().map(|&s| s.into()).collect(),
+                    ),
                 })
             }
 
