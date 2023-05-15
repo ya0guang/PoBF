@@ -152,6 +152,7 @@ where
     K: Hash + Eq + Serialize,
     V: Serialize,
 {
+
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -299,6 +300,7 @@ where
             core::hint::spin_loop();
         }
 
+
         let contents = bincode::serde::encode_to_vec(self, bincode::config::standard())
             .map_err(|_| DbError::SerializeError)?;
         DB_FILELOCK.write();
@@ -314,6 +316,7 @@ where
             bincode::config::standard(),
         )
         .map_err(|_| DbError::SerializeError)?;
+
         drop(lock);
 
         let db = Self::new_empty();
@@ -322,6 +325,7 @@ where
         // Load the contents.
         let mut lock = db.inner.write();
         for (k, v) in hashmap.0.into_iter() {
+        for (k, v) in hashmap.into_iter() {
             lock.insert(k, RwLock::new(v));
         }
         drop(lock);
