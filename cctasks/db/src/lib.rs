@@ -62,10 +62,7 @@ pub fn private_computation(input: Vec<u8>) -> Vec<u8> {
             }
             DatabaseOperationType::Read(ref collection, ref key) => {
                 match SIMPLE_DATABASE.get(collection, key) {
-                    Ok(value) => response.push(format!(
-                        "#{:#<04x}: Read OK, value is `{}`",
-                        request.id, value
-                    )),
+                    Ok(_) => response.push(format!("#{:#<04x}: Read OK", request.id)),
                     Err(err) => response.push(format!(
                         "#{:#<04x}: Read failed because {}",
                         request.id, err
@@ -114,6 +111,19 @@ pub fn private_computation(input: Vec<u8>) -> Vec<u8> {
                     )),
                 }
             }
+            DatabaseOperationType::MakeSchema(fields) => {
+                match SIMPLE_DATABASE.make_schema(&fields) {
+                    Ok(_) => response.push(format!(
+                        "#{:#<04x}: Making schema OK: {fields:?}",
+                        request.id
+                    )),
+                    Err(err) => response.push(format!(
+                        "#{:#<04x}: Making schema failed because {}",
+                        request.id, err
+                    )),
+                }
+            }
+
             ty => response.push(format!("#{:#<04x}: Unsupported type {:?}", request.id, ty)),
         }
 

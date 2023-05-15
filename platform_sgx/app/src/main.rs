@@ -117,21 +117,17 @@ fn server_run(listener: TcpListener, enclave: Arc<SgxEnclave>, stack: u16) -> Re
     loop {
         match listener.accept() {
             Ok((stream, addr)) => {
-                let encalve_cp = enclave.clone();
+                let enclave_cp = enclave.clone();
 
-                if pool
-                    .execute(move || handle_client(stream, addr, &encalve_cp, stack).unwrap())
-                    .is_err()
+                if let Err(err) =
+                    pool.execute(move || handle_client(stream, addr, &enclave_cp, stack).unwrap())
                 {
-                    error!("[-] Job execution failed.");
-                    break;
+                    error!("[-] Error occurred: {err}.");
                 }
             }
             Err(e) => return Err(e),
         }
     }
-
-    Ok(())
 }
 
 fn handle_client(
