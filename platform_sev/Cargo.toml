@@ -5,7 +5,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["task_none"]
+default = []
 task_fann = ["fann"]
 task_fasta = ["fasta"]
 task_polybench = ["polybench", "polybench-rs"]
@@ -13,6 +13,7 @@ task_polybench = ["polybench", "polybench-rs"]
 # The tasks are enabled by `cfg_if`.
 task_sample = ["sample_add"]
 task_tvm = ["evaluation_tvm"]
+task_db = ["db"]
 task_none = []
 native = []
 
@@ -57,6 +58,7 @@ clap = { version = "4.2.7", features = ["derive"] }
 clear_on_drop = { git = "https://github.com/hiroki-chen/clear_on_drop.git", features = [
   "nightly",
 ] }
+db = { path = "../cctasks/db", optional = true }
 env_logger = "0.10.0"
 evaluation_tvm = { path = "../others/evaluation_tvm", optional = true }
 fann = { path = "../cctasks/fann", optional = true }
