@@ -604,8 +604,9 @@ fn get_length(reader: &mut BufReader<TcpStream>) -> SgxResult<u32> {
         .unwrap();
 
     if str_len.is_empty() {
-        error!("[-] Failed to receive any data length! Is the socket closed?");
-        return Err(SgxStatus::InvalidParameter);
+        warn!("[-] Failed to receive any data length! Is the socket closed?");
+        // Prevent error.
+        return Ok(0)
     }
 
     str_len[..str_len.len() - 1].parse::<u32>().map_err(|e| {

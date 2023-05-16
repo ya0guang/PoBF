@@ -314,7 +314,6 @@ where
             bincode::config::standard(),
         )
         .map_err(|_| DbError::SerializeError)?;
-
         drop(lock);
 
         let db = Self::new_empty();
@@ -325,11 +324,12 @@ where
         for (k, v) in hashmap.0.into_iter() {
             lock.insert(k, RwLock::new(v));
         }
-        
         drop(lock);
+
         Ok(db)
     }
 }
+
 /// Given a byte array that represents the utf8 encoded string to a vector of database requests. The result
 /// can then be used to perform the corresponding operation via `private_computation`.
 pub fn parse_requests<K, V>(requests: Vec<u8>) -> DbResult<Vec<DatabaseOperation<K, V>>>

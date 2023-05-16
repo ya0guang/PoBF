@@ -330,6 +330,7 @@ pub fn receive_data(socket_fd: c_int) -> SgxResult<VecAESData> {
     }
 
     verified_log!(SecretTaint, "Data size = {}", data_size);
+
     let mut encrypted_data_buf = vec![0u8; data_size as usize];
 
     let res = unsafe {
