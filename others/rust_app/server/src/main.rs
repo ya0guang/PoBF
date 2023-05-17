@@ -10,6 +10,8 @@ mod task;
 use std::io::Result;
 use std::net::TcpListener;
 
+use pobf_thread_pool::ThreadPool;
+
 const ENCLAVE_TCS_NUM: usize = 10;
 const ADDRESS: &str = "127.0.0.1:7788";
 
@@ -20,14 +22,11 @@ fn main() {
     let listener = match TcpListener::bind(ADDRESS) {
         Ok(res) => res,
         Err(e) => {
-            panic!(
-                "[-] Failed to bind to the given address due to {}.",
-                e
-            );
+            panic!("[-] Failed to bind to the given address due to {}.", e);
         }
     };
 
-    let pool = task::ThreadPool::new(ENCLAVE_TCS_NUM);
+    let pool = ThreadPool::new(ENCLAVE_TCS_NUM);
 
     println!("Server started.");
     loop {

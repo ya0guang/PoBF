@@ -31,6 +31,9 @@ mod userfunc;
 mod utils;
 mod vecaes;
 
+#[cfg(feature = "task_db")]
+mod db_persistent;
+
 use alloc::slice;
 use clear_on_drop::clear_stack_and_regs_on_return;
 use ocall::*;
@@ -58,7 +61,9 @@ pub extern "C" fn private_computing_entry(
     encrypted_output_size: *mut u32,
     stack: u16,
 ) -> SgxStatus {
-    // Test if edmm works.
+    #[cfg(feature = "task_db")]
+    db::DUMPER
+        .call_once(|| alloc::boxed::Box::new(crate::db_persistent::SgxPersistentLayer));
 
     verified_log!("[+] private_computing_entry");
     cfg_if::cfg_if! {
