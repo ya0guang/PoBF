@@ -7,6 +7,9 @@
 mod dcap;
 mod task;
 
+#[cfg(feature = "task_db")]
+mod db_persistent;
+
 use std::io::Result;
 use std::net::TcpListener;
 
