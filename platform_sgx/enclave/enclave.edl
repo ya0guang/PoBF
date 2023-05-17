@@ -112,6 +112,12 @@ enclave {
           uint32_t path_size,
           [in, size = data_size] uint8_t* data,
           uint32_t data_size);
+        
+        // Get the file size.
+        sgx_status_t ocall_get_file_size(
+          [in, size = path_size] uint8_t* path,
+          uint32_t path_size,
+          [out] uint64_t* file_size);
 
         sgx_status_t ocall_read_data(
           [in, size = path_size] uint8_t* path,

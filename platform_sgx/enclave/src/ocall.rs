@@ -247,6 +247,13 @@ cfg_if::cfg_if! {
           data_buf_size: u32,
           data_size: *mut u32,
       ) -> SgxStatus;
+
+        pub fn ocall_get_file_size(
+            ret_val: *mut SgxStatus,
+            path: *const u8,
+            path_size: u32,
+            file_size: *mut u64,
+        ) -> SgxStatus;
     }
 
     pub fn log(s: String) -> SgxStatus {

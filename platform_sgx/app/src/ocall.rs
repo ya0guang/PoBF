@@ -1,4 +1,6 @@
+use std::fs;
 use std::fs::File;
+use std::fs::OpenOptions;
 use std::io::prelude::*;
 use std::io::*;
 use std::mem;
@@ -402,24 +404,21 @@ pub unsafe extern "C" fn ocall_write_data(
     data: *const u8,
     data_size: u32,
 ) -> SgxStatus {
-    info!("[+] Writing data...");
-
     let path_str = str::from_utf8(slice::from_raw_parts(path, path_size as usize)).unwrap();
-    let mut file = File::create(path_str)
-        .map_err(|e| {
-            error!("[+] IO Error: {}", e.to_string());
-            return SgxStatus::DeviceBusy;
-        })
-        .unwrap();
+    let mut file = match OpenOptions::new().append(true).create(true).open(path_str) {
+        Ok(file) => file,
+        Err(err) => {
+            error!("[-] Failed to open the file: {err}");
+            return SgxStatus::InvalidParameter;
+        }
+    };
 
     let data_buf = slice::from_raw_parts(data, data_size as usize);
-
     match file.write_all(data_buf) {
         Ok(_) => SgxStatus::Success,
-
-        Err(e) => {
-            error!("[-] IO Error: {:?}", e);
-            SgxStatus::DeviceBusy
+        Err(err) => {
+            error!("[-] Failed to write the data: {err}");
+            SgxStatus::BadStatus
         }
     }
 }
@@ -432,28 +431,42 @@ pub unsafe extern "C" fn ocall_read_data(
     data_buf_size: u32,
     data_size: *mut u32,
 ) -> SgxStatus {
-    info!("[+] Reading data...");
-
     let path_str = str::from_utf8(slice::from_raw_parts(path, path_size as usize)).unwrap();
-    let mut file = File::open(path_str)
-        .map_err(|e| {
-            error!("[+] IO Error: {}", e.to_string());
-            return SgxStatus::DeviceBusy;
-        })
-        .unwrap();
+    let mut file = match File::open(path_str) {
+        Ok(file) => file,
+        Err(err) => {
+            error!("[-] Failed to open the file: {err}");
+            return SgxStatus::InvalidParameter;
+        }
+    };
 
     let data_buf = slice::from_raw_parts_mut(data, data_buf_size as usize);
+    if let Err(err) = file.read_exact(data_buf) {
+        error!("[-] Failed to read the file: {err}");
+        return SgxStatus::BadStatus;
+    }
 
-    file.read(data_buf)
-        .map_err(|e| {
-            error!("[+] IO Error: {}", e.to_string());
-            return SgxStatus::DeviceBusy;
-        })
-        .unwrap();
-
-    // Copy back.
-    ptr::copy(data_buf.as_ptr(), data, data_buf.len());
     *data_size = data_buf.len() as u32;
+    SgxStatus::Success
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn ocall_get_file_size(
+    path: *const u8,
+    path_size: u32,
+    file_size: *mut u64,
+) -> SgxStatus {
+    let path = match unsafe { str::from_utf8(slice::from_raw_parts(path, path_size as _)) } {
+        Ok(path) => path,
+        Err(_) => return SgxStatus::InvalidParameter,
+    };
+
+    let metadata = match fs::metadata(path) {
+        Ok(meta) => meta,
+        Err(_) => return SgxStatus::InvalidParameter,
+    };
+
+    *file_size = metadata.len() as u64;
 
     SgxStatus::Success
 }
@@ -606,7 +619,7 @@ fn get_length(reader: &mut BufReader<TcpStream>) -> SgxResult<u32> {
     if str_len.is_empty() {
         warn!("[-] Failed to receive any data length! Is the socket closed?");
         // Prevent error.
-        return Ok(0)
+        return Ok(0);
     }
 
     str_len[..str_len.len() - 1].parse::<u32>().map_err(|e| {
