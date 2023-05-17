@@ -12,14 +12,20 @@ task_tvm = ["evaluation_tvm"]
 task_polybench = ["polybench"]
 task_fann = ["fann"]
 task_fasta = ["fasta"]
+task_db = ["db"]
 occlum = ["occlum_dcap"]
 
 [dependencies]
 occlum_dcap = { git = "https://github.com/occlum/occlum.git", branch = "master", optional = true }
 # Evaluations.
+pobf_thread_pool = { path = "../../../pobf_thread_pool" }
+pobf_crypto = { path = "../../../pobf_crypto", default-features = false, features = [
+  "sev",
+] }
 evaluation_tvm = { path = "../../evaluation_tvm", optional = true }
 fann = { path = "../../../cctasks/fann", optional = true }
 fasta = { path = "../../../cctasks/fasta", optional = true }
 polybench = { path = "../../../cctasks/polybench", optional = true }
 sample_add = { path = "../../../cctasks/sample_add", optional = true }
 cfg-if = "1.0.0"
+db = { path = "../../../cctasks/db", optional = true }
