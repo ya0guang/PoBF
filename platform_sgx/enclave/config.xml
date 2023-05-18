@@ -6,14 +6,12 @@
   <HeapMinSize>0x120000000</HeapMinSize>
   <HeapInitSize>0x120000000</HeapInitSize>
   <HeapMaxSize>0x120000000</HeapMaxSize>
-  <TCSNum>0x10</TCSNum>
-  <TCSMinPool>0x10</TCSMinPool>
-  <TCSMaxNum>0x1000</TCSMaxNum>
-  <TCSPolicy>1</TCSPolicy>
+  <TCSNum>10</TCSNum>
+  <TCSPolicy>0</TCSPolicy>
   <!-- Recommend changing 'DisableDebug' to 1 to make the enclave undebuggable for enclave release -->
   <DisableDebug>0</DisableDebug>
   <MiscSelect>0</MiscSelect>
-  <MiscMask>0xFFFFFFFF</MiscMask>
+  <MiscMask>1</MiscMask>
   <ReservedMemMinSize> 0x120000000</ReservedMemMinSize>
   <ReservedMemInitSize>0x120000000</ReservedMemInitSize>
   <ReservedMemMaxSize> 0x120000000</ReservedMemMaxSize>

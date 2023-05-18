@@ -29,6 +29,9 @@ fn main() {
         }
     };
 
+    #[cfg(feature = "task_db")]
+    db::DUMPER.call_once(|| Box::new(db_persistent::SgxPersistentLayer));
+
     let pool = ThreadPool::new(ENCLAVE_TCS_NUM);
 
     println!("Server started.");
