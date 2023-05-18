@@ -10,6 +10,9 @@ mod key;
 mod pobf;
 mod vecaes;
 
+#[cfg(feature = "task_db")]
+mod db_persistent;
+
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
 #[clap(propagate_version = true)]
@@ -38,6 +41,9 @@ fn main() {
         args.address,
         args.port
     );
+
+    #[cfg(feature = "task_db")]
+    db::DUMPER.call_once(|| Box::new(db_persistent::SgxPersistentLayer));
 
     match entry(&args.address, args.port, args.stack_size) {
         Ok(_) => log::info!("[+] Finished with success"),
