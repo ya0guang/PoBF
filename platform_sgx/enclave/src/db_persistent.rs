@@ -2,6 +2,7 @@ use core::time::Duration;
 
 use alloc::{string::String, vec, vec::Vec};
 use db::db::{DbError, DbResult, Persistent};
+use sgx_tseal::seal::SealedData;
 use sgx_types::error::SgxStatus;
 
 use crate::{
@@ -21,6 +22,11 @@ impl Persistent<String, String> for SgxPersistentLayer {
     fn write_disk(&self, path: &str, buf: &[u8]) -> DbResult<()> {
         verified_log!(SecretTaint, "[+] Writing {} bytes", buf.len());
 
+        // Seal the data using the platform key.
+        let buf = SealedData::<[u8]>::seal(buf, None)
+            .map_err(|_| DbError::Unknown)?
+            .into_bytes()
+            .map_err(|_| DbError::Unknown)?;
         let file_size = buf.len() as u64;
         let batch_num = if file_size % BATCH != 0 {
             file_size / BATCH + 1
@@ -100,6 +106,14 @@ impl Persistent<String, String> for SgxPersistentLayer {
                 return Err(DbError::Unknown);
             }
         }
+
+        // Unseal the data.
+        let content = SealedData::<[u8]>::from_bytes(content)
+            .map_err(|_| DbError::SerializeError)?
+            .unseal()
+            .map_err(|_| DbError::SerializeError)?
+            .into_plaintext()
+            .to_vec();
         let end = unix_time(3).map_err(|_| DbError::Unknown)?;
 
         let elapsed = Duration::from_nanos(end - begin);
