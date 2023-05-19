@@ -121,6 +121,7 @@ cfg_if::cfg_if! {
           ret_val: *mut SgxStatus,
           path: *const u8,
           path_size: u32,
+          offset: u64,
           data: *mut u8,
           data_buf_size: u32,
           data_size: *mut u32,
@@ -231,6 +232,12 @@ cfg_if::cfg_if! {
           buf_size: u32,
       ) -> SgxStatus;
 
+      pub fn ocall_write_data_prologue(
+          ret_val: *mut SgxStatus,
+          path: *const u8,
+          path_size: u32,
+      )-> SgxStatus;
+
       pub fn ocall_write_data(
           ret_val: *mut SgxStatus,
           path: *const u8,
@@ -243,17 +250,18 @@ cfg_if::cfg_if! {
           ret_val: *mut SgxStatus,
           path: *const u8,
           path_size: u32,
+          offset: u64,
           data: *mut u8,
           data_buf_size: u32,
           data_size: *mut u32,
       ) -> SgxStatus;
 
-        pub fn ocall_get_file_size(
-            ret_val: *mut SgxStatus,
-            path: *const u8,
-            path_size: u32,
-            file_size: *mut u64,
-        ) -> SgxStatus;
+    pub fn ocall_get_file_size(
+        ret_val: *mut SgxStatus,
+        path: *const u8,
+        path_size: u32,
+        file_size: *mut u64,
+    ) -> SgxStatus;
     }
 
     pub fn log(s: String) -> SgxStatus {

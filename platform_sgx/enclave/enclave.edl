@@ -107,12 +107,16 @@ enclave {
           int32_t accuracy);
 
         // File IO interfaces. Only encrypted files are allowed to be invoked.
+        sgx_status_t ocall_write_data_prologue(
+          [in, size = path_size] uint8_t* path,
+          uint32_t path_size);
+
         sgx_status_t ocall_write_data(
           [in, size = path_size] uint8_t* path,
           uint32_t path_size,
           [in, size = data_size] uint8_t* data,
           uint32_t data_size);
-        
+
         // Get the file size.
         sgx_status_t ocall_get_file_size(
           [in, size = path_size] uint8_t* path,
@@ -122,6 +126,7 @@ enclave {
         sgx_status_t ocall_read_data(
           [in, size = path_size] uint8_t* path,
           uint32_t path_size,
+          uint64_t offset,
           [out, size = data_buf_size] uint8_t* data,
           uint32_t data_buf_size,
           [out] uint32_t* data_size);

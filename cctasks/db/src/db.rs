@@ -190,10 +190,15 @@ where
     K: Clone + Hash + PartialEq + PartialOrd + Ord + Eq + Debug,
     V: Clone,
 {
-    pub fn replace(&self, other: Self) {
+    pub fn clear(&self) {
         let mut lock = self.inner.write();
         lock.clear();
+    }
+
+    pub fn replace(&self, other: Self) {
+        self.clear();
         // Consumes the other one.
+        let mut lock = self.inner.write();
         *lock = other.inner.into_inner();
         self.ready
             .store(other.ready.into_inner(), Ordering::Release);

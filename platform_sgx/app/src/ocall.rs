@@ -398,6 +398,15 @@ pub unsafe extern "C" fn ocall_get_timepoint(time_point: *mut u64, accuracy: i32
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn ocall_write_data_prologue(path: *const u8, path_size: u32) -> SgxStatus {
+    // Clear the data if needed.
+    let path_str = str::from_utf8(slice::from_raw_parts(path, path_size as usize)).unwrap();
+    std::fs::remove_file(path_str).unwrap_or_default();
+
+    SgxStatus::Success
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn ocall_write_data(
     path: *const u8,
     path_size: u32,
@@ -427,6 +436,7 @@ pub unsafe extern "C" fn ocall_write_data(
 pub unsafe extern "C" fn ocall_read_data(
     path: *const u8,
     path_size: u32,
+    offset: u64,
     data: *mut u8,
     data_buf_size: u32,
     data_size: *mut u32,
@@ -439,6 +449,10 @@ pub unsafe extern "C" fn ocall_read_data(
             return SgxStatus::InvalidParameter;
         }
     };
+
+    if file.seek(SeekFrom::Start(offset as _)).is_err() {
+        return SgxStatus::NoDevice;
+    }
 
     let data_buf = slice::from_raw_parts_mut(data, data_buf_size as usize);
     if let Err(err) = file.read_exact(data_buf) {
