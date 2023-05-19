@@ -86,6 +86,9 @@ pub fn private_computation(input: Vec<u8>) -> Vec<u8> {
                     ))
                 }
 
+                // Clear the database to get more free memory.
+                SIMPLE_DATABASE.clear();
+
                 let db = match Database::new_from_disk(path, DUMPER.get().unwrap()) {
                     // Abort on load failure.
                     Err(err) => return format!("{err}").into_bytes(),

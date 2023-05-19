@@ -651,6 +651,7 @@ pub fn unseal_attestation_report() -> SgxResult<Vec<u8>> {
             &mut ret_val,
             REPORT_PATH.as_ptr(),
             REPORT_PATH.len() as u32,
+            0,
             unsealed_data_bytes.as_mut_ptr(),
             LARGE_BUF_SIZE as u32,
             &mut data_size,

@@ -2,14 +2,14 @@ use core::time::Duration;
 
 use alloc::{string::String, vec, vec::Vec};
 use db::db::{DbError, DbResult, Persistent};
-use sgx_tseal::seal::SealedData;
+use sgx_tseal::seal::*;
 use sgx_types::error::SgxStatus;
 
 use crate::{
     log,
     networking_utils::unix_time,
     ocall::{ocall_get_file_size, ocall_read_data, ocall_write_data},
-    ocall_log, verified_log,
+    ocall_log, ocall_write_data_prologue, verified_log,
 };
 
 const BATCH: u64 = 1 << 24;
@@ -20,7 +20,10 @@ pub struct SgxPersistentLayer;
 
 impl Persistent<String, String> for SgxPersistentLayer {
     fn write_disk(&self, path: &str, buf: &[u8]) -> DbResult<()> {
-        verified_log!(SecretTaint, "[+] Writing {} bytes", buf.len());
+        let mut ret_val = SgxStatus::Success;
+        unsafe {
+            ocall_write_data_prologue(&mut ret_val, path.as_ptr(), path.len() as _);
+        }
 
         // Seal the data using the platform key.
         let buf = SealedData::<[u8]>::seal(buf, None)
@@ -28,6 +31,8 @@ impl Persistent<String, String> for SgxPersistentLayer {
             .into_bytes()
             .map_err(|_| DbError::Unknown)?;
         let file_size = buf.len() as u64;
+        verified_log!(SecretTaint, "[+] Writing {} bytes", buf.len());
+
         let batch_num = if file_size % BATCH != 0 {
             file_size / BATCH + 1
         } else {
@@ -96,6 +101,7 @@ impl Persistent<String, String> for SgxPersistentLayer {
                     &mut ret_val,
                     path.as_ptr(),
                     path.len() as _,
+                    (i * BATCH) as u64,
                     content.as_mut_ptr().add((i * BATCH) as usize),
                     read_size as _,
                     &mut (read_size as _),
@@ -108,10 +114,11 @@ impl Persistent<String, String> for SgxPersistentLayer {
         }
 
         // Unseal the data.
-        let content = SealedData::<[u8]>::from_bytes(content)
-            .map_err(|_| DbError::SerializeError)?
-            .unseal()
-            .map_err(|_| DbError::SerializeError)?
+        let content = UnsealedData::<[u8]>::unseal_from_bytes(content)
+            .map_err(|e| {
+                verified_log!(SecretTaint, "{}", e);
+                DbError::SerializeError
+            })?
             .into_plaintext()
             .to_vec();
         let end = unix_time(3).map_err(|_| DbError::Unknown)?;
