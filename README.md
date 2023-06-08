@@ -102,7 +102,8 @@ Currently we have the following CC tasks available (located under `cctasks`):
 All these tasks are `no_std` and can be easily integrated in any environment.
 
 > **Note**
-> For the TVM task, please install TVM properly. The instruction can be found in `cctasks/evaluation_tvm/README.md`.
+>
+> For the TVM task, please install TVM properly. The instruction can be found in [README.md](cctasks/evaluation_tvm/README.md).
 
 All these tasks are optional dependencies of the PoCF application which can be selected using the Rust feature in the form of `task_*` (where `*` is the task name). For example, one runs the following command to compile the enclave program that executes the `fasta` task:
 
