@@ -196,7 +196,7 @@ def prusti_verify():
                 logging.error("Unknown verification error: %s", details)
 
     wd = os.getcwd()
-    os.chdir("../../pobf_state")
+    os.chdir("../pobf_state")
 
     run_command = "cargo prusti --features=sgx,prusti --message-format=json".split()
     prusti_output = subprocess.run(run_command,
@@ -265,7 +265,7 @@ def testflight() -> List[str]:
 
 
 def instrument(user_func_prints: List[str]):
-    source_code_path = "./src/userfunc.rs"
+    source_code_path = "../platform_sgx/enclave/src/userfunc.rs"
     junk_chars = '();'
     numerics = {}
     for line in user_func_prints:
@@ -303,7 +303,7 @@ def instrument(user_func_prints: List[str]):
 
 def main():
     # Invoked by Cargo
-    if "pobf-verify" in sys.argv[1]:
+    if len(sys.argv) >= 2 and "pobf-verify" in sys.argv[1]:
         sys.argv.pop(0)
 
     # option: src_verifier / mirai_verifier / compiler_verifier / prusti_verifier
