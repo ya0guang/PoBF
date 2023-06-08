@@ -6,19 +6,21 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["task_sample"]
+default = []
+task_db = ["db"]
 task_sample = ["sample_add"]
-task_tvm = ["wasm-runtime"]
+task_tvm = []
 task_polybench = ["polybench"]
 task_fann = ["fann"]
 task_fasta = ["fasta"]
 
 [dependencies]
 # Evaluations.
-wasm-runtime = { path = "../tvm-wasm/wasm-runtime", optional = true }
+# wasm-runtime = { path = "../tvm-wasm/wasm-runtime", optional = true }
 fann = { path = "../../../cctasks/fann", optional = true }
 fasta = { path = "../../../cctasks/fasta", optional = true }
 polybench = { path = "../../../cctasks/polybench", optional = true }
 sample_add = { path = "../../../cctasks/sample_add", optional = true }
+db = { path = "../../../cctasks/db", optional = true }
 cfg-if = "1.0.0"
-tokio = { version = "1.25.0", features = ["full"]  }
+tokio = { version = "1.25.0", features = ["full"] }

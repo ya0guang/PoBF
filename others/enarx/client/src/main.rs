@@ -18,10 +18,8 @@ fn main() {
 
     // Send to the server.
     writer.write(&data.len().to_le_bytes()).unwrap();
-    writer.write(b"\n").unwrap();
     writer.flush().unwrap();
     writer.write(&data).unwrap();
-    writer.write(b"\n").unwrap();
     writer.flush().unwrap();
     println!("Sent data. Length = {}", data.len());
 
@@ -30,7 +28,9 @@ fn main() {
     let data_len = length_str[..length_str.len() - 1].parse::<usize>().unwrap();
     println!("Data length = {}", data_len);
     let mut input = vec![0u8; data_len];
-    reader.read_exact(&mut input).unwrap();
-    println!("Read data.");
+    reader.read_to_end(&mut input).unwrap();
+    println!("Read data: {:02x?}", &input[..100]);
     println!("Finished");
+    writer.write(b"ok").unwrap();
+    writer.flush().unwrap();
 }

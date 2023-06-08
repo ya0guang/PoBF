@@ -3,10 +3,13 @@
 #![allow(dead_code)]
 
 mod task;
+#[cfg(feature ="task_db")]
+mod db_persistent;
+
 use std::env;
 use std::io::Result;
 use tokio::net::{TcpListener, TcpStream};
-use std::os::wasi::prelude::FromRawFd;
+use std::os::fd::FromRawFd;
 use std::str::FromStr;
 
 use crate::task::handle_client;
@@ -22,9 +25,8 @@ async fn main() -> Result<()> {
 
         println!("{fd_names}, {fd_count}.");
         let fd_count = usize::from_str(&fd_count).unwrap();
-        assert_eq!(
-            fd_count,
-            4, // STDIN, STDOUT, STDERR and a socket
+        assert!(
+            fd_count <= 5, // STDIN, STDOUT, STDERR and a socket, and a db file.
             "unexpected amount of file descriptors received"
         );
         println!("Enarx FD NUM check passed");
@@ -37,6 +39,8 @@ async fn main() -> Result<()> {
     };
 
     println!("Server started.");
+    #[cfg(feature = "task_db")]
+    db::DUMPER.call_once(|| Box::new(db_persistent::SgxPersistentLayer));
 
     loop {
         let socket = match listener.accept().await {

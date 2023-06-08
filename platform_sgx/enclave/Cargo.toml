@@ -30,6 +30,7 @@ leak_net = []
 leak_file = []
 # Build native enclave.
 native_enclave = []
+native_zeroize = []
 
 # computing tasks
 # The tasks are enabled by `cfg_if`.
@@ -79,6 +80,7 @@ correlation = []
 base64 = { version = "0.13.0", default-features = false, features = ["alloc"] }
 cfg-if = "1.0.0"
 clear_on_drop = { git = "https://github.com/hiroki-chen/clear_on_drop.git", branch = "master" }
+# clear_on_drop = { git = "https://github.com/cesarb/clear_on_drop.git", branch = "master" }
 # Evaluations.
 evaluation_tvm = { path = "../../cctasks/evaluation_tvm", optional = true }
 fann = { path = "../../cctasks/fann", optional = true }

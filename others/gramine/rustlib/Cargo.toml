@@ -19,9 +19,11 @@ task_tvm = ["evaluation_tvm"]
 task_polybench = ["polybench"]
 task_fann = ["fann"]
 task_fasta = ["fasta"]
+task_db = ["db"]
 
 [dependencies]
 # Evaluations.
+db = { path = "../../../cctasks/db", optional = true }
 evaluation_tvm = { path = "../../../cctasks/evaluation_tvm", optional = true }
 fann = { path = "../../../cctasks/fann", optional = true }
 fasta = { path = "../../../cctasks/fasta", optional = true }
@@ -29,4 +31,3 @@ polybench = { path = "../../../cctasks/polybench", optional = true }
 sample_add = { path = "../../../cctasks/sample_add", optional = true }
 
 cfg-if = "1.0.0"
-

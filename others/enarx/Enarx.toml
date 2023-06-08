@@ -12,3 +12,6 @@ kind = "listen"
 prot = "tcp"
 port = 7788
 name = "TEST_TCP_LISTEN"
+
+[[files]]
+kind = "null"

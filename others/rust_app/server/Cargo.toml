@@ -6,7 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = []
+default = ["no_wasi"]
+wasi = ["pobf_crypto/wasi_support"]
+no_wasi = ["pobf_crypto/sev"]
 task_sample = ["sample_add"]
 task_tvm = ["evaluation_tvm"]
 task_polybench = ["polybench"]
@@ -19,9 +21,7 @@ occlum = ["occlum_dcap"]
 occlum_dcap = { git = "https://github.com/occlum/occlum.git", branch = "master", optional = true }
 # Evaluations.
 pobf_thread_pool = { path = "../../../pobf_thread_pool" }
-pobf_crypto = { path = "../../../pobf_crypto", default-features = false, features = [
-  "sev",
-] }
+pobf_crypto = { git = "https://github.com/hiroki-chen/pobf_crypto.git", default-features = false }
 evaluation_tvm = { path = "../../evaluation_tvm", optional = true }
 fann = { path = "../../../cctasks/fann", optional = true }
 fasta = { path = "../../../cctasks/fasta", optional = true }

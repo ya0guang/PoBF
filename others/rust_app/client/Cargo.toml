@@ -7,6 +7,6 @@ edition = "2021"
 
 [dependencies]
 # Since sev behaves similarly as a normal machine, we add the 'sev' feature.
-pobf_crypto = { path = "../../../pobf_crypto", default-features = false, features = [
+pobf_crypto = { git = "https://github.com/hiroki-chen/pobf_crypto.git", default-features = false, features = [
   "sev",
 ] }

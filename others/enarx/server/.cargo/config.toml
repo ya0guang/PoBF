@@ -1,0 +1,7 @@
+[build]
+target = "wasm32-wasi"
+
+# Must set this key or tokio won't compile.
+[target.wasm32-wasi]
+runner = ["wasmtime", "--dir", ".", "run", "--tcplisten", "127.0.0.1:7788"]
+rustflags = [ "--cfg", "tokio_unstable"]

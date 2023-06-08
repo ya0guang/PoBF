@@ -35,7 +35,7 @@ mod vecaes;
 mod db_persistent;
 
 use alloc::slice;
-use clear_on_drop::clear_stack_and_regs_on_return;
+use clear_on_drop::*;
 use ocall::*;
 use pobf::*;
 use zeroize::*;

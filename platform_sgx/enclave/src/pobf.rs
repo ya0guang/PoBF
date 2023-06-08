@@ -7,7 +7,7 @@ use crate::vecaes::{AES128Key, VecAESData};
 use crate::{ocall_log, verified_log};
 use alloc::vec;
 use alloc::vec::Vec;
-use clear_on_drop::clear_stack_and_regs_on_return;
+use clear_on_drop::*;
 use mirai_annotations::*;
 use sgx_types::error::SgxStatus;
 use sgx_types::types::{c_int, Spid};
@@ -199,7 +199,46 @@ pub fn pobf_workflow(
     encrypted
 }
 
-#[cfg(all(not(feature = "native_enclave"), not(mirai)))]
+#[cfg(feature = "native_zeroize")]
+pub fn pobf_workflow(
+    socket_fd: c_int,
+    spid: &Spid,
+    linkable: i64,
+    ra_type: u8,
+    public_key: &[u8; ECP_COORDINATE_SIZE],
+    signature: &[u8],
+    stack: u16,
+) -> VecAESData {
+    use clear_on_drop::*;
+    use pobf_state::*;
+
+    let f1 = || pobf_remote_attestation(socket_fd, spid, linkable, ra_type, public_key, signature);
+    let f2 = || pobf_receive_data(socket_fd);
+
+    let begin = unix_time(3).unwrap();
+    let key = clear_stack_on_return_fnonce(stack as _, f1);
+    let data = clear_stack_on_return_fnonce(stack as _, f2);
+    let f = || data.decrypt(&key).unwrap();
+    let decrypted = clear_stack_on_return_fnonce(stack as _, f);
+    let f = || private_vec_compute(decrypted);
+    let result = clear_stack_on_return_fnonce(stack as _, f);
+    let f = || result.encrypt(&key).unwrap();
+    let encrypted = clear_stack_on_return_fnonce(stack as _, f);
+
+    let end = unix_time(3).unwrap();
+    // Get execution time.
+
+    let elapsed = core::time::Duration::from_nanos(end - begin);
+    verified_log!(SecretTaint, "Job finished. Time used: {:?}.", elapsed);
+
+    encrypted
+}
+
+#[cfg(all(
+    not(feature = "native_enclave"),
+    not(mirai),
+    not(feature = "native_zeroize")
+))]
 pub fn pobf_workflow(
     socket_fd: c_int,
     spid: &Spid,

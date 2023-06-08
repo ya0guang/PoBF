@@ -20,18 +20,19 @@ pub struct SgxPersistentLayer;
 
 impl Persistent<String, String> for SgxPersistentLayer {
     fn write_disk(&self, path: &str, buf: &[u8]) -> DbResult<()> {
+        verified_log!(SecretTaint, "[+] Writing {} bytes", buf.len());
         let mut ret_val = SgxStatus::Success;
         unsafe {
             ocall_write_data_prologue(&mut ret_val, path.as_ptr(), path.len() as _);
         }
 
         // Seal the data using the platform key.
+        let begin = unix_time(3).map_err(|_| DbError::Unknown)?;
         let buf = SealedData::<[u8]>::seal(buf, None)
             .map_err(|_| DbError::Unknown)?
             .into_bytes()
             .map_err(|_| DbError::Unknown)?;
         let file_size = buf.len() as u64;
-        verified_log!(SecretTaint, "[+] Writing {} bytes", buf.len());
 
         let batch_num = if file_size % BATCH != 0 {
             file_size / BATCH + 1
@@ -39,7 +40,6 @@ impl Persistent<String, String> for SgxPersistentLayer {
             file_size / BATCH
         };
 
-        let begin = unix_time(3).map_err(|_| DbError::Unknown)?;
         for i in 0..batch_num {
             let mut write_size = BATCH.min(file_size as u64 - i * BATCH);
 
