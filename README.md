@@ -45,7 +45,20 @@ sudo apt install -y \
   git \
   wget \
   python3 \
-  python3-pip
+  python3-pip \
+  cmake \
+  libclang-dev \
+  default-jdk \
+  llvm-10
+```
+
+Note that if you want to plot correctly, please install tex-live by `sudo apt install -y texlive-full`. For a successful compilation of TVM, please install cmake >= 3.18:
+
+```sh
+wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2> /dev/null | gpg --dearmor - | sudo tee /etc/apt/trusted.gpg.d/kitware.gpg > /dev/null
+sudo apt-add-repository 'deb https://apt.kitware.com/ubuntu/ focal main' 
+sudo apt update
+sudo apt install -y cmake 
 ```
 
 2. Install Rust:
@@ -61,6 +74,14 @@ rustup -V
 ```
 
 which automatically reads the nightly toolchain version and installs the required toolchain version and components.
+
+3. Prepare Python dependencies:
+
+```sh
+pip3 install -r ./requirements.txt
+```
+
+It is recommended that you manage the dependencies using Anaconda or pyenv.
 
 ### Verifiers
 
