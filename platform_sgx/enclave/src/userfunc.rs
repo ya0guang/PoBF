@@ -6,7 +6,7 @@ use mirai_annotations::*;
 
 #[cfg(mirai)]
 use crate::mirai_types::mirai_comp::SecretTaint;
-use crate::{log, ocall_log, println};
+use crate::{log, ocall_log, verified_log};
 
 /// A sample function used to serve as the target task for MIRAI.
 /// In order to verify that user function is correct, we need to temporarily move it to
@@ -17,9 +17,8 @@ pub fn sample_add(input: Vec<u8>) -> Vec<u8> {
     // this can be proven true by MIRAI
     #[cfg(feature = "leak_log")]
     {
-        #[cfg(mirai)]
-        verify!(does_not_have_tag!(&input[0], SecretTaint));
-        println!("The 0-th item is {} in sample_add", input[0]);
+        // Try remove this println!.
+        verified_log!(SecretTaint, "The 0-th item is {} in sample_add", input[0]);
     }
 
     let mut output = Vec::new();

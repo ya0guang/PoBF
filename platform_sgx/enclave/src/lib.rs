@@ -62,8 +62,7 @@ pub extern "C" fn private_computing_entry(
     stack: u16,
 ) -> SgxStatus {
     #[cfg(feature = "task_db")]
-    db::DUMPER
-        .call_once(|| alloc::boxed::Box::new(crate::db_persistent::SgxPersistentLayer));
+    db::DUMPER.call_once(|| alloc::boxed::Box::new(crate::db_persistent::SgxPersistentLayer));
 
     verified_log!("[+] private_computing_entry");
     cfg_if::cfg_if! {

@@ -137,6 +137,12 @@ sudo ./sgx_linux_x64_sdk_2.17.101.1.bin
 
 The installation path of the SGX SDK is expected to be set to `/opt/intel`. Do *not* change it as doing so would break the build script of PoCF. Also do *not* install SDK other than the 2.17.1 version.
 
+A one-shot installation and configuration script is located at the root directory:
+
+```sh
+./setup.sh
+```
+
 *If you want to use DCAP-baed remote attestation:*
 
 1. Add yourself to `sgx_prv` group (if you do not do this, you need to execute the enclave program with sudo privilege):
@@ -166,32 +172,64 @@ We provide a simple Python script under `pobf_verifier` that can verify:
 Sample verification:
 
 ```sh
-$ cd pobf_verifier && ./pobf-verify
+$ cd scripts && ./demo-verify.sh
+- Check if Prusti is intalled.
+  + Found Prusti.
+- Verify the PoBF framework...
+
+~/PoBF/platform_sgx/enclave ~/PoBF/scripts
 INFO checking if the source code forbids `unsafe` ...
 
 INFO checking unsafe code...
+INFO - analyzing file: ./src/mirai_types/task.rs...
+INFO   + unsafe code fobidden in ./src/mirai_types/task.rs, clear.
+INFO - analyzing file: ./src/mirai_types/mirai_comp.rs...
+INFO   + unsafe code fobidden in ./src/mirai_types/mirai_comp.rs, clear.
+INFO - analyzing file: ./src/mirai_types/mod.rs...
+INFO   + unsafe code fobidden in ./src/mirai_types/mod.rs, clear.
+INFO - analyzing file: ./src/vecaes.rs...
+INFO   + unsafe code fobidden in ./src/vecaes.rs, clear.
+INFO - analyzing file: ./src/pobf.rs...
+INFO   + unsafe code fobidden in ./src/pobf.rs, clear.
+INFO - analyzing file: ./src/dh.rs...
+INFO   + unsafe code fobidden in ./src/dh.rs, clear.
+INFO - analyzing file: ./src/bogus.rs...
+INFO   + unsafe code fobidden in ./src/bogus.rs, clear.
+INFO - analyzing file: ./src/ocall.rs...
+WARNING   + unsafe code not forbidden in ./src/ocall.rs, and this is allowed.
+INFO - analyzing file: ./src/userfunc.rs...
+INFO   + unsafe code fobidden in ./src/userfunc.rs, clear.
+INFO - analyzing file: ./src/db_persistent.rs...
+ERROR   + unsafe code not forbidden in ./src/db_persistent.rs, please add `#![forbid(unsafe_code)]` in this file!
+INFO - analyzing file: ./src/pobf_verifier.rs...
+INFO   + unsafe code fobidden in ./src/pobf_verifier.rs, clear.
+INFO - analyzing file: ./src/networking_utils.rs...
+WARNING   + unsafe code not forbidden in ./src/networking_utils.rs, and this is allowed.
+INFO - analyzing file: ./src/utils.rs...
+INFO   + unsafe code fobidden in ./src/utils.rs, clear.
+INFO - analyzing file: ./src/lib.rs...
+WARNING   + unsafe code not forbidden in ./src/lib.rs, and this is allowed.
 INFO checking if type state is consistent with the abstract model using Prusti...
 
 INFO Prusti verification passed.
 
-/home/ubuntu/PoBF/pobf_verifier
+/home/panda/PoBF/platform_sgx/entopclave
 INFO Building PoBF binary...
-make: Entering directory '/home/ubuntu'
-make: Leaving directory '/home/ubuntu'
 INFO Trying to test run the PoBF binary...
 INFO Finished!
 INFO checking possible leakage through OCALLs...
 
 INFO Checking leakage of the PoBF framework by MIRAI. The userfunc is not checked at this time.
-INFO The PoBF framework does not leak any secret according to MIRAI!
-INFO Checking leakage of the PoBF framework by MIRAI when userfunc is being executed.
+# If verified_log! is enabled.
 ERROR `no_leakage` verification failed: leakage(s) found by MIRAI.
+# If verifeid_log! is commented.
+INFO `no_leakage` verification passed: no secret leakage found by MIRAI.
 
 INFO checking possible secret residue...
 
 INFO Compiler verification started.
-INFO running [['cargo', 'build', '--message-format=json']]
-ERROR `no_residue` verification failed: secret(s) residue found by rustc.
+INFO running [['cargo', 'build', '--message-format=json', '--features=sgx,leak_log,task_sample']]
+INFO `no_residue` verification passed: no secret residue found by rustc.
 ```
 
 Indeed, the function source code of `sample_add` indeed has some potential leakage.
@@ -204,9 +242,9 @@ pub fn sample_add(input: Vec<u8>) -> Vec<u8> {
     // MIRAI can detect this bug.
     #[cfg(feature = "leak_log")]
     {
+        // Try remove this verified_log! Then MIRAI verifies.
         #[cfg(mirai)]
-        verify!(does_not_have_tag!(&input[0], SecretTaint));
-        println!("The 0-th item is {} in sample_add", input[0]);
+        verified_log!(SecretTaint, "The 0-th item is {} in sample_add", input[0]);
     }
 
     let mut output = Vec::new();
@@ -220,6 +258,12 @@ pub fn sample_add(input: Vec<u8>) -> Vec<u8> {
     output
 }
 ```
+
+> **Warning**
+>
+> Do not directly run the scripts under `pobf_verifier/pobf-verify` as the path is the incorrect.
+
+Z3 will consume a lot of memory, and we are working on this issue.
 
 ## Build and Run on SGX
 
