@@ -1,0 +1,8 @@
+# Do not install numpy >= 1.23.1 because np.bool will be missing.
+numpy==1.23.1
+pandas==2.0.2
+coloredlogs==15.0.1
+matplotlib==3.7.1
+seaborn==0.12.2
+apache-tvm==0.11.1
+mxnet==1.9.1
