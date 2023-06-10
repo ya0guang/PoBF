@@ -360,8 +360,8 @@ def main():
 
     if mirai_v:
         build()
-        prints = testflight()
-        instrument(prints)
+        # prints = testflight()
+        # instrument(prints)
         format()
         clean()
         logging.info("checking possible leakage through OCALLs...\n")
