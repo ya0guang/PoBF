@@ -229,16 +229,23 @@ INFO Finished!
 INFO checking possible leakage through OCALLs...
 
 INFO Checking leakage of the PoBF framework by MIRAI. The userfunc is not checked at this time.
-# If verified_log! is enabled.
+INFO The PoBF framework does not leak any secret according to MIRAI!
+INFO Checking leakage of the PoBF framework by MIRAI when userfunc is being executed.
+ERROR PoBF only allows printing non-secret-tainted values from within the enclave. Consider removing it?
+WARNING The detailed explaination of this error type [vio-ocall] can be found in the document.
+warning: possible false verification condition
+  --> src/userfunc.rs:21:9
+   |
+21 |         verified_log!(SecretTaint, "The 0-th item is {} in sample_add", input[0]);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
 ERROR `no_leakage` verification failed: leakage(s) found by MIRAI.
-# If verifeid_log! is commented.
-INFO `no_leakage` verification passed: no secret leakage found by MIRAI.
 
 INFO checking possible secret residue...
 
 INFO Compiler verification started.
 INFO running [['cargo', 'build', '--message-format=json', '--features=sgx,leak_log,task_sample']]
-INFO `no_residue` verification passed: no secret residue found by rustc.
 ```
 
 Indeed, the function source code of `sample_add` indeed has some potential leakage.
