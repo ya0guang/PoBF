@@ -15,6 +15,7 @@ fn main() {
     // println!("cargo:rustc-link-lib=static=sgx_dcap_tvl");
     // You may need to execute
     // sudo ln -s /usr/lib/x86_64-linux-gnu/libsgx_dcap_quoteverify.so.1 /usr/lib/x86_64-linux-gnu/libsgx_dcap_quoteverify.so
+    // sudo ln -s /usr/lib/x86_64-linux-gnu/libsgx_dcap_ql.so.1 /usr/lib/x86_64-linux-gnu/libsgx_dcap_ql.so
     println!("cargo:rustc-link-lib=dylib=sgx_dcap_quoteverify");
     println!("cargo:rustc-link-lib=dylib=sgx_dcap_ql");
 
