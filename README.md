@@ -351,3 +351,13 @@ You can also run the evaluation script `./scripts/evaluation.sh` to execute the 
 ```
 
 will run the PoBF evaluation in single-thread mode and multiple-thread mode with 8 concurrent threads. You can also modify the `TIMES` variable in the scripts to change the repetition number. The `declare -a tasks=("task_fasta")` can also be changed if there is a need to specify a preferred set of tasks. Any errors can be found in the output file `./data/task_name/output_*.txt`.
+
+# Building and Running PoCF on SEV
+
+```sh
+cd platform_sev
+cargo build -r --features=[task_name]
+
+sudo su
+export LD_LIBRARY_PATH=./attestation_lib
+```
