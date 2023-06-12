@@ -135,6 +135,15 @@ chmod +x ./sgx_linux_x64_sdk_2.17.101.1.bin
 sudo ./sgx_linux_x64_sdk_2.17.101.1.bin
 ```
 
+> **Warning**
+>
+> If the shared library `libsgx_dcap_ql.so` is not found under `/usr/lib/x86_64-linux-gnu/` after installation, please manually set up the symbolic link.
+>
+> ```sh
+  sudo ln -s /usr/lib/x86_64-linux-gnu/libsgx_dcap_quoteverify.so.1 /usr/lib/x86_64-linux-gnu/libsgx_dcap_quoteverify.so
+  sudo ln -s /usr/lib/x86_64-linux-gnu/libsgx_dcap_ql.so.1 /usr/lib/x86_64-linux-gnu/libsgx_dcap_ql.so
+>
+
 The installation path of the SGX SDK is expected to be set to `/opt/intel`. Do *not* change it as doing so would break the build script of PoCF. Also do *not* install SDK other than the 2.17.1 version.
 
 A one-shot installation and configuration script is located at the root directory:
@@ -301,7 +310,7 @@ The compiled binaries and libraries are located under `platform_sgx/{bin,lib}`. 
 $ cd platform_sgx/bin
 $ ls
 app  enclave.signed.so  enclave.so
-$ ./app 127.0.0.1 1234 # address and port
+$ ./app 127.0.0.1 1234 [page_num] # address, port, and the zeroization page number.
 [2023-06-08T06:59:34Z INFO  app] [+] Listening to 127.0.0.1:1234
 [2023-06-08T06:59:34Z INFO  app] [+] Initializing the enclave. May take a while...
 [2023-06-08T07:00:03Z INFO  app] [+] Init Enclave Successful, eid: 2!
@@ -310,6 +319,7 @@ $ ./app 127.0.0.1 1234 # address and port
 To connect to the remote enclave, you need to run the data provider. We provide with a sample data provider that can be found under `data_provider`. The following command build and run it with a custom manifest as its input.
 
 ```sh
+# Do not forget!
 cd data_provider && make -j
 cd bin && ./data_provider run ../manifest.json
 ```
@@ -334,3 +344,10 @@ The manifest specifies the behavior of the data provider:
 
 Some pre-generated data is located under `data/task_name/data.bin` along with the corresponding manifest file.
 
+You can also run the evaluation script `./scripts/evaluation.sh` to execute the corresponding task. For example:
+
+```sh
+./evaluation.sh 8 pobf
+```
+
+will run the PoBF evaluation in single-thread mode and multiple-thread mode with 8 concurrent threads. You can also modify the `TIMES` variable in the scripts to change the repetition number. The `declare -a tasks=("task_fasta")` can also be changed if there is a need to specify a preferred set of tasks. Any errors can be found in the output file `./data/task_name/output_*.txt`.
