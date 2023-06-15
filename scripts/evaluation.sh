@@ -37,7 +37,7 @@ fi
 
 pushd .. > /dev/null
 # declare -a tasks=("task_tvm" "task_fann" "task_fasta" "task_polybench" "task_sample")
-declare -a tasks=("task_sample" )
+declare -a tasks=("task_polybench")
 
 declare -a polybench_tasks=("_2mm" "_3mm" "atax" "bicg" "cholesky" "correlation" "covariance" "deriche" "doitgen" "durbin" "fdtd_2d" "floyd_warshall" "gemm" "gemver" "gesummv" "gramschmidt" "heat_3d" "jacobi_1d" "jacobi_2d" "lu" "ludcmp" "mvt" "nussinov" "seidel_2d" "symm" "syr2k" "syrk" "trisolv" "trmm" "adi")
 # declare -a polybench_tasks=("_2mm" "_3mm" "atax" "bicg" "cholesky")

@@ -34,6 +34,9 @@ eval
 *.params
 *.pdf
 
+# Do not ignore Python dependencies.
+!requirements.txt
+
 # Coq
 *.aux
 *.vo*

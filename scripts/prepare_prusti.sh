@@ -17,7 +17,7 @@
 
 commit="ee91e7772e764c910b1e6638f609ad5da0a791a7"
 rust_comp="rust-src rustc-dev llvm-tools-preview rustfmt rust-analysis"
-rust_toolchain=$(cat ../rust-toolchain)
+rust_toolchain=$(awk '$1 == "channel" {print $3}' ../rust-toolchain | tr -d \")
 prusti_path="$HOME/.local/prusti"
 
 # Clone this repo.
@@ -28,8 +28,8 @@ pushd $HOME/prusti-dev > /dev/null
 git checkout ${commit}
 
 echo "[+] Preparing the Rust toolkit..."
-rustup component add --toolchain ${rust_toolchain} ${rust_comp}
 rustup override set $rust_toolchain
+rustup component add --toolchain ${rust_toolchain} ${rust_comp}
 echo "[+] Rust toolkit successfully configured!"
 ./x.py setup && ./x.py build --release
 mkdir -p ${prusti_path} && ./x.py package release ${prusti_path}

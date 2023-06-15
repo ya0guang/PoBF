@@ -3,10 +3,10 @@
 MAGENTA="\033[0;35m"
 NC="\033[0m"
 
-allow_unsafe="lib.rs ocall.rs networking_utils.rs"
+allow_unsafe="lib.rs ocall.rs networking_utils.rs db_persistent.rs"
 features="sgx,leak_log,task_sample"
 
-export PATH="$(pwd)/../verifier/:$HOME/.local/prusti/:$PATH"
+export PATH="$(pwd)/../pobf_verifier/:$HOME/.local/prusti/:$PATH"
 export SGX_MODE=HW
 export PRUSTI_LOG=ERROR
 export TASK=mirai_sample
